@@ -34,3 +34,17 @@ Thumbs.db
 # Temporary files
 *.tmp
 .cache/
+
+# Reference binaries and large files
+reference/*.exe
+reference/**/*.exe
+reference/**/*.mp4
+reference/**/*.mov
+reference/**/*.avi
+reference/**/*.mkv
+reference/ffmpeg*
+reference/教程/*.mp4
+
+# Large binary files in reference directory
+reference/temp/
+reference/20*/
