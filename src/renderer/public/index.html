@@ -816,12 +816,61 @@
 
         const result = await response.json();
         showResult('character-result', result.success, result.error || '角色创建成功', result.data);
+        if (result.success) {
+          // 刷新角色库
+          loadCharacterLibrary();
+        }
       } catch (error) {
         showResult('character-result', false, `网络错误: ${error.message}`);
       } finally {
         setLoading('character-loading', 'character-create-btn', false);
       }
     });
+
+    // 从历史记录创建角色（使用 from_task 参数）
+    async function createCharacterFromTask(taskId, platform) {
+      const timestamps = '1,3'; // 默认使用 1-3 秒
+
+      if (!confirm(`要从任务 ${taskId} 创建角色吗？\n\n使用时间范围: 1-3秒`)) {
+        return;
+      }
+
+      // 显示加载提示
+      const loadingDiv = document.createElement('div');
+      loadingDiv.className = 'result-box show';
+      loadingDiv.style.background = '#fff3cd';
+      loadingDiv.style.color = '#856404';
+      loadingDiv.innerHTML = '<div class="spinner-inline"></div> 正在创建角色...';
+      document.body.appendChild(loadingDiv);
+
+      try {
+        const response = await fetch(`${API_BASE}/character/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: platform,
+            from_task: taskId,
+            timestamps: timestamps,
+          }),
+        });
+
+        const result = await response.json();
+
+        // 移除加载提示
+        document.body.removeChild(loadingDiv);
+
+        if (result.success) {
+          alert(`✅ 角色创建成功！\n\n角色ID: ${result.data.id}\n用户名: ${result.data.username}\n\n已自动保存到角色库。`);
+          // 刷新角色库
+          loadCharacterLibrary();
+        } else {
+          alert(`❌ 角色创建失败\n\n${result.error}`);
+        }
+      } catch (error) {
+        document.body.removeChild(loadingDiv);
+        alert(`❌ 网络错误: ${error.message}`);
+      }
+    }
 
     // 查询任务
     document.getElementById('task-query-btn').addEventListener('click', async () => {
@@ -919,6 +968,7 @@
         const statusClass = record.status;
         const createdAt = new Date(record.createdAt).toLocaleString('zh-CN');
         const platformName = record.platform === 'juxin' ? '聚鑫' : '贞贞';
+        const isCompleted = record.status === 'completed' || record.status === 'SUCCESS';
 
         html += `
           <div class="history-item">
@@ -937,6 +987,12 @@
             ${record.result?.output ? `
               <div class="history-item-video">
                 <video controls src="${record.result.output}" style="max-height: 300px;"></video>
+              </div>
+            ` : ''}
+            ${isCompleted ? `
+              <div style="margin-top: 12px; display: flex; gap: 8px;">
+                <button class="btn btn-sm btn-secondary" onclick="createCharacterFromTask('${record.taskId}', '${record.platform}')">👤 创建角色</button>
+                <button class="btn btn-sm btn-secondary" onclick="copyToClipboard('${record.taskId}')">复制ID</button>
               </div>
             ` : ''}
             ${record.error ? `<div style="color: #721c24; font-size: 13px; margin-top: 8px;">❌ ${record.error}</div>` : ''}
