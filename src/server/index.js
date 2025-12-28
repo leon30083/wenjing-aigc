@@ -12,6 +12,7 @@ const cors = require('cors');
 const Sora2Client = require('./sora2-client');
 const BatchQueue = require('./batch-queue');
 const HistoryStorage = require('./history-storage');
+const CharacterStorage = require('./character-storage');
 
 const app = express();
 const PORT = 9000;
@@ -21,6 +22,9 @@ const batchQueue = new BatchQueue();
 
 // 创建历史记录存储实例
 const historyStorage = new HistoryStorage();
+
+// 创建角色库存储实例
+const characterStorage = new CharacterStorage();
 
 // 中间件
 app.use(cors());
@@ -139,10 +143,116 @@ app.post('/api/video/storyboard', async (req, res) => {
  */
 app.post('/api/character/create', async (req, res) => {
   try {
-    const { platform = 'juxin', ...options } = req.body;
+    const { platform = 'zhenzhen', url, timestamps, from_task } = req.body;
     const client = getClient(platform);
-    const result = await client.createCharacter(options);
+    const result = await client.createCharacter({ url, timestamps, from_task });
+
+    // 保存到角色库
+    if (result.success && result.data) {
+      characterStorage.addCharacter({
+        id: result.data.id,
+        username: result.data.username,
+        permalink: result.data.permalink,
+        profilePictureUrl: result.data.profile_picture_url,
+        sourceVideoUrl: url,
+        platform: platform,
+        timestamps: timestamps,
+        fromTask: from_task,
+      });
+    }
+
     res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// ==================== 角色库管理 ====================
+
+/**
+ * 获取角色库列表
+ * GET /api/character/list
+ */
+app.get('/api/character/list', (req, res) => {
+  try {
+    const { limit, skip, platform } = req.query;
+    const characters = characterStorage.getAllCharacters({
+      limit: limit ? parseInt(limit) : undefined,
+      skip: skip ? parseInt(skip) : undefined,
+      platform,
+    });
+    res.json({ success: true, data: characters });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 获取角色库统计信息
+ * GET /api/character/stats
+ */
+app.get('/api/character/stats', (req, res) => {
+  try {
+    const stats = characterStorage.getStats();
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 获取单个角色详情
+ * GET /api/character/:characterId
+ */
+app.get('/api/character/:characterId', (req, res) => {
+  try {
+    const { characterId } = req.params;
+    const character = characterStorage.getCharacter(characterId);
+    if (!character) {
+      return res.json({ success: false, error: 'Character not found' });
+    }
+    res.json({ success: true, data: character });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 搜索角色
+ * GET /api/character/search/:query
+ */
+app.get('/api/character/search/:query', (req, res) => {
+  try {
+    const { query } = req.params;
+    const characters = characterStorage.searchCharacters(query);
+    res.json({ success: true, data: characters });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 删除角色
+ * DELETE /api/character/:characterId
+ */
+app.delete('/api/character/:characterId', (req, res) => {
+  try {
+    const { characterId } = req.params;
+    const deleted = characterStorage.deleteCharacter(characterId);
+    res.json({ success: true, data: { deleted } });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 清空所有角色
+ * DELETE /api/character/all
+ */
+app.delete('/api/character/all', (req, res) => {
+  try {
+    characterStorage.clearAll();
+    res.json({ success: true, data: { message: 'All characters cleared' } });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }

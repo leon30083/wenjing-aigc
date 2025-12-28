@@ -1,9 +1,12 @@
 # Sora2 API 开发最佳实践
 
-**更新日期**: 2025-12-28
+**更新日期**: 2025-12-29
 **项目**: WinJin AIGC
 **支持平台**: 聚鑫 (api.jxincm.cn) / 贞贞 (ai.t8star.cn)
 **参考文档**: `E:\User\GitHub\winjin\reference\用户输入文件夹/`
+
+**更新记录**:
+- 2025-12-29: 新增角色库管理、from_task 创建方式、持久化存储最佳实践
 
 ---
 
@@ -126,6 +129,8 @@ function convertStatus(juxinStatus) {
 
 ⚠️ **重要**: 不要传递 `model` 参数！
 
+#### 方法 1: 从视频 URL 创建
+
 ```javascript
 const response = await axios.post('https://api.jxincm.cn/sora/v1/characters', {
   url: 'https://video-url.com/file.mp4',
@@ -134,6 +139,49 @@ const response = await axios.post('https://api.jxincm.cn/sora/v1/characters', {
   headers: { 'Authorization': 'Bearer <sk-key>' }
 });
 ```
+
+**问题**: 直接使用视频 URL 可能会遇到"请求上游地址失败"错误，因为：
+- 视频 URL 可能有防盗链保护
+- 视频 URL 可能已过期
+- 视频需要特殊 headers 才能访问
+
+#### 方法 2: 从已完成的视频任务创建 (推荐) ✅
+
+```javascript
+// 1. 先创建视频任务
+const videoResponse = await axios.post('https://ai.t8star.cn/v1/video/create', {
+  model: 'sora-2',
+  prompt: 'A cat sleeping on a windowsill',
+  // ... 其他参数
+});
+
+const taskId = videoResponse.data.task_id;
+
+// 2. 等待视频任务完成
+const taskResult = await waitForTaskCompletion(taskId);
+
+// 3. 从完成的任务创建角色
+const characterResponse = await axios.post('https://ai.t8star.cn/sora/v1/characters', {
+  from_task: taskId,  // 使用 from_task 而不是 url
+  timestamps: '1,3'
+}, {
+  headers: { 'Authorization': 'Bearer <sk-key>' }
+});
+
+// 返回:
+{
+  "id": "ch_xxx",
+  "username": "df4c928fa.kittenauro",
+  "display_name": "Kitten Aura",
+  "permalink": "https://sora.chatgpt.com/profile/xxx",
+  "profile_picture_url": "https://xxx.jpg"
+}
+```
+
+**优势**:
+- ✅ 不需要担心视频 URL 的可访问性
+- ✅ 视频已经由平台处理过，更可靠
+- ✅ 适用于从任何平台生成的视频创建角色
 
 ---
 
@@ -279,5 +327,237 @@ src/server/
 
 ---
 
-**最后更新**: 2025-12-28
+## 10. 角色库管理 (Character Library)
+
+### 10.1 设计模式
+
+角色库管理遵循与历史记录相同的设计模式：
+
+```javascript
+class CharacterStorage {
+  constructor() {
+    this.dataDir = path.join(process.cwd(), 'data');
+    this.charactersFile = path.join(this.dataDir, 'characters.json');
+    this.characters = this._load();
+  }
+
+  _load() {
+    if (fs.existsSync(this.charactersFile)) {
+      return JSON.parse(fs.readFileSync(this.charactersFile, 'utf-8'));
+    }
+    return [];
+  }
+
+  _save() {
+    fs.writeFileSync(this.charactersFile, JSON.stringify(this.characters, null, 2), 'utf-8');
+  }
+
+  addCharacter(character) {
+    // 检查是否已存在
+    const existingIndex = this.characters.findIndex(c => c.id === character.id);
+    if (existingIndex !== -1) {
+      // 更新现有角色
+      this.characters[existingIndex] = {
+        ...this.characters[existingIndex],
+        ...character,
+        updatedAt: new Date().toISOString(),
+      };
+    } else {
+      // 添加新角色（最新的在前面）
+      this.characters.unshift({
+        ...character,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    this._save();
+  }
+}
+```
+
+### 10.2 角色创建自动保存
+
+在创建角色的 API 端点中自动保存到角色库：
+
+```javascript
+app.post('/api/character/create', async (req, res) => {
+  const { platform, url, timestamps, from_task } = req.body;
+  const client = getClient(platform);
+  const result = await client.createCharacter({ url, timestamps, from_task });
+
+  // 自动保存到角色库
+  if (result.success && result.data) {
+    characterStorage.addCharacter({
+      id: result.data.id,
+      username: result.data.username,
+      permalink: result.data.permalink,
+      profilePictureUrl: result.data.profile_picture_url,
+      sourceVideoUrl: url,
+      platform: platform,
+      timestamps: timestamps,
+      fromTask: from_task,  // 记录来源任务
+    });
+  }
+
+  res.json(result);
+});
+```
+
+### 10.3 API 端点设计
+
+| 端点 | 方法 | 功能 |
+|------|------|------|
+| `/api/character/create` | POST | 创建角色（自动保存到库） |
+| `/api/character/list` | GET | 获取角色列表（支持分页、平台筛选） |
+| `/api/character/stats` | GET | 获取统计信息 |
+| `/api/character/:characterId` | GET | 获取单个角色详情 |
+| `/api/character/search/:query` | GET | 搜索角色（按用户名或ID） |
+| `/api/character/:characterId` | DELETE | 删除角色 |
+| `/api/character/all` | DELETE | 清空所有角色 |
+
+### 10.4 前端实现要点
+
+**角色卡片显示**:
+```javascript
+function displayCharacter(character) {
+  return `
+    <div class="character-item">
+      <img src="${character.profilePictureUrl}" class="avatar">
+      <h3>${character.username}</h3>
+      <p>🆔 ${character.id}</p>
+      <p>🌐 ${character.platform === 'zhenzhen' ? '贞贞' : '聚鑫'}</p>
+      <p>📅 ${new Date(character.createdAt).toLocaleString()}</p>
+      <a href="${character.permalink}" target="_blank">查看主页</a>
+      <button onclick="deleteCharacter('${character.id}')">删除</button>
+    </div>
+  `;
+}
+```
+
+**搜索功能（防抖处理）**:
+```javascript
+let searchTimeout;
+searchInput.addEventListener('input', (e) => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    searchCharacter(e.target.value);
+  }, 500);  // 500ms 防抖
+});
+```
+
+### 10.5 最佳实践
+
+1. **使用 from_task 优先**: 推荐从已完成的视频任务创建角色，而不是直接使用视频 URL
+2. **自动保存**: 角色创建成功后自动保存到角色库，不需要用户手动操作
+3. **更新策略**: 如果角色 ID 已存在，则更新而不是重复添加
+4. **时间戳记录**: 记录 createdAt 和 updatedAt，便于追踪
+5. **搜索优化**: 搜索使用不区分大小写的模糊匹配
+
+---
+
+## 11. 持久化存储最佳实践
+
+### 11.1 JSON 文件存储
+
+**优点**:
+- ✅ 简单直观，易于调试
+- ✅ 人类可读，便于手动编辑
+- ✅ 不需要额外的数据库服务
+- ✅ 适合中小规模数据
+
+**实现要点**:
+```javascript
+class Storage {
+  constructor(filePath) {
+    this.filePath = path.join(process.cwd(), 'data', filePath);
+    this.ensureDataDir();
+    this.data = this.load();
+  }
+
+  ensureDataDir() {
+    const dir = path.dirname(this.filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  }
+
+  load() {
+    try {
+      if (fs.existsSync(this.filePath)) {
+        return JSON.parse(fs.readFileSync(this.filePath, 'utf-8'));
+      }
+    } catch (error) {
+      console.error(`加载 ${this.filePath} 失败:`, error.message);
+    }
+    return this.getDefaultData();
+  }
+
+  save() {
+    try {
+      fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8');
+    } catch (error) {
+      console.error(`保存 ${this.filePath} 失败:`, error.message);
+    }
+  }
+}
+```
+
+### 11.2 数据目录结构
+
+```
+E:\User\GitHub\winjin/
+├── data/
+│   ├── history.json      # 历史记录
+│   └── characters.json   # 角色库
+├── downloads/            # 视频下载目录（自动创建）
+└── src/
+    └── server/
+```
+
+### 11.3 .gitignore 配置
+
+```
+# 数据和下载
+data/
+downloads/
+
+# 但保留目录结构（可选）
+!data/.gitkeep
+!downloads/.gitkeep
+```
+
+### 11.4 数据备份建议
+
+```javascript
+// 定期备份功能
+class BackupStorage extends Storage {
+  backup() {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupPath = this.filePath.replace('.json', `.backup.${timestamp}.json`);
+    fs.copyFileSync(this.filePath, backupPath);
+    console.log(`备份已创建: ${backupPath}`);
+  }
+}
+
+// 每天自动备份
+setInterval(() => {
+  historyStorage.backup();
+  characterStorage.backup();
+}, 24 * 60 * 60 * 1000);
+```
+
+---
+
+## 12. 常见问题补充
+
+| 现象 | 原因 | 解决方案 |
+|------|------|----------|
+| **"任务还在进行中"** | 创建角色时视频任务未完成 | 等待任务状态为 SUCCESS 后再创建 |
+| **"任务 not found"** | 使用了错误的任务ID或任务已过期 | 先查询任务状态确认存在 |
+| **"请求上游地址失败"** | 视频 URL 无法访问 | 使用 from_task 参数代替 url |
+| **角色库显示"暂无角色"** | 角色创建失败或未自动保存 | 检查服务器日志，确认角色创建成功 |
+
+---
+
+**最后更新**: 2025-12-29
 **维护者**: WinJin AIGC Team

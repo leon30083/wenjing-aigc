@@ -12,18 +12,5 @@
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-context7"]
     }
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "npx prettier --write \"{file}\""
-          }
-        ]
-      }
-    ]
   }
 }

@@ -100,21 +100,31 @@ const TIMEOUT = 600000;       // 10分钟
 const POLL_INTERVAL = 5000;   // 太短！
 ```
 
-### 角色创建规范
+### 角色创建规范 ⭐
 
 ```javascript
-// ✅ 正确：不传 model 参数
-await axios.post('/sora/v1/characters', {
-  url: videoUrl,
-  timestamps: '1,3'
-});
-
 // ❌ 错误：传递 model 参数会导致 404
 await axios.post('/sora/v1/characters', {
   model: 'sora-2',  // ❌ 删除此行
   url: videoUrl,
   timestamps: '1,3'
 });
+
+// ⚠️ 可用：从视频 URL 创建（可能遇到访问问题）
+await axios.post('/sora/v1/characters', {
+  url: videoUrl,
+  timestamps: '1,3'
+});
+
+// ✅ 推荐：从已完成的视频任务创建（更可靠）
+// 先等待视频任务完成
+const taskResult = await waitForTaskCompletion(taskId);
+if (taskResult.status === 'SUCCESS') {
+  const character = await axios.post('/sora/v1/characters', {
+    from_task: taskId,  // 使用 from_task 参数
+    timestamps: '1,3'
+  });
+}
 ```
 
 ## API 路由规范
@@ -134,6 +144,32 @@ app.post('/api/video/create', async (req, res) => {
       prompt,
       model,
       options
+    });
+  }
+
+  res.json(result);
+});
+```
+
+### 创建角色 - 自动保存到角色库 ⭐
+
+```javascript
+app.post('/api/character/create', async (req, res) => {
+  const { platform, url, timestamps, from_task } = req.body;
+  const client = getClient(platform);
+  const result = await client.createCharacter({ url, timestamps, from_task });
+
+  // 自动保存到角色库
+  if (result.success && result.data) {
+    characterStorage.addCharacter({
+      id: result.data.id,
+      username: result.data.username,
+      permalink: result.data.permalink,
+      profilePictureUrl: result.data.profile_picture_url,
+      sourceVideoUrl: url,
+      platform: platform,
+      timestamps: timestamps,
+      fromTask: from_task,
     });
   }
 
@@ -162,10 +198,12 @@ src/server/
 ├── sora2-client.js      # API 客户端（封装双平台逻辑）
 ├── batch-queue.js       # 批量任务队列（支持自动下载）
 ├── history-storage.js   # 历史记录存储（JSON文件持久化）
+├── character-storage.js # 角色库存储（JSON文件持久化）⭐
 └── index.js            # Express 服务器
 
 data/
-└── history.json         # 历史记录持久化存储
+├── history.json         # 历史记录持久化存储
+└── characters.json      # 角色库持久化存储 ⭐
 
 downloads/               # 视频下载目录（自动创建）
 ```
@@ -213,6 +251,23 @@ setInterval(() => checkStatus(taskId), 5000);
 
 // ✅ 正确：30秒间隔
 setInterval(() => checkStatus(taskId), 30000);
+```
+
+### 错误4: 创建角色时传递 from_task 参数不完整
+```javascript
+// ❌ 错误：只传递 url，不支持 from_task
+app.post('/api/character/create', async (req, res) => {
+  const { url, timestamps } = req.body;
+  const result = await client.createCharacter({ url, timestamps });
+  res.json(result);
+});
+
+// ✅ 正确：同时支持 url 和 from_task
+app.post('/api/character/create', async (req, res) => {
+  const { url, timestamps, from_task } = req.body;
+  const result = await client.createCharacter({ url, timestamps, from_task });
+  res.json(result);
+});
 ```
 
 ## 开发参考
