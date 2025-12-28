@@ -268,6 +268,104 @@
       max-width: 100%;
       border-radius: 8px;
     }
+
+    /* 历史记录样式 */
+    .history-item {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: all 0.2s;
+    }
+
+    .history-item:hover {
+      background: #f0f1f3;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .history-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .history-item-title {
+      font-weight: 600;
+      color: #333;
+      flex: 1;
+    }
+
+    .history-item-status {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .history-item-status.completed {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .history-item-status.failed {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .history-item-status.queued,
+    .history-item-status.processing {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .history-item-prompt {
+      color: #555;
+      font-size: 14px;
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+
+    .history-item-meta {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+      color: #777;
+      flex-wrap: wrap;
+    }
+
+    .history-item-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .history-item-task-id {
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 11px;
+      word-break: break-all;
+    }
+
+    .history-item-video {
+      margin-top: 12px;
+    }
+
+    .history-item-video video {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+
+    .history-empty {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 13px;
+    }
   </style>
 </head>
 <body>
@@ -289,6 +387,7 @@
       <button class="tab" data-tab="storyboard">故事板（批量）</button>
       <button class="tab" data-tab="character">创建角色</button>
       <button class="tab" data-tab="task">查询任务</button>
+      <button class="tab" data-tab="history">历史记录</button>
     </div>
 
     <!-- 文生视频 -->
@@ -429,6 +528,23 @@
       </div>
       <div class="result-box" id="task-result"></div>
       <div class="video-preview" id="video-preview"></div>
+    </div>
+
+    <!-- 历史记录 -->
+    <div class="tab-content" id="history-tab">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 style="font-size: 18px; color: #333;">历史记录</h2>
+        <div>
+          <button class="btn btn-secondary" id="history-refresh-btn" style="padding: 8px 16px;">刷新</button>
+          <button class="btn btn-secondary" id="history-stats-btn" style="padding: 8px 16px;">统计</button>
+        </div>
+      </div>
+      <div class="loading" id="history-loading">
+        <div class="spinner"></div>
+        <p>正在加载...</p>
+      </div>
+      <div id="history-list"></div>
+      <div class="result-box" id="history-stats-result"></div>
     </div>
   </div>
 
@@ -652,6 +768,125 @@
       } finally {
         setLoading('task-loading', 'task-query-btn', false);
       }
+    });
+
+    // ==================== 历史记录 ====================
+
+    // 状态文本映射
+    const statusTextMap = {
+      'queued': '等待中',
+      'processing': '处理中',
+      'completed': '已完成',
+      'failed': '失败',
+    };
+
+    // 加载历史记录
+    async function loadHistory() {
+      document.getElementById('history-loading').classList.add('show');
+      document.getElementById('history-list').innerHTML = '';
+      document.getElementById('history-stats-result').classList.remove('show');
+
+      try {
+        const response = await fetch(`${API_BASE}/history/list`);
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          const records = result.data;
+          if (records.length === 0) {
+            document.getElementById('history-list').innerHTML = `
+              <div class="history-empty">
+                <p>暂无历史记录</p>
+              </div>
+            `;
+          } else {
+            displayHistoryRecords(records);
+          }
+        } else {
+          document.getElementById('history-list').innerHTML = `
+            <div class="history-empty">
+              <p style="color: #721c24;">加载失败: ${result.error || '未知错误'}</p>
+            </div>
+          `;
+        }
+      } catch (error) {
+        document.getElementById('history-list').innerHTML = `
+          <div class="history-empty">
+            <p style="color: #721c24;">网络错误: ${error.message}</p>
+          </div>
+        `;
+      } finally {
+        document.getElementById('history-loading').classList.remove('show');
+      }
+    }
+
+    // 显示历史记录列表
+    function displayHistoryRecords(records) {
+      const container = document.getElementById('history-list');
+      let html = '';
+
+      records.forEach(record => {
+        const statusText = statusTextMap[record.status] || record.status;
+        const statusClass = record.status;
+        const createdAt = new Date(record.createdAt).toLocaleString('zh-CN');
+        const platformName = record.platform === 'juxin' ? '聚鑫' : '贞贞';
+
+        html += `
+          <div class="history-item">
+            <div class="history-item-header">
+              <div class="history-item-title">
+                <span style="color: #667eea;">[${platformName}]</span>
+                ${record.model}
+              </div>
+              <span class="history-item-status ${statusClass}">${statusText}</span>
+            </div>
+            <div class="history-item-prompt">${record.prompt}</div>
+            <div class="history-item-meta">
+              <span>📅 ${createdAt}</span>
+              <span class="history-item-task-id">🆔 ${record.taskId}</span>
+            </div>
+            ${record.result?.output ? `
+              <div class="history-item-video">
+                <video controls src="${record.result.output}" style="max-height: 300px;"></video>
+              </div>
+            ` : ''}
+            ${record.error ? `<div style="color: #721c24; font-size: 13px; margin-top: 8px;">❌ ${record.error}</div>` : ''}
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // 刷新按钮
+    document.getElementById('history-refresh-btn').addEventListener('click', loadHistory);
+
+    // 统计按钮
+    document.getElementById('history-stats-btn').addEventListener('click', async () => {
+      try {
+        const response = await fetch(`${API_BASE}/history/stats`);
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          const stats = result.data;
+          showResult('history-stats-result', true, `
+            <strong>统计信息</strong><br>
+            总记录数: ${stats.total}<br>
+            已完成: ${stats.byStatus.completed || 0}<br>
+            失败: ${stats.byStatus.failed || 0}<br>
+            等待中: ${stats.byStatus.queued || 0}<br>
+            已下载: ${stats.downloaded || 0}
+          `);
+        } else {
+          showResult('history-stats-result', false, result.error || '获取统计失败');
+        }
+      } catch (error) {
+        showResult('history-stats-result', false, `网络错误: ${error.message}`);
+      }
+    });
+
+    // 切换到历史记录标签时自动加载
+    document.querySelector('[data-tab="history"]').addEventListener('click', () => {
+      loadHistory();
     });
   </script>
 </body>

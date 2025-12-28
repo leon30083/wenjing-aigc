@@ -160,6 +160,25 @@ app.get('/api/task/:taskId', async (req, res) => {
     const { platform = 'juxin' } = req.query;
     const client = getClient(platform);
     const result = await client.getTaskStatus(taskId);
+
+    // 自动更新历史记录
+    if (result.success && result.data) {
+      const { status, data } = result.data;
+
+      // 任务完成
+      if (status === 'SUCCESS' && data) {
+        historyStorage.markCompleted(taskId, data);
+      }
+      // 任务失败
+      else if (status === 'FAILURE') {
+        historyStorage.markFailed(taskId, data?.fail_reason || 'Task failed');
+      }
+      // 处理中
+      else if (status === 'IN_PROGRESS') {
+        historyStorage.updateRecord(taskId, { status: 'processing' });
+      }
+    }
+
     res.json(result);
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -179,6 +198,20 @@ app.get('/api/task/:taskId/wait', async (req, res) => {
       interval: parseInt(interval),
       timeout: parseInt(timeout),
     });
+
+    // 更新历史记录
+    if (result.success && result.data) {
+      const { status, data } = result.data;
+
+      if (status === 'SUCCESS' && data) {
+        historyStorage.markCompleted(taskId, data);
+      } else if (status === 'FAILURE') {
+        historyStorage.markFailed(taskId, data?.fail_reason || 'Task failed');
+      } else if (status === 'IN_PROGRESS') {
+        historyStorage.updateRecord(taskId, { status: 'processing' });
+      }
+    }
+
     res.json(result);
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -198,6 +231,10 @@ app.post('/api/video/download', async (req, res) => {
     }
     const client = getClient(platform);
     const filePath = await client.downloadVideo(taskId, downloadDir);
+
+    // 记录下载路径到历史记录
+    historyStorage.recordDownload(taskId, filePath);
+
     res.json({ success: true, data: { filePath } });
   } catch (error) {
     res.json({ success: false, error: error.message });
