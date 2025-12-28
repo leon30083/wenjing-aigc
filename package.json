@@ -1,0 +1,37 @@
+{
+  "name": "winjin",
+  "version": "2.0.0",
+  "description": "WinJin AIGC - 开源重构版本",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\"",
+    "dev:renderer": "vite",
+    "dev:main": "nodemon --exec electron . --watch src/main",
+    "build": "vite build && electron-builder",
+    "build:dir": "vite build && electron-builder --dir",
+    "server": "node src/server/index.js"
+  },
+  "keywords": [
+    "aigc",
+    "sora2",
+    "comfyui",
+    "video-generation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.5",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2",
+    "form-data": "^4.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron-builder": "^24.9.1",
+    "nodemon": "^3.0.2",
+    "prettier": "^3.2.5",
+    "vite": "^5.0.12"
+  }
+}

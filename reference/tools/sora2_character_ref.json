@@ -1,0 +1,11 @@
+{
+  "duration": 15,
+  "images": [
+    "https://example.com/character_ref.png"
+  ],
+  "model": "sora-2",
+  "orientation": "landscape",
+  "prompt": "人设参考图仅用于风格与人物形象锚点，不作为原始帧输入。0~2s：开场特写；2~13s：走位与表情变化；13~15s：定格画面与口播。",
+  "size": "large",
+  "watermark": false
+}

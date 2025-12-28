@@ -1,0 +1,8 @@
+=================head===============
+https://api.jxincm.cn/v1/video/create=================post===============
+{"duration":15,"images":["https://wenjinghuashi.oss-cn-beijing.aliyuncs.com/1426002172/1763453612241.png"],"model":"sora-2","orientation":"landscape","prompt":"这视频是动漫风格,现代,制作高质量内容，如果有参考图，图不要作为原始帧输入仅参考，中文配音，严格对口型\n\n视频时间轴：[Global Style: Commercial Broadcast Graphics, split-screen layout] Cinematography:\r\rCamera Framing: Split Screen (Left/Right)\r\rLens/style cues: Dynamic motion graphics. Mood: Educational, Rhythmic Environment: Split screen: Left shows Lower 'W', Right shows Upper 'M'.\r\rTimeline (15s total): 0.0~2.0 秒: [静态画面：分屏起始帧]。 2.0~13.0 秒: [AI判断文稿 \"分屏同步播放...节奏加快\" 并生成动画。\r\r2.0~13.0 秒: 左边屏幕演示下排牙齿的“W”路径清洁，右边屏幕演示上排牙齿的“M”路径清洁。两边的金色轨迹同时闪烁，水流冲刷的动作同步加速，形成一种强烈的视觉韵律感]。 13.0~15.0 秒: [静态画面：分屏演示的最后定格]。","size":"large","watermark":false}
+=================head===============
+Authorization:Bearer sk-Q6DwAtsNvutSlaZXYAzXR39pUmwKHAHDgll0QifCL5GbwJd7
+Content-Type:application/json
+=================body===============
+{"id":"video_7b1b817c-be94-49dc-9b43-640c239bf6d3","object":"video","model":"sora-2","status":"queued","progress":0,"created_at":1763453615,"seconds":"15","size":"1280x720"}

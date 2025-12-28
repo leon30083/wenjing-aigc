@@ -1,0 +1,22 @@
+{
+    "name": "doubao",
+    "manifest_version": 3,
+    "version": "1.0",
+    "background": {
+        "service_worker": "background.js"
+    },
+    "permissions": [
+        "storage",
+        "tabs"
+    ],
+    "description": "Extension",
+    "content_scripts": [
+        {
+            "matches": ["https://*.doubao.com/chat/*","https://*.kimi.com/*"],
+            "js": [
+                "script.js",
+                "comm.js"
+            ]
+        }
+    ]
+}

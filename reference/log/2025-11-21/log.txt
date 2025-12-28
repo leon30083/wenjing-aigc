@@ -1,0 +1,24 @@
+[日志]
+2025-11-21 15:40:04 [SUCCE] 退出检测开始CModularSettingUpdateComfy=成功
+2025-11-21 15:40:04 [SUCCE] 退出检测成功CModularSettingUpdateComfy=成功
+2025-11-21 21:07:47 [SUCCE] 退出检测开始CModularSettingUpdateComfy=成功
+2025-11-21 21:07:47 [SUCCE] 退出检测成功CModularSettingUpdateComfy=成功
+2025-11-21 21:08:38 [SUCCE] 退出检测开始CModularSettingUpdateComfy=成功
+2025-11-21 21:08:38 [SUCCE] 退出检测成功CModularSettingUpdateComfy=成功
+2025-11-21 21:11:29 [SUCCE] 退出检测开始CModularSettingUpdateComfy=成功
+2025-11-21 21:11:29 [SUCCE] 退出检测成功CModularSettingUpdateComfy=成功
+2025-11-21 21:11:36 [SUCCE] D:\Program Files\QQ\liaotianjilu\Tencent Files/1426002172/nt_qq/nt_db/nt_msg.db=成功
+2025-11-21 21:11:36 [SUCCE] find fileD:\Program Files\QQ\liaotianjilu\Tencent Files/1426002172/nt_qq/nt_db/nt_msg.db=成功
+2025-11-21 21:11:36 [SUCCE] searching-1426002172.. : ?????????? E:\User\OneDrive\???\WindowsPowerShell\profile.ps1?????????????????н?????й?????????????? https:/go.microsoft.com/fwlink/?LinkID=135170 ?е? about_Execution_Policies??????λ?? ??:1 ???: 3+ . 'E:\User\OneDrive\???\WindowsPowerShell\profile.ps1'+   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    + CategoryInfo          : SecurityError: (:) []??PSSecurityException    + FullyQualifiedErrorId : UnauthorizedAccess. : ?????????? E:\User\OneDrive\???\WindowsPowerShell\Microsoft.PowerShell_profile.ps1?????????????????н?????й?????????????? https:/go.microsoft.com/fwlink/?LinkID=135170 ?е? about_Execution_Policies??????λ?? ??:1 ???: 3+ . 'E:\User\OneDrive\???\WindowsPowerShell\Microsoft.PowerShell_profile ...+   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    + CategoryInfo          : SecurityError: (:) []??PSSecurityException    + FullyQualifiedErrorId : UnauthorizedAccess03FF0210-04E0-05D8-1206-410700080009=成功
+2025-11-21 21:11:52 [SUCCE] 退出检测开始CModularSettingUpdateComfy=成功
+2025-11-21 21:11:52 [SUCCE] 退出检测成功CModularSettingUpdateComfy=成功
+2025-11-21 21:12:51 [SUCCE] D:\Program Files\QQ\liaotianjilu\Tencent Files/1426002172/nt_qq/nt_db/nt_msg.db=成功
+2025-11-21 21:12:51 [SUCCE] find fileD:\Program Files\QQ\liaotianjilu\Tencent Files/1426002172/nt_qq/nt_db/nt_msg.db=成功
+2025-11-21 21:12:51 [SUCCE] searching-1426002172.. : ?????????? E:\User\OneDrive\???\WindowsPowerShell\profile.ps1?????????????????н?????й?????????????? https:/go.microsoft.com/fwlink/?LinkID=135170 ?е? about_Execution_Policies??????λ?? ??:1 ???: 3+ . 'E:\User\OneDrive\???\WindowsPowerShell\profile.ps1'+   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    + CategoryInfo          : SecurityError: (:) []??PSSecurityException    + FullyQualifiedErrorId : UnauthorizedAccess. : ?????????? E:\User\OneDrive\???\WindowsPowerShell\Microsoft.PowerShell_profile.ps1?????????????????н?????й?????????????? https:/go.microsoft.com/fwlink/?LinkID=135170 ?е? about_Execution_Policies??????λ?? ??:1 ???: 3+ . 'E:\User\OneDrive\???\WindowsPowerShell\Microsoft.PowerShell_profile ...+   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    + CategoryInfo          : SecurityError: (:) []??PSSecurityException    + FullyQualifiedErrorId : UnauthorizedAccess03FF0210-04E0-05D8-1206-410700080009=成功
+2025-11-21 21:13:52 [SUCCE] 退出检测开始CModularSettingUpdateComfy=成功
+2025-11-21 21:13:52 [SUCCE] 退出检测成功CModularSettingUpdateComfy=成功
+2025-11-21 21:19:42 [SUCCE] D:\Program Files\QQ\liaotianjilu\Tencent Files/1426002172/nt_qq/nt_db/nt_msg.db=成功
+2025-11-21 21:19:42 [SUCCE] find fileD:\Program Files\QQ\liaotianjilu\Tencent Files/1426002172/nt_qq/nt_db/nt_msg.db=成功
+2025-11-21 21:19:42 [SUCCE] searching-1426002172.. : ?????????? E:\User\OneDrive\???\WindowsPowerShell\profile.ps1?????????????????н?????й?????????????? https:/go.microsoft.com/fwlink/?LinkID=135170 ?е? about_Execution_Policies??????λ?? ??:1 ???: 3+ . 'E:\User\OneDrive\???\WindowsPowerShell\profile.ps1'+   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    + CategoryInfo          : SecurityError: (:) []??PSSecurityException    + FullyQualifiedErrorId : UnauthorizedAccess. : ?????????? E:\User\OneDrive\???\WindowsPowerShell\Microsoft.PowerShell_profile.ps1?????????????????н?????й?????????????? https:/go.microsoft.com/fwlink/?LinkID=135170 ?е? about_Execution_Policies??????λ?? ??:1 ???: 3+ . 'E:\User\OneDrive\???\WindowsPowerShell\Microsoft.PowerShell_profile ...+   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~    + CategoryInfo          : SecurityError: (:) []??PSSecurityException    + FullyQualifiedErrorId : UnauthorizedAccess03FF0210-04E0-05D8-1206-410700080009=成功
+2025-11-21 21:19:46 [SUCCE] 退出检测开始CModularSettingUpdateComfy=成功
+2025-11-21 21:19:46 [SUCCE] 退出检测成功CModularSettingUpdateComfy=成功

@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WinJin AIGC - 视频生成</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: rgba(255, 255, 255, 0.95);
+      padding: 24px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .header h1 {
+      color: #333;
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .platform-selector {
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .platform-selector label {
+      font-weight: 600;
+      color: #555;
+    }
+
+    .platform-selector select {
+      padding: 8px 16px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .tab {
+      padding: 12px 24px;
+      background: rgba(255, 255, 255, 0.9);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 500;
+      color: #555;
+      transition: all 0.2s;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .tab:hover {
+      background: rgba(255, 255, 255, 1);
+      transform: translateY(-2px);
+    }
+
+    .tab.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .tab-content {
+      display: none;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .form-group textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 16px;
+    }
+
+    .form-row .form-group {
+      flex: 1;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+
+    .result-box {
+      margin-top: 20px;
+      padding: 16px;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .result-box.success {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+
+    .result-box.error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+
+    .result-box.show {
+      display: block;
+    }
+
+    .shots-container {
+      margin-top: 16px;
+    }
+
+    .shot-item {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: flex-start;
+    }
+
+    .shot-item input {
+      flex: 1;
+    }
+
+    .shot-item input[type='number'] {
+      flex: 0 0 100px;
+    }
+
+    .shot-item button {
+      padding: 8px 16px;
+      background: #f0f0f0;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .shot-item button:hover {
+      background: #e0e0e0;
+    }
+
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .loading.show {
+      display: block;
+    }
+
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .video-preview {
+      margin-top: 16px;
+    }
+
+    .video-preview video {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎬 WinJin AIGC</h1>
+      <p>Sora2 视频生成工具 - 支持聚鑫/贞贞双平台</p>
+      <div class="platform-selector">
+        <label for="platform-select">选择平台：</label>
+        <select id="platform-select">
+          <option value="juxin">聚鑫 (api.jxincm.cn)</option>
+          <option value="zhenzhen">贞贞 (ai.t8star.cn)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="video">文生视频</button>
+      <button class="tab" data-tab="storyboard">故事板（批量）</button>
+      <button class="tab" data-tab="character">创建角色</button>
+      <button class="tab" data-tab="task">查询任务</button>
+    </div>
+
+    <!-- 文生视频 -->
+    <div class="tab-content active" id="video-tab">
+      <div class="form-group">
+        <label for="video-prompt">提示词</label>
+        <textarea id="video-prompt" placeholder="描述你想要生成的视频内容..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="video-model">模型</label>
+          <select id="video-model">
+            <option value="sora-2">Sora-2</option>
+            <option value="sora-2-pro">Sora-2 Pro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="video-orientation">画面方向</label>
+          <select id="video-orientation">
+            <option value="landscape">横屏 (16:9)</option>
+            <option value="portrait">竖屏 (9:16)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="video-duration">时长（秒）</label>
+          <select id="video-duration">
+            <option value="10">10秒</option>
+            <option value="15">15秒</option>
+            <option value="25">25秒</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="video-size">分辨率</label>
+          <select id="video-size">
+            <option value="small">标清</option>
+            <option value="large">高清</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="video-watermark">水印</label>
+          <select id="video-watermark">
+            <option value="false">无水印</option>
+            <option value="true">有水印</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="video-create-btn">创建视频</button>
+      <div class="loading" id="video-loading">
+        <div class="spinner"></div>
+        <p>正在创建视频...</p>
+      </div>
+      <div class="result-box" id="video-result"></div>
+    </div>
+
+    <!-- 故事板 -->
+    <div class="tab-content" id="storyboard-tab">
+      <div class="form-group">
+        <label>镜头列表</label>
+        <div class="shots-container" id="shots-container">
+          <div class="shot-item">
+            <input type="number" placeholder="时长(秒)" value="5" class="shot-duration" />
+            <input type="text" placeholder="场景描述" class="shot-scene" />
+            <button class="btn-remove-shot">删除</button>
+          </div>
+        </div>
+        <button class="btn btn-secondary" id="add-shot-btn" style="margin-top: 12px;">+ 添加镜头</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="storyboard-model">模型</label>
+          <select id="storyboard-model">
+            <option value="sora-2">Sora-2</option>
+            <option value="sora-2-pro">Sora-2 Pro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="storyboard-orientation">画面方向</label>
+          <select id="storyboard-orientation">
+            <option value="landscape">横屏 (16:9)</option>
+            <option value="portrait">竖屏 (9:16)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="storyboard-size">分辨率</label>
+          <select id="storyboard-size">
+            <option value="small">标清</option>
+            <option value="large">高清</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="storyboard-create-btn">创建故事板视频</button>
+      <div class="loading" id="storyboard-loading">
+        <div class="spinner"></div>
+        <p>正在创建故事板视频...</p>
+      </div>
+      <div class="result-box" id="storyboard-result"></div>
+    </div>
+
+    <!-- 创建角色 -->
+    <div class="tab-content" id="character-tab">
+      <div class="form-group">
+        <label for="character-url">视频链接</label>
+        <input type="text" id="character-url" placeholder="输入视频 URL..." />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="character-start">开始时间（秒）</label>
+          <input type="number" id="character-start" value="1" min="0" step="0.1" />
+        </div>
+        <div class="form-group">
+          <label for="character-end">结束时间（秒）</label>
+          <input type="number" id="character-end" value="3" min="0" step="0.1" />
+        </div>
+      </div>
+      <p style="color: #666; font-size: 13px; margin-bottom: 16px;">
+        注意：时间范围差值必须是 1-3 秒
+      </p>
+      <button class="btn btn-primary" id="character-create-btn">创建角色</button>
+      <div class="loading" id="character-loading">
+        <div class="spinner"></div>
+        <p>正在创建角色...</p>
+      </div>
+      <div class="result-box" id="character-result"></div>
+    </div>
+
+    <!-- 查询任务 -->
+    <div class="tab-content" id="task-tab">
+      <div class="form-group">
+        <label for="task-id">任务 ID</label>
+        <input type="text" id="task-id" placeholder="输入任务 ID..." />
+      </div>
+      <button class="btn btn-primary" id="task-query-btn">查询任务状态</button>
+      <div class="loading" id="task-loading">
+        <div class="spinner"></div>
+        <p>正在查询...</p>
+      </div>
+      <div class="result-box" id="task-result"></div>
+      <div class="video-preview" id="video-preview"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:9000/api';
+    let currentPlatform = 'juxin';
+
+    // 平台切换
+    document.getElementById('platform-select').addEventListener('change', (e) => {
+      currentPlatform = e.target.value;
+      console.log('Switched to platform:', currentPlatform);
+    });
+
+    // 标签页切换
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
+      });
+    });
+
+    // 通用结果显示
+    function showResult(elementId, success, message, data) {
+      const resultBox = document.getElementById(elementId);
+      resultBox.className = `result-box ${success ? 'success' : 'error'} show`;
+      let html = `<strong>${success ? '成功' : '失败'}</strong><br>${message}`;
+      if (data && success) {
+        html += `<br><pre>${JSON.stringify(data, null, 2)}</pre>`;
+      }
+      resultBox.innerHTML = html;
+    }
+
+    // 通用加载状态
+    function setLoading(loadingId, btnId, loading) {
+      const loadingEl = document.getElementById(loadingId);
+      const btn = document.getElementById(btnId);
+      if (loading) {
+        loadingEl.classList.add('show');
+        btn.disabled = true;
+      } else {
+        loadingEl.classList.remove('show');
+        btn.disabled = false;
+      }
+    }
+
+    // 创建视频
+    document.getElementById('video-create-btn').addEventListener('click', async () => {
+      const prompt = document.getElementById('video-prompt').value.trim();
+      if (!prompt) {
+        showResult('video-result', false, '请输入提示词');
+        return;
+      }
+
+      setLoading('video-loading', 'video-create-btn', true);
+
+      try {
+        const response = await fetch(`${API_BASE}/video/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: currentPlatform,
+            prompt: prompt,
+            model: document.getElementById('video-model').value,
+            orientation: document.getElementById('video-orientation').value,
+            duration: parseInt(document.getElementById('video-duration').value),
+            size: document.getElementById('video-size').value,
+            watermark: document.getElementById('video-watermark').value === 'true',
+            private: true,
+            images: [],
+          }),
+        });
+
+        const result = await response.json();
+        showResult('video-result', result.success, result.error || '任务已创建', result.data);
+      } catch (error) {
+        showResult('video-result', false, `网络错误: ${error.message}`);
+      } finally {
+        setLoading('video-loading', 'video-create-btn', false);
+      }
+    });
+
+    // 故事板 - 添加/删除镜头
+    document.getElementById('add-shot-btn').addEventListener('click', () => {
+      const container = document.getElementById('shots-container');
+      const shotItem = document.createElement('div');
+      shotItem.className = 'shot-item';
+      shotItem.innerHTML = `
+        <input type="number" placeholder="时长(秒)" value="5" class="shot-duration" />
+        <input type="text" placeholder="场景描述" class="shot-scene" />
+        <button class="btn-remove-shot">删除</button>
+      `;
+      container.appendChild(shotItem);
+      shotItem.querySelector('.btn-remove-shot').addEventListener('click', () => {
+        shotItem.remove();
+      });
+    });
+
+    document.querySelectorAll('.btn-remove-shot').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.target.closest('.shot-item').remove();
+      });
+    });
+
+    // 创建故事板视频
+    document.getElementById('storyboard-create-btn').addEventListener('click', async () => {
+      const shots = [];
+      document.querySelectorAll('.shot-item').forEach(item => {
+        const duration = item.querySelector('.shot-duration').value;
+        const scene = item.querySelector('.shot-scene').value.trim();
+        if (scene) {
+          shots.push({ duration: parseFloat(duration), scene });
+        }
+      });
+
+      if (shots.length === 0) {
+        showResult('storyboard-result', false, '请至少添加一个镜头');
+        return;
+      }
+
+      setLoading('storyboard-loading', 'storyboard-create-btn', true);
+
+      try {
+        const response = await fetch(`${API_BASE}/video/storyboard`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: currentPlatform,
+            shots: shots,
+            model: document.getElementById('storyboard-model').value,
+            orientation: document.getElementById('storyboard-orientation').value,
+            size: document.getElementById('storyboard-size').value,
+            watermark: false,
+            private: true,
+            images: [],
+          }),
+        });
+
+        const result = await response.json();
+        showResult('storyboard-result', result.success, result.error || '故事板任务已创建', result.data);
+      } catch (error) {
+        showResult('storyboard-result', false, `网络错误: ${error.message}`);
+      } finally {
+        setLoading('storyboard-loading', 'storyboard-create-btn', false);
+      }
+    });
+
+    // 创建角色
+    document.getElementById('character-create-btn').addEventListener('click', async () => {
+      const url = document.getElementById('character-url').value.trim();
+      const start = document.getElementById('character-start').value;
+      const end = document.getElementById('character-end').value;
+
+      if (!url) {
+        showResult('character-result', false, '请输入视频链接');
+        return;
+      }
+
+      const timestamps = `${start},${end}`;
+      const diff = end - start;
+      if (diff < 1 || diff > 3) {
+        showResult('character-result', false, '时间范围差值必须是 1-3 秒');
+        return;
+      }
+
+      setLoading('character-loading', 'character-create-btn', true);
+
+      try {
+        const response = await fetch(`${API_BASE}/character/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: currentPlatform,
+            url: url,
+            timestamps: timestamps,
+          }),
+        });
+
+        const result = await response.json();
+        showResult('character-result', result.success, result.error || '角色创建成功', result.data);
+      } catch (error) {
+        showResult('character-result', false, `网络错误: ${error.message}`);
+      } finally {
+        setLoading('character-loading', 'character-create-btn', false);
+      }
+    });
+
+    // 查询任务
+    document.getElementById('task-query-btn').addEventListener('click', async () => {
+      const taskId = document.getElementById('task-id').value.trim();
+      if (!taskId) {
+        showResult('task-result', false, '请输入任务 ID');
+        return;
+      }
+
+      setLoading('task-loading', 'task-query-btn', true);
+      document.getElementById('video-preview').innerHTML = '';
+
+      try {
+        const response = await fetch(`${API_BASE}/task/${taskId}?platform=${currentPlatform}`);
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          const data = result.data;
+          let message = `状态: ${data.status}`;
+          if (data.status === 'SUCCESS' && data.data?.output) {
+            message += '<br>视频已生成完成！';
+            document.getElementById('video-preview').innerHTML = `
+              <video controls src="${data.data.output}"></video>
+            `;
+          } else if (data.status === 'FAILURE') {
+            message += `<br>失败原因: ${data.fail_reason || '未知错误'}`;
+          }
+          showResult('task-result', true, message, data);
+        } else {
+          showResult('task-result', false, result.error || '查询失败');
+        }
+      } catch (error) {
+        showResult('task-result', false, `网络错误: ${error.message}`);
+      } finally {
+        setLoading('task-loading', 'task-query-btn', false);
+      }
+    });
+  </script>
+</body>
+</html>

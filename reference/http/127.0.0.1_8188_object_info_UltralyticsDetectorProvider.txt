@@ -1,0 +1,5 @@
+=================head===============
+http://127.0.0.1:8188/object_info/UltralyticsDetectorProvider=================post===============
+=================head===============
+=================body===============
+{"UltralyticsDetectorProvider": {"input": {"required": {"model_name": [[]]}}, "input_order": {"required": ["model_name"]}, "output": ["BBOX_DETECTOR", "SEGM_DETECTOR"], "output_is_list": [false, false], "output_name": ["BBOX_DETECTOR", "SEGM_DETECTOR"], "name": "UltralyticsDetectorProvider", "display_name": "UltralyticsDetector", "description": "", "python_module": "custom_nodes.comfyui-impact-pack", "category": "ImpactPack", "output_node": false}}

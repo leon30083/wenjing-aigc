@@ -1,0 +1,6 @@
+=================head===============
+http://127.0.0.1:8188/prompt=================post===============
+{"client_id":"75B474B4-AE9B-43c0-A07D-8D9C9D23D4BD","prompt":{"3":{"_meta":{"title":"加载图像"},"class_type":"LoadImage","inputs":{"image":"31.png"}},"85":{"_meta":{"title":"预览图像"},"class_type":"PreviewImage","inputs":{"images":["86",0]}},"86":{"_meta":{"title":"Remove Background (RMBG)"},"class_type":"RMBG","inputs":{"background":"white","image":["3",0],"invert_output":false,"mask_blur":0,"mask_offset":0,"model":"RMBG-2.0","optimize":"default","process_res":1024,"refine_foreground":false,"sensitivity":1}},"90":{"_meta":{"title":"Get Image Size"},"class_type":"GetImageSize","inputs":{"image":["3",0]}}}}
+=================head===============
+=================body===============
+{"prompt_id": "40d9aab7-2bdb-450b-821f-ef7516c879c9", "number": 29, "node_errors": {}}

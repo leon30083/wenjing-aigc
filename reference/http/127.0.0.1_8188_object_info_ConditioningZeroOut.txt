@@ -1,0 +1,5 @@
+=================head===============
+http://127.0.0.1:8188/object_info/ConditioningZeroOut=================post===============
+=================head===============
+=================body===============
+{"ConditioningZeroOut": {"input": {"required": {"conditioning": ["CONDITIONING"]}}, "input_order": {"required": ["conditioning"]}, "output": ["CONDITIONING"], "output_is_list": [false], "output_name": ["CONDITIONING"], "name": "ConditioningZeroOut", "display_name": "ConditioningZeroOut", "description": "", "python_module": "nodes", "category": "advanced/conditioning", "output_node": false}}

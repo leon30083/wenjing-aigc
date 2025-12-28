@@ -1,0 +1,5 @@
+=================head===============
+http://127.0.0.1:8188/object_info/VAELoader=================post===============
+=================head===============
+=================body===============
+{"VAELoader": {"input": {"required": {"vae_name": [["VAE_FLUX.safetensors", "qwen\\qwen_image_vae.safetensors", "video\\Wan2_1_VAE_bf16.safetensors", "pixel_space"]]}}, "input_order": {"required": ["vae_name"]}, "output": ["VAE"], "output_is_list": [false], "output_name": ["VAE"], "name": "VAELoader", "display_name": "Load VAE", "description": "", "python_module": "nodes", "category": "loaders", "output_node": false}}

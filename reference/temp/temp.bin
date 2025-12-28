@@ -1,0 +1,25 @@
+comfyui-frontend-package
+comfyui-workflow-templates
+torch
+torchsde
+torchvision
+torchaudio
+numpy>=1.25.0
+einops
+tokenizers>=0.13.3
+sentencepiece
+safetensors>=0.4.2
+aiohttp>=3.11.8
+yarl>=1.18.0
+pyyaml
+Pillow
+scipy
+tqdm
+psutil
+
+#non essential dependencies:
+bitsandbytes==0.45.5
+kornia>=0.7.1
+spandrel
+soundfile
+av

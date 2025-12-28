@@ -1,0 +1,5 @@
+=================head===============
+http://127.0.0.1:8188/object_info/ModelSamplingFlux=================post===============
+=================head===============
+=================body===============
+{"ModelSamplingFlux": {"input": {"required": {"model": ["MODEL"], "max_shift": ["FLOAT", {"default": 1.15, "min": 0.0, "max": 100.0, "step": 0.01}], "base_shift": ["FLOAT", {"default": 0.5, "min": 0.0, "max": 100.0, "step": 0.01}], "width": ["INT", {"default": 1024, "min": 16, "max": 16384, "step": 8}], "height": ["INT", {"default": 1024, "min": 16, "max": 16384, "step": 8}]}}, "input_order": {"required": ["model", "max_shift", "base_shift", "width", "height"]}, "output": ["MODEL"], "output_is_list": [false], "output_name": ["MODEL"], "name": "ModelSamplingFlux", "display_name": "ModelSamplingFlux", "description": "", "python_module": "comfy_extras.nodes_model_advanced", "category": "advanced/model", "output_node": false}}

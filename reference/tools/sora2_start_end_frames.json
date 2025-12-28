@@ -1,0 +1,12 @@
+{
+  "duration": 12,
+  "images": [
+    "https://example.com/start_frame.png",
+    "https://example.com/end_frame.png"
+  ],
+  "model": "sora-2",
+  "orientation": "portrait",
+  "prompt": "第一张图为开场固定构图，最后一张图为收尾定格。0~2s：首帧静止；2~10s：推轨/转身/光效增强过渡；10~12s：过渡到尾帧并定格。",
+  "size": "large",
+  "watermark": false
+}
