@@ -13,11 +13,17 @@ import './App.css';
 
 // Import test nodes
 import TextNode from './nodes/input/TextNode';
+import ReferenceImageNode from './nodes/input/ReferenceImageNode';
+import CharacterSelectNode from './nodes/input/CharacterSelectNode';
+import CharacterLibraryNode from './nodes/input/CharacterLibraryNode';
 import VideoNode from './nodes/process/VideoNode';
 
 // Node types configuration (moved outside component to avoid re-creation)
 const nodeTypes = {
   textNode: TextNode,
+  referenceImageNode: ReferenceImageNode,
+  characterSelectNode: CharacterSelectNode,
+  characterLibraryNode: CharacterLibraryNode,
   videoNode: VideoNode,
 };
 
@@ -26,13 +32,31 @@ const initialNodes = [
   {
     id: '1',
     type: 'textNode',
-    position: { x: 100, y: 100 },
+    position: { x: 50, y: 50 },
     data: { label: '提示词输入', value: '一只可爱的猫咪在花园里玩耍' },
   },
   {
     id: '2',
+    type: 'referenceImageNode',
+    position: { x: 50, y: 200 },
+    data: { label: '参考图片', images: [] },
+  },
+  {
+    id: '3',
+    type: 'characterSelectNode',
+    position: { x: 50, y: 350 },
+    data: { label: '角色选择', selectedUsername: null },
+  },
+  {
+    id: '4',
+    type: 'characterLibraryNode',
+    position: { x: 50, y: 500 },
+    data: { label: '角色库' },
+  },
+  {
+    id: '5',
     type: 'videoNode',
-    position: { x: 400, y: 100 },
+    position: { x: 400, y: 200 },
     data: { label: '视频生成' },
   },
 ];
