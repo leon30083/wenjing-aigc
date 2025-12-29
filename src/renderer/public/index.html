@@ -801,6 +801,7 @@
       video: null,
       storyboard: null
     };
+    let lastFocusedSceneInput = null; // 记录最后焦点的场景输入框
 
     // 加载角色到网格
     async function loadCharactersToGrid(gridId, type) {
@@ -895,36 +896,62 @@
     function updatePromptWithCharacter(type, username) {
       if (type === 'video') {
         const promptElement = document.getElementById('video-prompt');
-        const currentPrompt = promptElement.value;
-        const roleRefRegex = /@[a-z0-9_.]+/gi;
+        if (!promptElement) return;
 
-        // 移除现有角色引用
-        const cleanPrompt = currentPrompt.replace(roleRefRegex, '').trim();
-
-        // 添加新角色引用（如果选中了角色）
         if (username) {
-          promptElement.value = `@${username} ${cleanPrompt}`.trim();
-        } else {
-          promptElement.value = cleanPrompt;
+          // 在光标位置插入角色引用
+          const start = promptElement.selectionStart;
+          const end = promptElement.selectionEnd;
+          const text = promptElement.value;
+          const refText = `@${username} `;
+
+          // 在光标位置插入
+          promptElement.value = text.substring(0, start) + refText + text.substring(end);
+          // 移动光标到插入内容之后
+          promptElement.setSelectionRange(start + refText.length, start + refText.length);
+          // 重新聚焦
+          promptElement.focus();
         }
       } else if (type === 'storyboard') {
-        // 更新所有场景描述
-        const sceneInputs = document.querySelectorAll('.shot-scene');
-        const roleRefRegex = /@[a-z0-9_.]+/gi;
-
-        sceneInputs.forEach(input => {
-          const currentScene = input.value;
-          // 移除现有角色引用
-          const cleanScene = currentScene.replace(roleRefRegex, '').trim();
-
-          // 添加新角色引用（如果选中了角色）
-          if (username) {
-            input.value = `@${username} ${cleanScene}`.trim();
-          } else {
-            input.value = cleanScene;
+        // 使用最后焦点的场景输入框，如果没有则使用当前焦点的
+        let targetInput = lastFocusedSceneInput;
+        if (!targetInput || !document.body.contains(targetInput)) {
+          // 如果没有记录的焦点或元素已不存在，尝试使用当前焦点
+          const activeElement = document.activeElement;
+          if (activeElement && activeElement.classList.contains('shot-scene')) {
+            targetInput = activeElement;
           }
-        });
+        }
+
+        if (targetInput && username) {
+          const start = targetInput.selectionStart;
+          const end = targetInput.selectionEnd;
+          const text = targetInput.value;
+          const refText = `@${username} `;
+
+          // 在光标位置插入
+          targetInput.value = text.substring(0, start) + refText + text.substring(end);
+          // 移动光标到插入内容之后
+          targetInput.setSelectionRange(start + refText.length, start + refText.length);
+          // 重新聚焦
+          targetInput.focus();
+        }
       }
+    }
+
+    // 为场景输入框添加焦点监听
+    function setupSceneInputListeners() {
+      document.querySelectorAll('.shot-scene').forEach(input => {
+        // 移除旧的监听器（如果有）
+        input.removeEventListener('focus', handleSceneFocus);
+        // 添加新的监听器
+        input.addEventListener('focus', handleSceneFocus);
+      });
+    }
+
+    // 处理场景输入框焦点事件
+    function handleSceneFocus(e) {
+      lastFocusedSceneInput = e.target;
     }
 
     // 文生视频 - 角色刷新按钮
@@ -940,6 +967,9 @@
     // 页面加载时自动加载角色列表
     loadCharactersToGrid('video-character-grid', 'video');
     loadCharactersToGrid('storyboard-character-grid', 'storyboard');
+
+    // 为初始的场景输入框添加焦点监听
+    setupSceneInputListeners();
 
     // 创建视频
     document.getElementById('video-create-btn').addEventListener('click', async () => {
@@ -988,6 +1018,11 @@
         <button class="btn-remove-shot">删除</button>
       `;
       container.appendChild(shotItem);
+
+      // 为新场景输入框添加焦点监听
+      const sceneInput = shotItem.querySelector('.shot-scene');
+      sceneInput.addEventListener('focus', handleSceneFocus);
+
       shotItem.querySelector('.btn-remove-shot').addEventListener('click', () => {
         shotItem.remove();
       });
