@@ -20,6 +20,8 @@ import CharacterLibraryNode from './nodes/input/CharacterLibraryNode';
 import CharacterCreateNode from './nodes/process/CharacterCreateNode';
 import VideoGenerateNode from './nodes/process/VideoGenerateNode';
 import StoryboardNode from './nodes/process/StoryboardNode';
+import TaskResultNode from './nodes/output/TaskResultNode';
+import ExecutionLogNode from './nodes/output/ExecutionLogNode';
 
 // Node types configuration (moved outside component to avoid re-creation)
 const nodeTypes = {
@@ -30,6 +32,8 @@ const nodeTypes = {
   characterCreateNode: CharacterCreateNode,
   videoGenerateNode: VideoGenerateNode,
   storyboardNode: StoryboardNode,
+  taskResultNode: TaskResultNode,
+  executionLogNode: ExecutionLogNode,
 };
 
 // Initial nodes for testing
@@ -60,24 +64,38 @@ const initialNodes = [
     data: { label: '角色库' },
   },
 
-  // Process Nodes (right column)
+  // Process Nodes (middle column)
   {
     id: '5',
     type: 'characterCreateNode',
-    position: { x: 400, y: 30 },
+    position: { x: 350, y: 30 },
     data: { label: '角色生成' },
   },
   {
     id: '6',
     type: 'videoGenerateNode',
-    position: { x: 400, y: 230 },
+    position: { x: 350, y: 230 },
     data: { label: '视频生成' },
   },
   {
     id: '7',
     type: 'storyboardNode',
-    position: { x: 400, y: 420 },
+    position: { x: 350, y: 420 },
     data: { label: '故事板' },
+  },
+
+  // Output Nodes (right column)
+  {
+    id: '8',
+    type: 'taskResultNode',
+    position: { x: 650, y: 200 },
+    data: { label: '任务结果' },
+  },
+  {
+    id: '9',
+    type: 'executionLogNode',
+    position: { x: 650, y: 400 },
+    data: { label: '执行日志', logs: [] },
   },
 ];
 
