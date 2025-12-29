@@ -101,6 +101,18 @@ paths: *
 - 角色客串在场景中活动：`@username 在参考图片场景中活动`
 - 提示词需要描述角色在场景中的具体活动
 
+### 历史记录管理 API ⭐ 新增
+
+**删除单条记录**:
+- **端点**: `DELETE /api/history/:taskId`
+- **参数**: `taskId` - 任务 ID（路径参数）
+- **响应**: `{ success: true, data: { deleted: true } }`
+
+**清空所有记录**:
+- **端点**: `DELETE /api/history/all`
+- **响应**: `{ success: true, data: { message: 'All records cleared' } }`
+- **⚠️ 注意**: 前端应实现二次确认机制，防止误操作
+
 ## 轮询策略
 
 ### 后台自动轮询服务

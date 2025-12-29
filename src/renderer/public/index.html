@@ -786,9 +786,10 @@
     <div class="tab-content" id="history-tab">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <h2 style="font-size: 18px; color: #333;">历史记录</h2>
-        <div>
+        <div style="display: flex; gap: 8px;">
           <button class="btn btn-secondary" id="history-refresh-btn" style="padding: 8px 16px;">刷新</button>
           <button class="btn btn-secondary" id="history-stats-btn" style="padding: 8px 16px;">统计</button>
+          <button class="btn btn-danger" id="history-clear-btn" style="padding: 8px 16px;">清空全部</button>
         </div>
       </div>
       <div class="loading" id="history-loading">
@@ -1420,6 +1421,7 @@
                 <button class="btn btn-sm btn-primary" onclick="queryTaskStatus('${record.taskId}', '${record.platform}', this)">🔄 查询状态</button>
                 <button class="btn btn-sm btn-secondary" onclick="copyToClipboard('${record.taskId}')">复制ID</button>
               `}
+              <button class="btn btn-sm btn-danger" onclick="deleteHistoryRecord('${record.taskId}')">🗑️ 删除</button>
             </div>
             ${record.error ? `<div style="color: #721c24; font-size: 13px; margin-top: 8px;">❌ ${record.error}</div>` : ''}
           </div>
@@ -1496,6 +1498,68 @@
         buttonElement.innerHTML = originalText;
       }
     }
+
+    /**
+     * 删除单条历史记录
+     */
+    async function deleteHistoryRecord(taskId) {
+      // 确认删除
+      if (!confirm(`确定要删除这条历史记录吗？\n\n任务ID: ${taskId}`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/history/${taskId}`, {
+          method: 'DELETE'
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          alert('✅ 删除成功');
+          // 重新加载历史记录
+          loadHistory();
+        } else {
+          alert(`❌ 删除失败\n\n${result.error || '未知错误'}`);
+        }
+      } catch (error) {
+        alert(`❌ 网络错误: ${error.message}`);
+      }
+    }
+
+    /**
+     * 清空所有历史记录
+     */
+    async function clearAllHistory() {
+      // 确认清空
+      if (!confirm('⚠️ 确定要清空所有历史记录吗？\n\n此操作不可恢复！')) {
+        return;
+      }
+
+      // 二次确认
+      if (!confirm('⚠️ 再次确认：真的要清空所有历史记录吗？')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/history/all`, {
+          method: 'DELETE'
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          alert('✅ 已清空所有历史记录');
+          // 重新加载历史记录
+          loadHistory();
+        } else {
+          alert(`❌ 清空失败\n\n${result.error || '未知错误'}`);
+        }
+      } catch (error) {
+        alert(`❌ 网络错误: ${error.message}`);
+      }
+    }
+
+    // 绑定清空全部按钮事件
+    document.getElementById('history-clear-btn').addEventListener('click', clearAllHistory);
 
     // ==================== 角色库 ====================
 

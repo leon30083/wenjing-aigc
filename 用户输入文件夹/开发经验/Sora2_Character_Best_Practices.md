@@ -6,6 +6,7 @@
 **参考文档**: `D:\user\github\winjin\reference\用户输入文件夹/`
 
 **更新记录**:
+- 2025-12-29: 新增历史记录管理功能（单条删除、清空全部）⭐
 - 2025-12-29: 新增参考图片功能、图生视频模式、角色与图片混合使用 ⭐
 - 2025-12-29: 新增双平台响应格式差异处理、角色引用语法、后台轮询服务、角色库增强功能
 - 2025-12-29: 新增角色库管理、from_task 创建方式、持久化存储最佳实践
@@ -1383,6 +1384,332 @@ function updatePromptWithCharacter(username) {
 | **故事板镜头图片丢失** | shot.image 字段未正确传递 | 检查前端收集逻辑，确保每个镜头的图片都被收集 |
 | **角色引用不生效** | 格式错误 `@{username}` | 使用正确格式 `@username`（不带花括号） |
 | **参考图片和角色冲突** | 提示词未明确两者关系 | 在提示词中描述角色在场景中的活动 |
+
+---
+
+## 15. 历史记录管理 (History Management) ⭐ 新增
+
+### 15.1 功能概述
+
+历史记录管理功能允许用户删除不需要的视频生成记录，保持界面整洁。
+
+**功能对比**:
+
+| 功能 | 操作 | 确认机制 | 刷新 |
+|------|------|----------|------|
+| **单条删除** | 点击记录旁的"🗑️ 删除"按钮 | 一次确认 | 自动刷新列表 |
+| **清空全部** | 点击顶部"清空全部"按钮 | 二次确认 | 自动刷新列表 |
+
+**关键特性**:
+- ✅ 所有删除操作都需要用户确认
+- ✅ 清空全部操作有双重确认机制
+- ✅ 删除成功后自动刷新历史记录列表
+- ✅ 删除失败显示详细错误信息
+- ✅ 支持按任务ID删除单条记录
+
+### 15.2 后端 API 实现
+
+#### 15.2.1 删除单条记录
+
+**端点**: `DELETE /api/history/:taskId`
+
+**实现代码**:
+```javascript
+app.delete('/api/history/:taskId', (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const deleted = historyStorage.deleteRecord(taskId);
+    res.json({ success: true, data: { deleted } });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+```
+
+**响应格式**:
+```javascript
+// 成功
+{ success: true, data: { deleted: true } }
+
+// 失败
+{ success: false, error: "Record not found" }
+```
+
+#### 15.2.2 清空所有记录
+
+**端点**: `DELETE /api/history/all`
+
+**实现代码**:
+```javascript
+app.delete('/api/history/all', (req, res) => {
+  try {
+    historyStorage.clearAll();
+    res.json({ success: true, data: { message: 'All records cleared' } });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+```
+
+**响应格式**:
+```javascript
+// 成功
+{ success: true, data: { message: 'All records cleared' } }
+
+// 失败
+{ success: false, error: "Clear failed" }
+```
+
+### 15.3 前端实现
+
+#### 15.3.1 删除单条记录
+
+**HTML 结构**:
+```html
+<div class="history-item">
+  <!-- 记录信息 -->
+  <button class="btn btn-sm btn-danger" onclick="deleteHistoryRecord('${record.taskId}')">
+    🗑️ 删除
+  </button>
+</div>
+```
+
+**JavaScript 实现**:
+```javascript
+async function deleteHistoryRecord(taskId) {
+  // 第一步：确认删除
+  if (!confirm(`确定要删除这条历史记录吗？\n\n任务ID: ${taskId}`)) {
+    return; // 用户取消
+  }
+
+  try {
+    // 第二步：调用删除 API
+    const response = await fetch(`${API_BASE}/history/${taskId}`, {
+      method: 'DELETE'
+    });
+    const result = await response.json();
+
+    // 第三步：处理响应
+    if (result.success) {
+      alert('✅ 删除成功');
+      // 第四步：重新加载历史记录列表
+      loadHistory();
+    } else {
+      alert(`❌ 删除失败\n\n${result.error || '未知错误'}`);
+    }
+  } catch (error) {
+    alert(`❌ 网络错误: ${error.message}`);
+  }
+}
+```
+
+#### 15.3.2 清空全部记录
+
+**HTML 结构**:
+```html
+<div style="display: flex; gap: 8px;">
+  <button class="btn btn-secondary" id="history-refresh-btn">刷新</button>
+  <button class="btn btn-secondary" id="history-stats-btn">统计</button>
+  <button class="btn btn-danger" id="history-clear-btn">清空全部</button>
+</div>
+```
+
+**JavaScript 实现**:
+```javascript
+async function clearAllHistory() {
+  // 第一次确认
+  if (!confirm('⚠️ 确定要清空所有历史记录吗？\n\n此操作不可恢复！')) {
+    return;
+  }
+
+  // 第二次确认（双重确认机制）
+  if (!confirm('⚠️ 再次确认：真的要清空所有历史记录吗？')) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/history/all`, {
+      method: 'DELETE'
+    });
+    const result = await response.json();
+
+    if (result.success) {
+      alert('✅ 已清空所有历史记录');
+      loadHistory(); // 刷新列表
+    } else {
+      alert(`❌ 清空失败\n\n${result.error || '未知错误'}`);
+    }
+  } catch (error) {
+    alert(`❌ 网络错误: ${error.message}`);
+  }
+}
+
+// 绑定按钮事件
+document.getElementById('history-clear-btn').addEventListener('click', clearAllHistory);
+```
+
+### 15.4 用户体验设计
+
+#### 15.4.1 确认机制设计
+
+**单条删除**:
+- 一次确认即可
+- 显示任务ID帮助用户识别
+- 清晰的警告信息
+
+**清空全部**:
+- 双重确认机制
+- 第一次：警告操作不可恢复
+- 第二次：再次确认操作意图
+
+#### 15.4.2 操作反馈
+
+**删除成功**:
+```javascript
+// ✅ 显示成功提示
+alert('✅ 删除成功');
+
+// ✅ 自动刷新列表，用户立即看到效果
+loadHistory();
+```
+
+**删除失败**:
+```javascript
+// ✅ 显示错误原因
+alert(`❌ 删除失败\n\n${result.error || '未知错误'}`);
+
+// ✅ 不刷新列表，保留原始状态
+```
+
+**网络错误**:
+```javascript
+// ✅ 友好的错误提示
+alert(`❌ 网络错误: ${error.message}`);
+```
+
+### 15.5 测试验证
+
+**测试案例 1: 删除单条记录**
+```
+操作步骤:
+1. 打开历史记录页面
+2. 找到一条测试记录
+3. 点击"🗑️ 删除"按钮
+4. 在确认对话框中点击"确定"
+
+预期结果:
+✅ 弹出确认对话框，显示任务ID
+✅ 确认后显示"✅ 删除成功"
+✅ 记录从列表中消失
+✅ 列表自动刷新
+```
+
+**测试案例 2: 取消删除**
+```
+操作步骤:
+1. 点击"🗑️ 删除"按钮
+2. 在确认对话框中点击"取消"
+
+预期结果:
+✅ 对话框关闭
+✅ 记录保留在列表中
+✅ 不调用删除 API
+```
+
+**测试案例 3: 清空全部记录**
+```
+操作步骤:
+1. 点击"清空全部"按钮
+2. 第一次确认点击"确定"
+3. 第二次确认点击"确定"
+
+预期结果:
+✅ 弹出两次确认对话框
+✅ 每次都有明确的警告信息
+✅ 最终显示"✅ 已清空所有历史记录"
+✅ 列表清空
+```
+
+**测试案例 4: 清空全部 - 第二次取消**
+```
+操作步骤:
+1. 点击"清空全部"按钮
+2. 第一次确认点击"确定"
+3. 第二次确认点击"取消"
+
+预期结果:
+✅ 第二次确认对话框关闭
+✅ 记录保留在列表中
+✅ 不调用清空 API
+```
+
+### 15.6 最佳实践
+
+#### 15.6.1 安全性
+
+**✅ 推荐做法**:
+- 所有删除操作都需要确认
+- 清空全部使用双重确认
+- 确认对话框包含详细的操作说明
+- 显示受影响的记录信息（如任务ID）
+
+**❌ 避免的做法**:
+- 直接删除不经过确认
+- 确认信息不够明确
+- 清空全部只用一次确认
+
+#### 15.6.2 用户体验
+
+**✅ 推荐做法**:
+- 删除成功后自动刷新列表
+- 提供清晰的成功/失败反馈
+- 使用图标（🗑️）增强视觉识别
+- 红色按钮表示危险操作
+
+**❌ 避免的做法**:
+- 删除后不刷新，用户看不到效果
+- 错误信息不明确
+- 危险操作没有视觉区分
+
+#### 15.6.3 错误处理
+
+**✅ 推荐做法**:
+```javascript
+// 完整的错误处理
+try {
+  const response = await fetch(...);
+  const result = await response.json();
+
+  if (result.success) {
+    // 成功处理
+    alert('✅ 删除成功');
+    loadHistory();
+  } else {
+    // 业务错误处理
+    alert(`❌ 删除失败\n\n${result.error}`);
+  }
+} catch (error) {
+  // 网络错误处理
+  alert(`❌ 网络错误: ${error.message}`);
+}
+```
+
+### 15.7 常见问题
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| **删除后列表不更新** | 未调用 `loadHistory()` | 删除成功后调用 `loadHistory()` 刷新列表 |
+| **误删重要记录** | 确认对话框不够明确 | 在确认对话框中显示任务ID和详细信息 |
+| **清空全部太容易触发** | 只有一次确认 | 实现双重确认机制 |
+| **删除失败无提示** | 未处理错误响应 | 添加完整的错误处理逻辑 |
+
+### 15.8 扩展功能建议
+
+**未来可以添加的功能**:
+1. **批量删除** - 选择多条记录批量删除
+2. **筛选后删除** - 按状态筛选后批量删除
+3. **回收站机制** - 删除的记录先进入回收站，可恢复
+4. **自动清理** - 定期自动清理超过N天的旧记录
 
 ---
 

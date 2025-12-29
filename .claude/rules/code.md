@@ -734,6 +734,139 @@ const prompt = '一辆卡通风格的垃圾车在城市街道上行驶，黄色�
 // 5. 氛围：光线、色调、风格
 ```
 
+### 历史记录删除功能 ⭐ 新增
+
+**后端 API 实现**:
+```javascript
+// ✅ 正确：删除单条历史记录
+app.delete('/api/history/:taskId', (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const deleted = historyStorage.deleteRecord(taskId);
+    res.json({ success: true, data: { deleted } });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// ✅ 正确：清空所有历史记录
+app.delete('/api/history/all', (req, res) => {
+  try {
+    historyStorage.clearAll();
+    res.json({ success: true, data: { message: 'All records cleared' } });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+```
+
+**前端实现 - 删除单条记录**:
+```javascript
+// ✅ 正确：带确认对话框的删除
+async function deleteHistoryRecord(taskId) {
+  // 确认删除
+  if (!confirm(`确定要删除这条历史记录吗？\n\n任务ID: ${taskId}`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/history/${taskId}`, {
+      method: 'DELETE'
+    });
+    const result = await response.json();
+
+    if (result.success) {
+      alert('✅ 删除成功');
+      // 重新加载历史记录
+      loadHistory();
+    } else {
+      alert(`❌ 删除失败\n\n${result.error || '未知错误'}`);
+    }
+  } catch (error) {
+    alert(`❌ 网络错误: ${error.message}`);
+  }
+}
+```
+
+**前端实现 - 清空全部**:
+```javascript
+// ✅ 正确：双重确认机制
+async function clearAllHistory() {
+  // 第一次确认
+  if (!confirm('⚠️ 确定要清空所有历史记录吗？\n\n此操作不可恢复！')) {
+    return;
+  }
+
+  // 第二次确认
+  if (!confirm('⚠️ 再次确认：真的要清空所有历史记录吗？')) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/history/all`, {
+      method: 'DELETE'
+    });
+    const result = await response.json();
+
+    if (result.success) {
+      alert('✅ 已清空所有历史记录');
+      loadHistory();
+    } else {
+      alert(`❌ 清空失败\n\n${result.error || '未知错误'}`);
+    }
+  } catch (error) {
+    alert(`❌ 网络错误: ${error.message}`);
+  }
+}
+```
+
+### 错误13: 删除操作缺少确认机制 ⭐ 新增
+```javascript
+// ❌ 错误：直接删除，没有确认
+async function deleteHistoryRecord(taskId) {
+  await fetch(`${API_BASE}/history/${taskId}`, {
+    method: 'DELETE'
+  });
+  loadHistory();
+}
+
+// ✅ 正确：添加确认对话框
+async function deleteHistoryRecord(taskId) {
+  if (!confirm(`确定要删除这条历史记录吗？\n\n任务ID: ${taskId}`)) {
+    return;
+  }
+  // ... 执行删除操作
+}
+```
+
+**问题**: 用户可能误删重要数据
+**解决方案**: 所有删除操作都必须有确认机制，清空全部需要二次确认
+
+### 错误14: 删除后未刷新列表 ⭐ 新增
+```javascript
+// ❌ 错误：删除后不刷新列表
+async function deleteHistoryRecord(taskId) {
+  await fetch(`${API_BASE}/history/${taskId}`, {
+    method: 'DELETE'
+  });
+  alert('删除成功');
+  // ❌ 用户看不到删除效果
+}
+
+// ✅ 正确：删除后自动刷新
+async function deleteHistoryRecord(taskId) {
+  const response = await fetch(`${API_BASE}/history/${taskId}`, {
+    method: 'DELETE'
+  });
+  const result = await response.json();
+
+  if (result.success) {
+    alert('✅ 删除成功');
+    loadHistory(); // ✅ 重新加载列表
+  }
+}
+```
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：
