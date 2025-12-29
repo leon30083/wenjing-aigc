@@ -468,6 +468,18 @@
         <label for="video-prompt">提示词</label>
         <textarea id="video-prompt" placeholder="描述你想要生成的视频内容..."></textarea>
       </div>
+      <div class="form-group">
+        <label for="video-character-select">选择角色（可选）</label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <select id="video-character-select" style="flex: 1;">
+            <option value="">-- 不使用角色 --</option>
+          </select>
+          <button class="btn btn-secondary" id="video-refresh-characters" style="padding: 8px 16px;">刷新角色</button>
+        </div>
+        <p style="color: #666; font-size: 13px; margin-top: 8px;">
+          选择角色后，会在提示词中自动插入 @{username} 引用
+        </p>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label for="video-model">模型</label>
@@ -681,6 +693,80 @@
         btn.disabled = false;
       }
     }
+
+    // ==================== 角色快速调用 ====================
+
+    // 存储角色列表
+    let charactersList = [];
+
+    // 加载角色到选择器
+    async function loadCharactersToSelector(selectId) {
+      try {
+        const response = await fetch(`${API_BASE}/character/list`);
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          charactersList = result.data;
+          const selectElement = document.getElementById(selectId);
+          if (!selectElement) return;
+
+          // 保存当前选中值
+          const currentValue = selectElement.value;
+
+          // 清空并重新填充
+          selectElement.innerHTML = '<option value="">-- 不使用角色 --</option>';
+
+          charactersList.forEach(char => {
+            const option = document.createElement('option');
+            option.value = char.username;
+            // 显示别名（如果有）或用户名
+            const displayName = char.alias ? `${char.alias} (${char.username})` : char.username;
+            option.textContent = `[${char.platform === 'juxin' ? '聚鑫' : '贞贞'}] ${displayName}`;
+            option.dataset.characterId = char.id;
+            selectElement.appendChild(option);
+          });
+
+          // 恢复选中值
+          selectElement.value = currentValue;
+        }
+      } catch (error) {
+        console.error('加载角色列表失败:', error);
+      }
+    }
+
+    // 角色选择变化时，在提示词中插入引用
+    function handleCharacterChange() {
+      const selectElement = document.getElementById('video-character-select');
+      const promptElement = document.getElementById('video-prompt');
+      const selectedUsername = selectElement.value;
+
+      if (selectedUsername) {
+        // 检查提示词中是否已经有角色引用
+        const currentPrompt = promptElement.value;
+        // 所有平台都使用 @username 格式
+        const roleRefRegex = /@[a-z0-9_.]+/gi;
+        const existingRefs = currentPrompt.match(roleRefRegex);
+
+        // 如果已经有角色引用，替换它
+        if (existingRefs) {
+          promptElement.value = currentPrompt.replace(roleRefRegex, `@${selectedUsername}`);
+        } else {
+          // 否则在开头插入
+          promptElement.value = `@${selectedUsername} ${currentPrompt}`.trim();
+        }
+      }
+    }
+
+    // 角色刷新按钮
+    document.getElementById('video-refresh-characters').addEventListener('click', () => {
+      loadCharactersToSelector('video-character-select');
+    });
+
+    // 角色选择变化事件
+    document.getElementById('video-character-select').addEventListener('change', handleCharacterChange);
+
+    // 页面加载时自动加载角色列表
+    loadCharactersToSelector('video-character-select');
 
     // 创建视频
     document.getElementById('video-create-btn').addEventListener('click', async () => {
@@ -989,12 +1075,15 @@
                 <video controls src="${record.result.output}" style="max-height: 300px;"></video>
               </div>
             ` : ''}
-            ${isCompleted ? `
-              <div style="margin-top: 12px; display: flex; gap: 8px;">
+            <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+              ${isCompleted ? `
                 <button class="btn btn-sm btn-secondary" onclick="createCharacterFromTask('${record.taskId}', '${record.platform}')">👤 创建角色</button>
                 <button class="btn btn-sm btn-secondary" onclick="copyToClipboard('${record.taskId}')">复制ID</button>
-              </div>
-            ` : ''}
+              ` : `
+                <button class="btn btn-sm btn-primary" onclick="queryTaskStatus('${record.taskId}', '${record.platform}', this)">🔄 查询状态</button>
+                <button class="btn btn-sm btn-secondary" onclick="copyToClipboard('${record.taskId}')">复制ID</button>
+              `}
+            </div>
             ${record.error ? `<div style="color: #721c24; font-size: 13px; margin-top: 8px;">❌ ${record.error}</div>` : ''}
           </div>
         `;
@@ -1034,6 +1123,42 @@
     document.querySelector('[data-tab="history"]').addEventListener('click', () => {
       loadHistory();
     });
+
+    /**
+     * 手动查询任务状态并更新历史记录
+     */
+    async function queryTaskStatus(taskId, platform, buttonElement) {
+      const originalText = buttonElement.innerHTML;
+      buttonElement.disabled = true;
+      buttonElement.innerHTML = '🔄 查询中...';
+
+      try {
+        const response = await fetch(`${API_BASE}/task/${taskId}?platform=${platform}`);
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          const { status, data } = result.data;
+
+          if (status === 'SUCCESS') {
+            alert(`✅ 任务已完成！\n\n视频地址：${data?.output || ''}`);
+            // 重新加载历史记录
+            loadHistory();
+          } else if (status === 'FAILURE') {
+            alert(`❌ 任务失败\n\n${data?.fail_reason || '未知错误'}`);
+            loadHistory();
+          } else {
+            alert(`⏳ 任务处理中\n\n当前状态：${status}`);
+          }
+        } else {
+          alert(`❌ 查询失败\n\n${result.error || '未知错误'}`);
+        }
+      } catch (error) {
+        alert(`❌ 网络错误: ${error.message}`);
+      } finally {
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = originalText;
+      }
+    }
 
     // ==================== 角色库 ====================
 
@@ -1076,16 +1201,18 @@
       characters.forEach(character => {
         const createdAt = new Date(character.createdAt).toLocaleString('zh-CN');
         const platformName = character.platform === 'juxin' ? '聚鑫' : '贞贞';
+        const displayName = character.alias ? `${character.alias} (${character.username})` : character.username;
 
         html += `
           <div class="character-library-item">
             <div class="character-library-header">
               <div>
-                <div class="character-library-title">${character.username || '未知用户'}</div>
+                <div class="character-library-title">${displayName || '未知用户'}</div>
                 <div class="character-library-id">🆔 ${character.id}</div>
               </div>
               <div class="character-library-actions">
                 <button class="btn btn-sm btn-secondary" onclick="copyToClipboard('${character.id}')">复制ID</button>
+                <button class="btn btn-sm btn-secondary" onclick="setCharacterAlias('${character.id}', '${character.username.replace(/'/g, "\\'")}', '${character.alias || ''}')">设置别名</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteCharacter('${character.id}')">删除</button>
               </div>
             </div>
@@ -1133,6 +1260,48 @@
           loadCharacterLibrary(); // 重新加载列表
         } else {
           showResult('character-library-stats', false, result.error || '删除失败');
+        }
+      } catch (error) {
+        showResult('character-library-stats', false, `网络错误: ${error.message}`);
+      }
+    }
+
+    /**
+     * 设置角色别名
+     */
+    async function setCharacterAlias(characterId, username, currentAlias) {
+      const newAlias = prompt(
+        `设置角色别名\n\n用户名: ${username}\n${currentAlias ? `当前别名: ${currentAlias}` : '当前别名: 无'}`,
+        currentAlias || ''
+      );
+
+      // 用户取消操作
+      if (newAlias === null) {
+        return;
+      }
+
+      // 如果别名为空，确认是否清除
+      const aliasValue = newAlias.trim();
+      if (aliasValue === '') {
+        if (!confirm('确定要清除别名吗？')) {
+          return;
+        }
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/character/${characterId}/alias`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alias: aliasValue }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showResult('character-library-stats', true, `别名已${aliasValue ? '设置' : '清除'}成功`);
+          loadCharacterLibrary(); // 重新加载列表
+        } else {
+          showResult('character-library-stats', false, result.error || '设置别名失败');
         }
       } catch (error) {
         showResult('character-library-stats', false, `网络错误: ${error.message}`);
@@ -1188,6 +1357,39 @@
         }
       } catch (error) {
         showResult('character-library-stats', false, `网络错误: ${error.message}`);
+      }
+    }
+
+    /**
+     * 复制文本到剪贴板
+     */
+    async function copyToClipboard(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        // 简单提示
+        const toast = document.createElement('div');
+        toast.textContent = '✅ 已复制到剪贴板';
+        toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #4caf50; color: white; padding: 12px 24px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 10000; animation: fadeIn 0.3s;';
+        document.body.appendChild(toast);
+        setTimeout(() => {
+          toast.style.animation = 'fadeOut 0.3s';
+          setTimeout(() => document.body.removeChild(toast), 300);
+        }, 2000);
+      } catch (error) {
+        // 降级方案
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          alert('✅ 已复制到剪贴板');
+        } catch (err) {
+          alert('❌ 复制失败，请手动复制');
+        }
+        document.body.removeChild(textarea);
       }
     }
 

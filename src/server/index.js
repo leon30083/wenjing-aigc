@@ -30,6 +30,8 @@ const characterStorage = new CharacterStorage();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// 静态文件服务
+app.use(express.static('src/renderer/public'));
 
 // 创建 Sora2 客户端实例
 const sora2Clients = {
@@ -65,14 +67,18 @@ app.post('/api/video/create', async (req, res) => {
     const result = await client.createVideo(req.body);
 
     // 保存到历史记录
-    if (result.success && result.data && result.data.id) {
-      historyStorage.addRecord({
-        taskId: result.data.id,
-        platform,
-        prompt,
-        model,
-        options,
-      });
+    if (result.success && result.data) {
+      // 贞贞平台返回 task_id，聚鑫平台返回 id
+      const taskId = result.data.id || result.data.task_id;
+      if (taskId) {
+        historyStorage.addRecord({
+          taskId: taskId,
+          platform,
+          prompt,
+          model,
+          options,
+        });
+      }
     }
 
     res.json(result);
@@ -253,6 +259,30 @@ app.delete('/api/character/all', (req, res) => {
   try {
     characterStorage.clearAll();
     res.json({ success: true, data: { message: 'All characters cleared' } });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 设置角色别名
+ * PUT /api/character/:characterId/alias
+ */
+app.put('/api/character/:characterId/alias', (req, res) => {
+  try {
+    const { characterId } = req.params;
+    const { alias } = req.body;
+
+    if (alias === undefined || alias === null) {
+      return res.json({ success: false, error: 'alias 是必填参数' });
+    }
+
+    const updated = characterStorage.updateCharacter(characterId, { alias: String(alias).trim() });
+    if (!updated) {
+      return res.json({ success: false, error: 'Character not found' });
+    }
+
+    res.json({ success: true, data: updated });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -571,6 +601,61 @@ app.use((err, req, res, next) => {
 
 // ==================== 启动服务器 ====================
 
+// 后台轮询服务：每30秒检查所有 queued 状态的任务
+const POLL_INTERVAL = 30000; // 30秒
+
+async function checkAndUpdateTask(taskId, platform) {
+  try {
+    const client = getClient(platform);
+    const result = await client.getTaskStatus(taskId);
+
+    if (result.success && result.data) {
+      const { status, data } = result.data;
+
+      // 任务完成
+      if (status === 'SUCCESS' && data) {
+        historyStorage.markCompleted(taskId, data);
+        console.log(`[轮询] 任务完成: ${taskId}`);
+      }
+      // 任务失败
+      else if (status === 'FAILURE') {
+        historyStorage.markFailed(taskId, data?.fail_reason || 'Task failed');
+        console.log(`[轮询] 任务失败: ${taskId}`);
+      }
+      // 处理中，更新状态但不记录日志（避免刷屏）
+      else if (status === 'IN_PROGRESS') {
+        historyStorage.updateRecord(taskId, { status: 'processing' });
+      }
+    }
+  } catch (error) {
+    console.error(`[轮询] 检查任务失败 ${taskId}:`, error.message);
+  }
+}
+
+// 启动轮询服务
+function startPollingService() {
+  setInterval(async () => {
+    try {
+      // 获取所有 queued 和 processing 状态的任务
+      const queuedTasks = historyStorage.getAllRecords({ status: 'queued' });
+      const processingTasks = historyStorage.getAllRecords({ status: 'processing' });
+      const allPendingTasks = [...queuedTasks, ...processingTasks];
+
+      if (allPendingTasks.length > 0) {
+        console.log(`[轮询] 检查 ${allPendingTasks.length} 个待处理任务...`);
+      }
+
+      for (const record of allPendingTasks) {
+        await checkAndUpdateTask(record.taskId, record.platform);
+      }
+    } catch (error) {
+      console.error('[轮询] 服务错误:', error.message);
+    }
+  }, POLL_INTERVAL);
+
+  console.log(`[轮询] 服务已启动，间隔 ${POLL_INTERVAL / 1000} 秒`);
+}
+
 app.listen(PORT, () => {
   console.log(`WinJin Server running on port ${PORT}`);
   console.log(`健康检查: http://localhost:${PORT}/health`);
@@ -584,6 +669,9 @@ app.listen(PORT, () => {
   console.log(`  POST /api/video/download - 下载视频`);
   console.log(`  GET  /api/history/list - 获取历史记录`);
   console.log(`  GET  /api/history/stats - 获取统计信息`);
+
+  // 启动后台轮询服务
+  startPollingService();
 });
 
 module.exports = app;

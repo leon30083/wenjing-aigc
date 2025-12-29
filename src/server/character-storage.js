@@ -82,6 +82,7 @@ class CharacterStorage {
         sourceVideoUrl: character.sourceVideoUrl || '',
         platform: character.platform || 'zhenzhen',
         timestamps: character.timestamps || '1,3',
+        alias: character.alias || '', // 别名
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

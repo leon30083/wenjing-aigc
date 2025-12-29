@@ -51,6 +51,38 @@ async getTaskStatus(taskId) {
 }
 ```
 
+### 双平台任务ID兼容处理 ⚠️ 重要
+
+```javascript
+// ✅ 正确：兼容双平台的任务ID格式
+app.post('/api/video/create', async (req, res) => {
+  const { platform, prompt, model, ...options } = req.body;
+  const result = await client.createVideo(req.body);
+
+  // 保存到历史记录 - 兼容双平台响应格式
+  if (result.success && result.data) {
+    // 贞贞平台返回 task_id，聚鑫平台返回 id
+    const taskId = result.data.id || result.data.task_id;
+    if (taskId) {
+      historyStorage.addRecord({
+        taskId: taskId,
+        platform,
+        prompt,
+        model,
+        options,
+      });
+    }
+  }
+
+  res.json(result);
+});
+
+// ❌ 错误：只检查 id 字段
+if (result.success && result.data?.id) {
+  // 贞贞平台的视频不会被保存到历史记录
+}
+```
+
 ### 数据格式转换
 
 ```javascript
@@ -100,6 +132,65 @@ const TIMEOUT = 600000;       // 10分钟
 const POLL_INTERVAL = 5000;   // 太短！
 ```
 
+### 后台轮询服务实现 ⭐
+
+```javascript
+// 后台轮询服务：每30秒检查所有 queued 和 processing 状态的任务
+const POLL_INTERVAL = 30000; // 30秒
+
+async function checkAndUpdateTask(taskId, platform) {
+  try {
+    const client = getClient(platform);
+    const result = await client.getTaskStatus(taskId);
+
+    if (result.success && result.data) {
+      const { status, data } = result.data;
+
+      if (status === 'SUCCESS' && data) {
+        historyStorage.markCompleted(taskId, data);
+        console.log(`[轮询] 任务完成: ${taskId}`);
+      }
+      else if (status === 'FAILURE') {
+        historyStorage.markFailed(taskId, data?.fail_reason || 'Task failed');
+        console.log(`[轮询] 任务失败: ${taskId}`);
+      }
+      else if (status === 'IN_PROGRESS') {
+        historyStorage.updateRecord(taskId, { status: 'processing' });
+      }
+    }
+  } catch (error) {
+    console.error(`[轮询] 检查任务失败 ${taskId}:`, error.message);
+  }
+}
+
+function startPollingService() {
+  setInterval(async () => {
+    try {
+      const queuedTasks = historyStorage.getAllRecords({ status: 'queued' });
+      const processingTasks = historyStorage.getAllRecords({ status: 'processing' });
+      const allPendingTasks = [...queuedTasks, ...processingTasks];
+
+      if (allPendingTasks.length > 0) {
+        console.log(`[轮询] 检查 ${allPendingTasks.length} 个待处理任务...`);
+      }
+
+      for (const record of allPendingTasks) {
+        await checkAndUpdateTask(record.taskId, record.platform);
+      }
+    } catch (error) {
+      console.error('[轮询] 服务错误:', error.message);
+    }
+  }, POLL_INTERVAL);
+
+  console.log(`[轮询] 服务已启动，间隔 ${POLL_INTERVAL / 1000} 秒`);
+}
+
+// 在服务器启动时调用
+app.listen(PORT, () => {
+  startPollingService();
+});
+```
+
 ### 角色创建规范 ⭐
 
 ```javascript
@@ -127,24 +218,40 @@ if (taskResult.status === 'SUCCESS') {
 }
 ```
 
+### 角色引用语法
+
+```javascript
+// 所有平台统一使用 @username 格式（不带花括号）
+// 正确示例：
+const prompt1 = '@6f2dbf2b3.zenwhisper 在工地上干活';
+const prompt2 = '@783316a1d.diggyloade 在工地上干活';
+
+// ❌ 错误：不要使用花括号
+const prompt3 = '@{6f2dbf2b3.zenwhisper} 在工地上干活';
+```
+
 ## API 路由规范
 
-### 创建视频 - 保存历史记录
+### 创建视频 - 保存历史记录（兼容双平台）
 
 ```javascript
 app.post('/api/video/create', async (req, res) => {
   const { platform, prompt, model, ...options } = req.body;
   const result = await client.createVideo(req.body);
 
-  // 保存到历史记录
-  if (result.success && result.data?.id) {
-    historyStorage.addRecord({
-      taskId: result.data.id,
-      platform,
-      prompt,
-      model,
-      options
-    });
+  // 保存到历史记录 - 兼容双平台响应格式
+  if (result.success && result.data) {
+    // 贞贞平台返回 task_id，聚鑫平台返回 id
+    const taskId = result.data.id || result.data.task_id;
+    if (taskId) {
+      historyStorage.addRecord({
+        taskId: taskId,
+        platform,
+        prompt,
+        model,
+        options,
+      });
+    }
   }
 
   res.json(result);
@@ -177,6 +284,30 @@ app.post('/api/character/create', async (req, res) => {
 });
 ```
 
+### 角色别名功能
+
+```javascript
+app.put('/api/character/:characterId/alias', (req, res) => {
+  try {
+    const { characterId } = req.params;
+    const { alias } = req.body;
+
+    if (alias === undefined || alias === null) {
+      return res.json({ success: false, error: 'alias 是必填参数' });
+    }
+
+    const updated = characterStorage.updateCharacter(characterId, { alias: String(alias).trim() });
+    if (!updated) {
+      return res.json({ success: false, error: 'Character not found' });
+    }
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+```
+
 ### 查询任务 - 返回统一格式
 
 ```javascript
@@ -187,6 +318,20 @@ app.get('/api/task/:taskId', async (req, res) => {
 
   // 自动转换为统一格式
   const result = await client.getTaskStatus(taskId);
+
+  // 自动更新历史记录
+  if (result.success && result.data) {
+    const { status, data } = result.data;
+
+    if (status === 'SUCCESS' && data) {
+      historyStorage.markCompleted(taskId, data);
+    } else if (status === 'FAILURE') {
+      historyStorage.markFailed(taskId, data?.fail_reason || 'Task failed');
+    } else if (status === 'IN_PROGRESS') {
+      historyStorage.updateRecord(taskId, { status: 'processing' });
+    }
+  }
+
   res.json(result);
 });
 ```
@@ -195,11 +340,11 @@ app.get('/api/task/:taskId', async (req, res) => {
 
 ```
 src/server/
-├── sora2-client.js      # API 客户端（封装双平台逻辑）
-├── batch-queue.js       # 批量任务队列（支持自动下载）
-├── history-storage.js   # 历史记录存储（JSON文件持久化）
-├── character-storage.js # 角色库存储（JSON文件持久化）⭐
-└── index.js            # Express 服务器
+├── sora2-client.js       # API 客户端（封装双平台逻辑）
+├── batch-queue.js        # 批量任务队列（支持自动下载）
+├── history-storage.js    # 历史记录存储（JSON文件持久化）
+├── character-storage.js  # 角色库存储（JSON文件持久化）⭐
+└── index.js             # Express 服务器
 
 data/
 ├── history.json         # 历史记录持久化存储
@@ -221,7 +366,21 @@ await axios.get('https://api.jxincm.cn/v1/video/query', {
 });
 ```
 
-### 错误2: 忘记提取视频URL
+### 错误2: 双平台任务ID不兼容
+```javascript
+// ❌ 错误：只检查 id 字段
+if (result.success && result.data?.id) {
+  // 贞贞平台的视频不会被保存到历史记录
+}
+
+// ✅ 正确：兼容双平台
+const taskId = result.data.id || result.data.task_id;
+if (taskId) {
+  historyStorage.addRecord({ taskId, platform, prompt, model, options });
+}
+```
+
+### 错误3: 忘记提取视频URL
 ```javascript
 // ❌ 错误：data 字段为 null
 return {
@@ -244,16 +403,26 @@ return {
 };
 ```
 
-### 错误3: 轮询间隔太短
+### 错误4: 轮询间隔太短
 ```javascript
 // ❌ 错误：5秒间隔导致 429 Rate Limit
 setInterval(() => checkStatus(taskId), 5000);
 
 // ✅ 正确：30秒间隔
-setInterval(() => checkStatus(taskId), 30000);
+const POLL_INTERVAL = 30000;
+setInterval(() => checkStatus(taskId), POLL_INTERVAL);
 ```
 
-### 错误4: 创建角色时传递 from_task 参数不完整
+### 错误5: 角色引用格式错误
+```javascript
+// ❌ 错误：使用花括号
+const prompt = '@{username} 在工地上干活';
+
+// ✅ 正确：不使用花括号
+const prompt = '@username 在工地上干活';
+```
+
+### 错误6: 创建角色时传递 from_task 参数不完整
 ```javascript
 // ❌ 错误：只传递 url，不支持 from_task
 app.post('/api/character/create', async (req, res) => {

@@ -3,9 +3,10 @@
 **更新日期**: 2025-12-29
 **项目**: WinJin AIGC
 **支持平台**: 聚鑫 (api.jxincm.cn) / 贞贞 (ai.t8star.cn)
-**参考文档**: `E:\User\GitHub\winjin\reference\用户输入文件夹/`
+**参考文档**: `D:\user\github\winjin\reference\用户输入文件夹/`
 
 **更新记录**:
+- 2025-12-29: 新增双平台响应格式差异处理、角色引用语法、后台轮询服务、角色库增强功能
 - 2025-12-29: 新增角色库管理、from_task 创建方式、持久化存储最佳实践
 
 ---
@@ -18,18 +19,50 @@
 
 ### 1.2 角色创建禁止传 model 参数
 - **端点**: `POST /sora/v1/characters`
-- **必填**: `url` (视频链接) + `timestamps` (时间范围 "1,3")
+- **必填**: `url` (视频链接) 或 `from_task` (任务ID) **二选一** + `timestamps` (时间范围 "1,3")
 - **禁止**: **不要传递 `model` 参数**，否则会导致 `channel not found` / `404`
 
-### 1.3 双平台支持
-- **聚鑫平台**: `api.jxincm.cn` - OpenAI 官方格式 + 统一格式
-- **贞贞平台**: `ai.t8star.cn` - 统一格式
-- **关键差异**: 查询任务端点不同（见下方详细说明）
+### 1.3 双平台响应格式差异 ⚠️ 重要
 
-### 1.4 查询任务状态
+**创建视频响应格式差异**:
+```javascript
+// 聚鑫平台返回
+{ "id": "video_xxx", ... }
+
+// 贞贞平台返回
+{ "task_id": "video_xxx", ... }
+```
+
+**正确处理方式**:
+```javascript
+// 兼容两种平台的任务ID提取
+const taskId = result.data.id || result.data.task_id;
+if (taskId) {
+  historyStorage.addRecord({ taskId, platform, prompt, model, options });
+}
+```
+
+### 1.4 查询任务状态端点差异
 - **聚鑫平台**: `GET /v1/video/query?id={taskId}` (查询参数)
 - **贞贞平台**: `GET /v2/videos/generations/{taskId}` (路径参数)
 - **数据格式**: 需要统一转换为标准格式（见下方）
+
+### 1.5 角色引用语法
+
+所有平台（聚鑫、贞贞）都使用相同的角色引用格式：
+```
+@username 提示词内容
+```
+
+示例：
+```
+@6f2dbf2b3.zenwhisper 在工地上干活
+@783316a1d.diggyloade 在工地上干活
+```
+
+**注意**:
+- 格式为 `@username` （**不带花括号**）
+- 角色引用和提示词之间用空格隔开
 
 ---
 
@@ -54,6 +87,33 @@ const response = await axios.post('https://api.jxincm.cn/v1/video/create', {
 ```
 
 **贞贞平台**: 使用相同的端点和参数（支持统一格式）
+
+**⚠️ 保存历史记录时注意**:
+```javascript
+// POST /api/video/create 处理逻辑
+app.post('/api/video/create', async (req, res) => {
+  const { platform, prompt, model, ...options } = req.body;
+  const client = getClient(platform);
+  const result = await client.createVideo(req.body);
+
+  // 保存到历史记录 - 兼容双平台响应格式
+  if (result.success && result.data) {
+    // 贞贞平台返回 task_id，聚鑫平台返回 id
+    const taskId = result.data.id || result.data.task_id;
+    if (taskId) {
+      historyStorage.addRecord({
+        taskId: taskId,
+        platform,
+        prompt,
+        model,
+        options,
+      });
+    }
+  }
+
+  res.json(result);
+});
+```
 
 ### 2.2 查询任务状态 (Query Task Status)
 
@@ -155,7 +215,7 @@ const videoResponse = await axios.post('https://ai.t8star.cn/v1/video/create', {
   // ... 其他参数
 });
 
-const taskId = videoResponse.data.task_id;
+const taskId = videoResponse.data.task_id || videoResponse.data.id;
 
 // 2. 等待视频任务完成
 const taskResult = await waitForTaskCompletion(taskId);
@@ -213,29 +273,110 @@ const characterResponse = await axios.post('https://ai.t8star.cn/sora/v1/charact
 ## 4. 轮询策略 (Polling Strategy)
 
 ### 4.1 推荐配置
-- **轮询间隔**: **30-60 秒** (sora2 视频生成需要 3-5 分钟)
+- **轮询间隔**: **30 秒** (sora2 视频生成需要 3-5 分钟，30秒是平衡选择)
 - **超时时间**: 600000ms (10 分钟)
 - **错误重试**: 指数退避策略
 
-### 4.2 前端轮询示例
+### 4.2 后台自动轮询服务 (推荐) ✅
+
+**服务器端实现**:
 ```javascript
-async function pollTaskStatus(taskId) {
-  const interval = 30000;  // 30秒
-  const timeout = 600000;  // 10分钟
+// 后台轮询服务：每30秒检查所有 queued 和 processing 状态的任务
+const POLL_INTERVAL = 30000; // 30秒
 
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeout) {
-    const result = await fetch(`/api/task/${taskId}?platform=juxin`);
-    const data = await result.json();
+async function checkAndUpdateTask(taskId, platform) {
+  try {
+    const client = getClient(platform);
+    const result = await client.getTaskStatus(taskId);
 
-    if (data.data.status === 'SUCCESS') {
-      return data.data;  // 返回完整数据
+    if (result.success && result.data) {
+      const { status, data } = result.data;
+
+      // 任务完成
+      if (status === 'SUCCESS' && data) {
+        historyStorage.markCompleted(taskId, data);
+        console.log(`[轮询] 任务完成: ${taskId}`);
+      }
+      // 任务失败
+      else if (status === 'FAILURE') {
+        historyStorage.markFailed(taskId, data?.fail_reason || 'Task failed');
+        console.log(`[轮询] 任务失败: ${taskId}`);
+      }
+      // 处理中，更新状态但不记录日志（避免刷屏）
+      else if (status === 'IN_PROGRESS') {
+        historyStorage.updateRecord(taskId, { status: 'processing' });
+      }
     }
-
-    await new Promise(resolve => setTimeout(resolve, interval));
+  } catch (error) {
+    console.error(`[轮询] 检查任务失败 ${taskId}:`, error.message);
   }
+}
 
-  throw new Error('Task timeout');
+// 启动轮询服务
+function startPollingService() {
+  setInterval(async () => {
+    try {
+      // 获取所有 queued 和 processing 状态的任务
+      const queuedTasks = historyStorage.getAllRecords({ status: 'queued' });
+      const processingTasks = historyStorage.getAllRecords({ status: 'processing' });
+      const allPendingTasks = [...queuedTasks, ...processingTasks];
+
+      if (allPendingTasks.length > 0) {
+        console.log(`[轮询] 检查 ${allPendingTasks.length} 个待处理任务...`);
+      }
+
+      for (const record of allPendingTasks) {
+        await checkAndUpdateTask(record.taskId, record.platform);
+      }
+    } catch (error) {
+      console.error('[轮询] 服务错误:', error.message);
+    }
+  }, POLL_INTERVAL);
+
+  console.log(`[轮询] 服务已启动，间隔 ${POLL_INTERVAL / 1000} 秒`);
+}
+
+// 在服务器启动时调用
+app.listen(PORT, () => {
+  startPollingService();
+});
+```
+
+### 4.3 前端手动查询 (辅助功能)
+
+为用户提供手动查询按钮，可以在不想等待轮询时主动查询：
+
+```javascript
+async function queryTaskStatus(taskId, platform, buttonElement) {
+  const originalText = buttonElement.innerHTML;
+  buttonElement.disabled = true;
+  buttonElement.innerHTML = '🔄 查询中...';
+
+  try {
+    const response = await fetch(`${API_BASE}/task/${taskId}?platform=${platform}`);
+    const result = await response.json();
+
+    if (result.success && result.data) {
+      const { status, data } = result.data;
+
+      if (status === 'SUCCESS') {
+        alert(`✅ 任务已完成！\n\n视频地址：${data?.output || ''}`);
+        loadHistory(); // 刷新历史记录列表
+      } else if (status === 'FAILURE') {
+        alert(`❌ 任务失败\n\n${data?.fail_reason || '未知错误'}`);
+        loadHistory();
+      } else {
+        alert(`⏳ 任务处理中\n\n当前状态：${status}`);
+      }
+    } else {
+      alert(`❌ 查询失败\n\n${result.error || '未知错误'}`);
+    }
+  } catch (error) {
+    alert(`❌ 网络错误: ${error.message}`);
+  } finally {
+    buttonElement.disabled = false;
+    buttonElement.innerHTML = originalText;
+  }
 }
 ```
 
@@ -245,12 +386,14 @@ async function pollTaskStatus(taskId) {
 
 | 现象 | 原因 | 解决方案 |
 |------|------|----------|
+| **贞贞平台视频未保存到历史** | 只检查了 `result.data.id`，未检查 `task_id` | 使用 `result.data.id \|\| result.data.task_id` |
 | **查询返回 HTML** | 使用了错误的查询端点 | 聚鑫用 `/v1/video/query?id=xxx`，贞贞用 `/v2/videos/generations/xxx` |
 | **data.output 为 null** | 未正确提取 video_url | 检查响应结构，优先从顶层 `video_url` 提取 |
 | **`channel not found` / 404** | 角色创建传了 `model` 参数 | 移除 payload 中的 `model` |
 | **`Invalid token`** | API Key 错误或格式不对 | 检查 Header 为 `Bearer sk-...` |
 | **前端一直显示 "Creating..."** | 后端使用了 `spawn` 导致阻塞 | 改用 `await fetch()` 或 `await axios()` |
-| **频繁 429 错误** | 轮询间隔太短 | 增加到 30-60 秒 |
+| **频繁 429 错误** | 轮询间隔太短 | 增加到 30 秒或更长 |
+| **轮询服务不工作** | setInterval 未正确启动或服务器重启 | 确保在 app.listen() 后调用 startPollingService() |
 
 ---
 
@@ -293,10 +436,10 @@ async function downloadVideo(videoUrl, downloadDir) {
 
 ```bash
 # 聚鑫平台 API Key
-SORA2_API_KEY=sk-Q6DwAtsNvutSlaZXYAzXR39pUmwKHAHDgll0QifCL5GbwJd7
+SORA2_API_KEY=sk-xxxxxxxxxxxx
 
 # 贞贞平台 API Key
-ZHENZHEN_API_KEY=sk-eaVbmLPTFZ8QSrLV030977Ce0dB94b28B0Ac2495A93cA833
+ZHENZHEN_API_KEY=sk-xxxxxxxxxxxx
 
 # 服务器端口
 PORT=9000
@@ -319,10 +462,15 @@ PORT=9000
 
 ```
 src/server/
-├── sora2-client.js      # API 客户端（封装双平台逻辑）
-├── batch-queue.js       # 批量任务队列
-├── history-storage.js   # 历史记录存储
-└── index.js            # Express 服务器
+├── sora2-client.js       # API 客户端（封装双平台逻辑）
+├── batch-queue.js        # 批量任务队列
+├── history-storage.js    # 历史记录存储
+├── character-storage.js  # 角色库存储
+└── index.js             # Express 服务器
+
+data/
+├── history.json          # 历史记录持久化存储
+└── characters.json       # 角色库持久化存储
 ```
 
 ---
@@ -403,7 +551,88 @@ app.post('/api/character/create', async (req, res) => {
 });
 ```
 
-### 10.3 API 端点设计
+### 10.3 角色快速调用功能
+
+在视频创建表单中添加角色选择器：
+
+```javascript
+// 加载角色到下拉选择器
+async function loadCharactersToSelector(selectId) {
+  const response = await fetch(`${API_BASE}/character/list`);
+  const result = await response.json();
+
+  if (result.success && result.data) {
+    const selectElement = document.getElementById(selectId);
+    selectElement.innerHTML = '<option value="">-- 不使用角色 --</option>';
+
+    result.data.forEach(char => {
+      const option = document.createElement('option');
+      option.value = char.username;
+      // 显示别名或用户名
+      const displayName = char.alias ? `${char.alias} (${char.username})` : char.username;
+      option.textContent = `[${char.platform === 'juxin' ? '聚鑫' : '贞贞'}] ${displayName}`;
+      selectElement.appendChild(option);
+    });
+  }
+}
+
+// 角色选择变化时自动插入引用到提示词
+function handleCharacterChange() {
+  const selectElement = document.getElementById('video-character-select');
+  const promptElement = document.getElementById('video-prompt');
+  const selectedUsername = selectElement.value;
+
+  if (selectedUsername) {
+    const currentPrompt = promptElement.value;
+    // 检查是否已有角色引用
+    const roleRefRegex = /@[a-z0-9_.]+/gi;
+    const existingRefs = currentPrompt.match(roleRefRegex);
+
+    if (existingRefs) {
+      // 替换现有引用
+      promptElement.value = currentPrompt.replace(roleRefRegex, `@${selectedUsername}`);
+    } else {
+      // 添加新引用
+      promptElement.value = `@${selectedUsername} ${currentPrompt}`.trim();
+    }
+  }
+}
+```
+
+### 10.4 角色别名功能
+
+为角色设置别名，方便记忆和使用：
+
+```javascript
+// 设置角色别名
+async function setCharacterAlias(characterId, username, currentAlias) {
+  const newAlias = prompt(
+    `设置角色别名\n\n用户名: ${username}\n${currentAlias ? `当前别名: ${currentAlias}` : '当前别名: 无'}`,
+    currentAlias || ''
+  );
+
+  if (newAlias === null) return;
+
+  const aliasValue = newAlias.trim();
+  if (aliasValue === '') {
+    if (!confirm('确定要清除别名吗？')) return;
+  }
+
+  const response = await fetch(`${API_BASE}/character/${characterId}/alias`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ alias: aliasValue }),
+  });
+
+  const result = await response.json();
+  if (result.success) {
+    alert(`别名已${aliasValue ? '设置' : '清除'}成功`);
+    loadCharacterLibrary(); // 刷新角色库列表
+  }
+}
+```
+
+### 10.5 API 端点设计
 
 | 端点 | 方法 | 功能 |
 |------|------|------|
@@ -412,10 +641,11 @@ app.post('/api/character/create', async (req, res) => {
 | `/api/character/stats` | GET | 获取统计信息 |
 | `/api/character/:characterId` | GET | 获取单个角色详情 |
 | `/api/character/search/:query` | GET | 搜索角色（按用户名或ID） |
+| `/api/character/:characterId/alias` | PUT | 设置/更新角色别名 |
 | `/api/character/:characterId` | DELETE | 删除角色 |
 | `/api/character/all` | DELETE | 清空所有角色 |
 
-### 10.4 前端实现要点
+### 10.6 前端实现要点
 
 **角色卡片显示**:
 ```javascript
@@ -423,11 +653,14 @@ function displayCharacter(character) {
   return `
     <div class="character-item">
       <img src="${character.profilePictureUrl}" class="avatar">
-      <h3>${character.username}</h3>
+      <h3>${character.alias || character.username}</h3>
+      ${character.alias ? `<p class="alias">别名: ${character.alias}</p>` : ''}
       <p>🆔 ${character.id}</p>
       <p>🌐 ${character.platform === 'zhenzhen' ? '贞贞' : '聚鑫'}</p>
       <p>📅 ${new Date(character.createdAt).toLocaleString()}</p>
       <a href="${character.permalink}" target="_blank">查看主页</a>
+      <button onclick="setCharacterAlias('${character.id}', '${character.username}', '${character.alias || ''}')">设置别名</button>
+      <button onclick="copyToClipboard('${character.id}')">复制ID</button>
       <button onclick="deleteCharacter('${character.id}')">删除</button>
     </div>
   `;
@@ -445,13 +678,15 @@ searchInput.addEventListener('input', (e) => {
 });
 ```
 
-### 10.5 最佳实践
+### 10.7 最佳实践
 
 1. **使用 from_task 优先**: 推荐从已完成的视频任务创建角色，而不是直接使用视频 URL
 2. **自动保存**: 角色创建成功后自动保存到角色库，不需要用户手动操作
 3. **更新策略**: 如果角色 ID 已存在，则更新而不是重复添加
 4. **时间戳记录**: 记录 createdAt 和 updatedAt，便于追踪
 5. **搜索优化**: 搜索使用不区分大小写的模糊匹配
+6. **别名系统**: 为角色设置易于记忆的别名，提升用户体验
+7. **快速调用**: 在视频创建表单中集成角色选择器，自动插入角色引用
 
 ---
 
@@ -505,7 +740,7 @@ class Storage {
 ### 11.2 数据目录结构
 
 ```
-E:\User\GitHub\winjin/
+D:\user\github\winjin/
 ├── data/
 │   ├── history.json      # 历史记录
 │   └── characters.json   # 角色库
@@ -556,6 +791,32 @@ setInterval(() => {
 | **"任务 not found"** | 使用了错误的任务ID或任务已过期 | 先查询任务状态确认存在 |
 | **"请求上游地址失败"** | 视频 URL 无法访问 | 使用 from_task 参数代替 url |
 | **角色库显示"暂无角色"** | 角色创建失败或未自动保存 | 检查服务器日志，确认角色创建成功 |
+| **贞贞平台视频未保存历史** | 响应格式差异（task_id vs id） | 使用 `result.data.id \|\| result.data.task_id` |
+| **任务状态长时间不更新** | 轮询间隔太长或服务未启动 | 检查轮询服务是否运行，考虑降低间隔到30秒 |
+
+---
+
+## 13. 实战经验总结
+
+### 13.1 双平台兼容性要点
+
+1. **响应格式处理**: 始终使用 `result.data.id || result.data.task_id` 获取任务ID
+2. **查询端点**: 根据平台类型选择不同的查询端点
+3. **状态码映射**: 将聚鑫的状态码转换为统一格式
+
+### 13.2 用户体验优化
+
+1. **后台自动轮询**: 30秒间隔，用户无需手动刷新
+2. **手动查询按钮**: 提供主动查询选项，提升响应速度感知
+3. **角色快速调用**: 下拉选择器自动插入引用格式
+4. **角色别名系统**: 方便用户识别和使用常用角色
+5. **复制ID功能**: 一键复制，方便其他操作使用
+
+### 13.3 调试技巧
+
+1. **服务器日志**: 在轮询服务中添加日志输出，便于追踪任务状态
+2. **前端响应**: 使用 alert() 显示任务状态变化，及时反馈
+3. **数据文件检查**: 直接查看 `data/history.json` 和 `data/characters.json` 验证存储
 
 ---
 
