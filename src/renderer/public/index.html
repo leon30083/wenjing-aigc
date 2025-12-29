@@ -244,6 +244,45 @@
       background: #e0e0e0;
     }
 
+    /* 图片输入行样式 */
+    .images-container {
+      margin-top: 8px;
+    }
+
+    .image-item {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: flex-start;
+    }
+
+    .image-item input {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .image-item input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .image-item button {
+      padding: 8px 16px;
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .image-item button:hover {
+      background: #c82333;
+    }
+
     .loading {
       display: none;
       text-align: center;
@@ -561,6 +600,16 @@
         <textarea id="video-prompt" placeholder="描述你想要生成的视频内容..."></textarea>
       </div>
       <div class="form-group">
+        <label>参考图片（可选）</label>
+        <div class="images-container" id="video-images-container">
+          <!-- 图片输入行会动态添加到这里 -->
+        </div>
+        <button class="btn btn-secondary" id="add-image-btn" style="margin-top: 8px; padding: 8px 16px;">+ 添加图片</button>
+        <p style="color: #666; font-size: 13px; margin-top: 8px;">
+          如果有参考图片，将自动使用图生视频；否则使用文生视频
+        </p>
+      </div>
+      <div class="form-group">
         <label>选择角色（可选）</label>
         <button class="btn btn-secondary" id="video-refresh-characters" style="margin-bottom: 12px; padding: 8px 16px;">刷新角色列表</button>
         <div id="video-character-grid" class="character-grid">
@@ -636,6 +685,7 @@
           <div class="shot-item">
             <input type="number" placeholder="时长(秒)" value="5" class="shot-duration" />
             <input type="text" placeholder="场景描述" class="shot-scene" />
+            <input type="text" placeholder="参考图片URL（可选）" class="shot-image" />
             <button class="btn-remove-shot">删除</button>
           </div>
         </div>
@@ -1001,6 +1051,22 @@
       loadCharactersToGrid('storyboard-character-grid', 'storyboard');
     });
 
+    // 文生视频 - 添加图片按钮
+    document.getElementById('add-image-btn').addEventListener('click', () => {
+      const container = document.getElementById('video-images-container');
+      const imageItem = document.createElement('div');
+      imageItem.className = 'image-item';
+      imageItem.innerHTML = `
+        <input type="text" placeholder="输入图片 URL..." />
+        <button>删除</button>
+      `;
+      container.appendChild(imageItem);
+
+      imageItem.querySelector('button').addEventListener('click', () => {
+        imageItem.remove();
+      });
+    });
+
     // 页面加载时自动加载角色列表
     loadCharactersToGrid('video-character-grid', 'video');
     loadCharactersToGrid('storyboard-character-grid', 'storyboard');
@@ -1015,6 +1081,15 @@
         showResult('video-result', false, '请输入提示词');
         return;
       }
+
+      // 收集图片输入框的数据
+      const images = [];
+      document.querySelectorAll('.image-item input').forEach(input => {
+        const url = input.value.trim();
+        if (url) {
+          images.push(url);
+        }
+      });
 
       setLoading('video-loading', 'video-create-btn', true);
 
@@ -1031,12 +1106,15 @@
             size: document.getElementById('video-size').value,
             watermark: document.getElementById('video-watermark').value === 'true',
             private: true,
-            images: [],
+            images: images,
           }),
         });
 
         const result = await response.json();
-        showResult('video-result', result.success, result.error || '任务已创建', result.data);
+        const message = images.length > 0
+          ? `图生视频任务已创建（${images.length} 张参考图片）`
+          : '文生视频任务已创建';
+        showResult('video-result', result.success, result.error || message, result.data);
       } catch (error) {
         showResult('video-result', false, `网络错误: ${error.message}`);
       } finally {
@@ -1052,6 +1130,7 @@
       shotItem.innerHTML = `
         <input type="number" placeholder="时长(秒)" value="5" class="shot-duration" />
         <input type="text" placeholder="场景描述" class="shot-scene" />
+        <input type="text" placeholder="参考图片URL（可选）" class="shot-image" />
         <button class="btn-remove-shot">删除</button>
       `;
       container.appendChild(shotItem);
@@ -1077,8 +1156,17 @@
       document.querySelectorAll('.shot-item').forEach(item => {
         const duration = item.querySelector('.shot-duration').value;
         const scene = item.querySelector('.shot-scene').value.trim();
+        const image = item.querySelector('.shot-image').value.trim();
         if (scene) {
-          shots.push({ duration: parseFloat(duration), scene });
+          const shotData = {
+            duration: parseFloat(duration),
+            scene: scene
+          };
+          // 如果有参考图片，添加到镜头数据中
+          if (image) {
+            shotData.image = image;
+          }
+          shots.push(shotData);
         }
       });
 
@@ -1106,7 +1194,11 @@
         });
 
         const result = await response.json();
-        showResult('storyboard-result', result.success, result.error || '故事板任务已创建', result.data);
+        const shotsWithImages = shots.filter(s => s.image).length;
+        const message = shotsWithImages > 0
+          ? `故事板任务已创建（${shots.length} 个镜头，${shotsWithImages} 个带参考图片）`
+          : `故事板任务已创建（${shots.length} 个镜头）`;
+        showResult('storyboard-result', result.success, result.error || message, result.data);
       } catch (error) {
         showResult('storyboard-result', false, `网络错误: ${error.message}`);
       } finally {
@@ -1737,7 +1829,15 @@
         const reader = new FileReader();
         reader.onload = async (e) => {
           try {
-            const backupData = JSON.parse(e.target.result);
+            let backupData = JSON.parse(e.target.result);
+
+            // 处理两种格式：
+            // 1. 导出时的格式：{success: true, data: {version: ..., data: {...}}}
+            // 2. 纯备份格式：{version: ..., data: {...}}
+            if (backupData.success && backupData.data) {
+              // 导出格式，提取实际数据
+              backupData = backupData.data;
+            }
 
             // 验证备份数据格式
             if (!backupData.data || !backupData.version) {

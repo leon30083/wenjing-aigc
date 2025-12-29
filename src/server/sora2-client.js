@@ -306,12 +306,13 @@ class Sora2Client {
    * @param {Array} options.shots - 镜头数组
    * @param {string} options.shots[].scene - 每个镜头的场景描述
    * @param {number} options.shots[].duration - 每个镜头的时长（秒）
+   * @param {string} [options.shots[].image] - 每个镜头的参考图片URL（可选）
    * @param {string} [options.model='sora-2'] - 模型名称
    * @param {string} [options.orientation='landscape'] - 画面方向
    * @param {string|boolean} [options.size='small'] - 分辨率
    * @param {boolean} [options.watermark=false] - 是否无水印
    * @param {boolean} [options.private=true] - 是否隐藏视频
-   * @param {string[]} [options.images] - 参考图片链接数组
+   * @param {string[]} [options.images] - 参考图片链接数组（全局）
    * @returns {Promise<object>} 任务信息
    */
   async createStoryboardVideo(options) {
@@ -330,6 +331,14 @@ class Sora2Client {
         throw new Error('shots 是必填参数，且必须是非空数组');
       }
 
+      // 收集所有镜头的参考图片
+      const allImages = [...images];
+      shots.forEach((shot) => {
+        if (shot.image) {
+          allImages.push(shot.image);
+        }
+      });
+
       // 构建故事板提示词
       const promptParts = shots.map((shot, index) => {
         return `Shot ${index + 1}:\nduration: ${shot.duration}sec\nScene: ${shot.scene}`;
@@ -340,7 +349,7 @@ class Sora2Client {
       const body = {
         model,
         prompt,
-        images,
+        images: allImages,
         watermark,
         private: isPrivate,
       };

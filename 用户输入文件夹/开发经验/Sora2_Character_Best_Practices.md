@@ -6,6 +6,7 @@
 **参考文档**: `D:\user\github\winjin\reference\用户输入文件夹/`
 
 **更新记录**:
+- 2025-12-29: 新增参考图片功能、图生视频模式、角色与图片混合使用 ⭐
 - 2025-12-29: 新增双平台响应格式差异处理、角色引用语法、后台轮询服务、角色库增强功能
 - 2025-12-29: 新增角色库管理、from_task 创建方式、持久化存储最佳实践
 
@@ -969,6 +970,419 @@ setInterval(() => {
 1. **服务器日志**: 在轮询服务中添加日志输出，便于追踪任务状态
 2. **前端响应**: 使用 alert() 显示任务状态变化，及时反馈
 3. **数据文件检查**: 直接查看 `data/history.json` 和 `data/characters.json` 验证存储
+
+---
+
+## 14. 参考图片功能 (Reference Images) ⭐ 新增
+
+**更新日期**: 2025-12-29
+
+### 14.1 功能概述
+
+Sora2 API 支持通过参考图片生成视频，主要分为两种模式：
+
+| 模式 | 说明 | 参考图数量 |
+|------|------|-----------|
+| **文生视频** | 不使用参考图片，纯文本生成 | 0 张 |
+| **图生视频** | 使用参考图片作为视觉基础 | 1 张或多张 |
+
+**关键发现**:
+- ✅ **故事板模式**: 每个分镜头都可以独立配置参考图片
+- ✅ **简单模式**: 每个视频只使用一张参考图片
+- ✅ **角色混合**: 角色客串可以和参考图搭配使用，参考图作为场景，角色在场景中活动
+
+### 14.2 简单模式参考图片
+
+**前端界面设计**:
+```html
+<div class="form-group">
+  <label>参考图片（可选）</label>
+  <div class="images-container" id="video-images-container">
+    <!-- 图片输入行会动态添加到这里 -->
+  </div>
+  <button class="btn btn-secondary" id="add-image-btn" style="margin-top: 8px; padding: 8px 16px;">
+    + 添加图片
+  </button>
+  <p style="color: #666; font-size: 13px; margin-top: 8px;">
+    如果有参考图片，将自动使用图生视频；否则使用文生视频
+  </p>
+</div>
+```
+
+**动态添加/删除图片**:
+```javascript
+// 添加图片按钮
+document.getElementById('add-image-btn').addEventListener('click', () => {
+  const container = document.getElementById('video-images-container');
+  const imageItem = document.createElement('div');
+  imageItem.className = 'image-item';
+  imageItem.innerHTML = `
+    <input type="text" placeholder="输入图片 URL..." />
+    <button>删除</button>
+  `;
+  container.appendChild(imageItem);
+
+  // 删除按钮事件
+  imageItem.querySelector('button').addEventListener('click', () => {
+    imageItem.remove();
+  });
+});
+
+// 收集图片数据
+const images = [];
+document.querySelectorAll('.image-item input').forEach(input => {
+  const url = input.value.trim();
+  if (url) {
+    images.push(url);
+  }
+});
+```
+
+**CSS 样式**:
+```css
+.images-container {
+  margin-top: 8px;
+}
+
+.image-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: flex-start;
+}
+
+.image-item input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.image-item input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.image-item button {
+  padding: 8px 16px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.image-item button:hover {
+  background: #c82333;
+}
+```
+
+**API 调用**:
+```javascript
+const response = await fetch(`${API_BASE}/video/create`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    platform: currentPlatform,
+    prompt: prompt,
+    model: 'sora-2',
+    orientation: 'landscape',
+    duration: 10,
+    size: 'small',
+    watermark: false,
+    private: true,
+    images: images,  // 参考图片数组
+  }),
+});
+
+const result = await response.json();
+const message = images.length > 0
+  ? `图生视频任务已创建（${images.length} 张参考图片）`
+  : '文生视频任务已创建';
+```
+
+### 14.3 故事板模式参考图片
+
+**关键特性**: 每个分镜头都可以独立配置参考图片
+
+**前端界面设计**:
+```html
+<!-- 添加镜头时包含图片输入 -->
+<div class="shot-item">
+  <input type="number" placeholder="时长(秒)" value="5" class="shot-duration" />
+  <input type="text" placeholder="场景描述" class="shot-scene" />
+  <input type="text" placeholder="参考图片URL（可选）" class="shot-image" />
+  <button class="btn-remove-shot">删除</button>
+</div>
+```
+
+**添加镜头函数**:
+```javascript
+document.getElementById('add-shot-btn').addEventListener('click', () => {
+  const container = document.getElementById('shots-container');
+  const shotItem = document.createElement('div');
+  shotItem.className = 'shot-item';
+  shotItem.innerHTML = `
+    <input type="number" placeholder="时长(秒)" value="5" class="shot-duration" />
+    <input type="text" placeholder="场景描述" class="shot-scene" />
+    <input type="text" placeholder="参考图片URL（可选）" class="shot-image" />
+    <button class="btn-remove-shot">删除</button>
+  `;
+  container.appendChild(shotItem);
+
+  // 为新场景输入框添加焦点监听（角色插入功能）
+  const sceneInput = shotItem.querySelector('.shot-scene');
+  sceneInput.addEventListener('focus', handleSceneFocus);
+
+  shotItem.querySelector('.btn-remove-shot').addEventListener('click', () => {
+    shotItem.remove();
+  });
+});
+```
+
+**创建故事板时收集图片**:
+```javascript
+document.getElementById('storyboard-create-btn').addEventListener('click', async () => {
+  const shots = [];
+  document.querySelectorAll('.shot-item').forEach(item => {
+    const duration = item.querySelector('.shot-duration').value;
+    const scene = item.querySelector('.shot-scene').value.trim();
+    const image = item.querySelector('.shot-image').value.trim();
+
+    if (scene) {
+      const shotData = {
+        duration: parseFloat(duration),
+        scene: scene
+      };
+      // 如果有参考图片，添加到镜头数据中
+      if (image) {
+        shotData.image = image;
+      }
+      shots.push(shotData);
+    }
+  });
+
+  // 创建故事板
+  const response = await fetch(`${API_BASE}/video/storyboard`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      platform: currentPlatform,
+      shots: shots,
+      model: 'sora-2',
+      orientation: 'landscape',
+      size: 'small',
+      watermark: false,
+      private: true,
+      images: [],
+    }),
+  });
+
+  const result = await response.json();
+  const shotsWithImages = shots.filter(s => s.image).length;
+  const message = shotsWithImages > 0
+    ? `故事板任务已创建（${shots.length} 个镜头，${shotsWithImages} 个带参考图片）`
+    : `故事板任务已创建（${shots.length} 个镜头）`;
+});
+```
+
+### 14.4 后端实现
+
+**Sora2Client - createStoryboardVideo 方法**:
+```javascript
+/**
+ * 创建故事板视频（批量生成多个镜头）
+ * @param {object} options - 视频创建参数
+ * @param {Array} options.shots - 镜头数组
+ * @param {string} options.shots[].scene - 每个镜头的场景描述
+ * @param {number} options.shots[].duration - 每个镜头的时长（秒）
+ * @param {string} [options.shots[].image] - 每个镜头的参考图片URL（可选）⭐
+ * @param {string} [options.model='sora-2'] - 模型名称
+ * @param {string} [options.orientation='landscape'] - 画面方向
+ * @param {string|boolean} [options.size='small'] - 分辨率
+ * @param {boolean} [options.watermark=false] - 是否无水印
+ * @param {boolean} [options.private=true] - 是否隐藏视频
+ * @param {string[]} [options.images] - 参考图片链接数组（全局）
+ * @returns {Promise<object>} 任务信息
+ */
+async createStoryboardVideo(options) {
+  try {
+    const {
+      shots,
+      model = 'sora-2',
+      orientation = 'landscape',
+      size = 'small',
+      watermark = false,
+      private: isPrivate = true,
+      images = [],
+    } = options;
+
+    if (!shots || !Array.isArray(shots) || shots.length === 0) {
+      throw new Error('shots 是必填参数，且必须是非空数组');
+    }
+
+    // 收集所有镜头的参考图片 ⭐ 关键实现
+    const allImages = [...images];
+    shots.forEach((shot) => {
+      if (shot.image) {
+        allImages.push(shot.image);
+      }
+    });
+
+    // 构建故事板提示词
+    const promptParts = shots.map((shot, index) => {
+      return `Shot ${index + 1}:\nduration: ${shot.duration}sec\nScene: ${shot.scene}`;
+    });
+    const prompt = promptParts.join('\n\n');
+
+    // 构建请求体
+    const body = {
+      model,
+      prompt,
+      images: allImages,  // 使用合并后的图片数组
+      watermark,
+      private: isPrivate,
+    };
+
+    // ... 转换其他参数并发送请求
+    const response = await this.client.post(this.platform.videoEndpoint, body, {
+      headers: this._getAuthHeaders(),
+    });
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || error.message,
+    };
+  }
+}
+```
+
+### 14.5 提示词编写最佳实践
+
+**重要原则**: 先分析图片内容，然后写出与图片相关性强的提示词
+
+**测试案例**:
+
+**图片1** (城市街道上的卡通垃圾车):
+```
+一辆卡通风格的垃圾车在城市街道上行驶，黄色车头、绿色车身，
+车头有可爱的表情（大眼睛、微笑、腮红），车斗通过机械臂抬起正在作业，
+晴朗天气，卡通插画风格
+```
+
+**图片2** (居民区里的卡通垃圾车和彩色垃圾桶):
+```
+一辆卡通风格的垃圾车在居民区作业，周围有4个带表情的彩色垃圾桶
+（灰色、蓝色、绿色、棕色），垃圾车车头有可爱的表情，
+车斗正抬起倾倒垃圾，温馨的社区场景，柔和的暖色调，手绘插画风格
+```
+
+**对比分析**:
+```
+❌ 错误示例: "一个可爱的猫咪在花园里玩耍，阳光明媚"
+   问题: 提示词与图片内容完全无关
+
+✅ 正确示例: "一辆卡通风格的垃圾车在城市街道上行驶，黄色车头、绿色车身..."
+   优势: 详细描述图片中的视觉元素（颜色、表情、动作、环境、风格）
+```
+
+**提示词结构建议**:
+1. **主体**: 画面中的主要角色/物体
+2. **外观**: 颜色、形状、表情、姿态
+3. **动作**: 正在做什么
+4. **环境**: 背景场景、周围物体
+5. **氛围**: 光线、色调、风格
+
+### 14.6 角色与参考图片混合使用 ⭐
+
+**使用场景**: 参考图片作为场景基础，角色客串在场景中活动
+
+**实现方式**:
+```javascript
+// 提示词格式
+const prompt = '@username 在参考图片场景中活动';
+
+// 示例
+const prompt1 = '@783316a1d.diggyloade 在卡通风格的街道上行驶';
+const prompt2 = '@df4c928fa.kittenauro 在居民区的垃圾桶旁边玩耍';
+```
+
+**前端实现**:
+```javascript
+// 先选择参考图片
+document.querySelectorAll('.image-item input').forEach(input => {
+  const url = input.value.trim();
+  if (url) {
+    images.push(url);
+  }
+});
+
+// 然后在光标位置插入角色引用
+function updatePromptWithCharacter(username) {
+  const promptElement = document.getElementById('video-prompt');
+  const start = promptElement.selectionStart;
+  const end = promptElement.selectionEnd;
+  const text = promptElement.value;
+  const refText = `@${username} `;
+
+  // 在光标位置插入，不影响已输入的提示词
+  promptElement.value = text.substring(0, start) + refText + text.substring(end);
+  promptElement.setSelectionRange(start + refText.length, start + refText.length);
+  promptElement.focus();
+}
+```
+
+**测试案例**:
+```
+配置:
+- 参考图片: 城市街道上的卡通垃圾车
+- 角色: @783316a1d.diggyloade (装载机)
+- 提示词: @783316a1d.diggyloade 在卡通风格的街道上缓慢行驶
+
+预期结果:
+- 参考图片提供场景基础（城市街道、卡通风格）
+- 角色作为活动主体在场景中出现
+- 两者结合生成连贯的视频内容
+```
+
+### 14.7 测试验证
+
+**测试一**: 简单模式 - 有图 vs 无图
+```
+图生视频: video_998a3c86-f020-4df4-9798-7d8acb41e9bc (1张参考图)
+文生视频: video_6dfb11dc-c995-47e9-acec-ed33297e7904 (无参考图)
+对比效果: 验证参考图片对视频生成的影响
+```
+
+**测试二**: 故事板模式 - 混合配置
+```
+视频一: video_135b3666-b840-4c50-81cd-6c371a3e88a6
+- Shot 1: 有参考图
+- Shot 2: 无参考图
+系统识别: "2 个镜头，1 个带参考图片" ✅
+
+视频二: video_ee7f0f17-50d1-45be-85f9-1cfec2840bf1
+- Shot 1: 有参考图（城市街道垃圾车）
+- Shot 2: 有参考图（居民区垃圾车+垃圾桶）
+系统识别: "2 个镜头，2 个带参考图片" ✅
+```
+
+### 14.8 常见问题
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| **生成的视频与图片不符** | 提示词未描述图片内容 | 先分析图片内容，写出相关性强的提示词 |
+| **系统未识别参考图片** | 图片 URL 格式错误或图片无法访问 | 检查 URL 完整性，确保图片可公开访问 |
+| **故事板镜头图片丢失** | shot.image 字段未正确传递 | 检查前端收集逻辑，确保每个镜头的图片都被收集 |
+| **角色引用不生效** | 格式错误 `@{username}` | 使用正确格式 `@username`（不带花括号） |
+| **参考图片和角色冲突** | 提示词未明确两者关系 | 在提示词中描述角色在场景中的活动 |
 
 ---
 

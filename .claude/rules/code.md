@@ -641,6 +641,99 @@ card.innerHTML = `
 `;
 ```
 
+### 错误10: 故事板镜头图片未正确收集 ⭐ 新增
+```javascript
+// ❌ 错误：只收集场景描述，忽略了图片
+const shots = [];
+document.querySelectorAll('.shot-item').forEach(item => {
+  const scene = item.querySelector('.shot-scene').value.trim();
+  if (scene) {
+    shots.push({
+      duration: parseFloat(item.querySelector('.shot-duration').value),
+      scene: scene
+      // ❌ 忘略了 shot.image
+    });
+  }
+});
+
+// ✅ 正确：同时收集场景描述和参考图片
+const shots = [];
+document.querySelectorAll('.shot-item').forEach(item => {
+  const duration = item.querySelector('.shot-duration').value;
+  const scene = item.querySelector('.shot-scene').value.trim();
+  const image = item.querySelector('.shot-image').value.trim();
+
+  if (scene) {
+    const shotData = {
+      duration: parseFloat(duration),
+      scene: scene
+    };
+    // 如果有参考图片，添加到镜头数据中
+    if (image) {
+      shotData.image = image;
+    }
+    shots.push(shotData);
+  }
+});
+```
+
+### 错误11: 后端未收集镜头图片 ⭐ 新增
+```javascript
+// ❌ 错误：只使用全局 images 参数
+async createStoryboardVideo(options) {
+  const { shots, images = [] } = options;
+
+  const body = {
+    model,
+    prompt,
+    images: images,  // ❌ 忽略了每个镜头的图片
+    watermark,
+    private: isPrivate,
+  };
+}
+
+// ✅ 正确：收集所有镜头的参考图片
+async createStoryboardVideo(options) {
+  const { shots, images = [] } = options;
+
+  // 收集所有镜头的参考图片 ⭐ 关键实现
+  const allImages = [...images];
+  shots.forEach((shot) => {
+    if (shot.image) {
+      allImages.push(shot.image);
+    }
+  });
+
+  const body = {
+    model,
+    prompt,
+    images: allImages,  // ✅ 使用合并后的图片数组
+    watermark,
+    private: isPrivate,
+  };
+}
+```
+
+### 错误12: 提示词与图片内容无关 ⭐ 新增
+```javascript
+// ❌ 错误：使用通用提示词，未描述图片内容
+const prompt = '一个可爱的猫咪在花园里玩耍，阳光明媚';
+// 问题：图片是卡通垃圾车，但提示词描述的是猫咪
+
+// ✅ 正确：先分析图片，再写相关提示词
+// 图片内容：黄色车头、绿色车身、可爱表情、城市街道、卡通风格
+const prompt = '一辆卡通风格的垃圾车在城市街道上行驶，黄色车头、绿色车身，' +
+               '车头有可爱的表情（大眼睛、微笑、腮红），车斗通过机械臂抬起正在作业，' +
+               '晴朗天气，卡通插画风格';
+
+// 提示词结构建议：
+// 1. 主体：画面中的主要角色/物体
+// 2. 外观：颜色、形状、表情、姿态
+// 3. 动作：正在做什么
+// 4. 环境：背景场景、周围物体
+// 5. 氛围：光线、色调、风格
+```
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：
