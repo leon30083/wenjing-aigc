@@ -486,6 +486,38 @@
       word-break: break-all;
     }
 
+    .character-card-favorite {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 28px;
+      height: 28px;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.2s ease;
+      z-index: 2;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .character-card-favorite:hover {
+      transform: scale(1.15);
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .character-card-favorite.active {
+      color: #f59e0b;
+    }
+
+    .character-card-favorite.inactive {
+      color: #d1d5db;
+    }
+
     .character-card-platform {
       display: inline-block;
       padding: 4px 12px;
@@ -611,7 +643,15 @@
       </div>
       <div class="form-group">
         <label>选择角色（可选）</label>
-        <button class="btn btn-secondary" id="video-refresh-characters" style="margin-bottom: 12px; padding: 8px 16px;">刷新角色列表</button>
+        <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+          <input type="text" id="video-character-search" placeholder="🔍 搜索角色..." style="flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;">
+          <select id="video-character-filter" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;">
+            <option value="all">全部角色</option>
+            <option value="favorites">⭐ 我的收藏</option>
+            <option value="recent">🕐 最近使用</option>
+          </select>
+          <button class="btn btn-secondary" id="video-refresh-characters" style="padding: 8px 16px;">🔄 刷新</button>
+        </div>
         <div id="video-character-grid" class="character-grid">
           <div class="no-character-hint">暂无角色，请先创建角色或点击刷新</div>
         </div>
@@ -671,7 +711,15 @@
     <div class="tab-content" id="storyboard-tab">
       <div class="form-group">
         <label>选择角色（可选）</label>
-        <button class="btn btn-secondary" id="storyboard-refresh-characters" style="margin-bottom: 12px; padding: 8px 16px;">刷新角色列表</button>
+        <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+          <input type="text" id="storyboard-character-search" placeholder="🔍 搜索角色..." style="flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;">
+          <select id="storyboard-character-filter" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;">
+            <option value="all">全部角色</option>
+            <option value="favorites">⭐ 我的收藏</option>
+            <option value="recent">🕐 最近使用</option>
+          </select>
+          <button class="btn btn-secondary" id="storyboard-refresh-characters" style="padding: 8px 16px;">🔄 刷新</button>
+        </div>
         <div id="storyboard-character-grid" class="character-grid">
           <div class="no-character-hint">暂无角色，请先创建角色或点击刷新</div>
         </div>
@@ -891,8 +939,26 @@
     };
     let lastFocusedSceneInput = null; // 记录最后焦点的场景输入框
 
-    // 加载角色到网格
-    async function loadCharactersToGrid(gridId, type) {
+    // 最近使用的角色（localStorage）
+    const RECENT_CHARACTERS_KEY = 'recent_characters';
+    let recentCharacters = JSON.parse(localStorage.getItem(RECENT_CHARACTERS_KEY) || '[]');
+
+    // 保存最近使用的角色
+    function saveRecentCharacter(username) {
+      // 移除已存在的（如果有的话）
+      recentCharacters = recentCharacters.filter(u => u !== username);
+      // 添加到开头
+      recentCharacters.unshift(username);
+      // 只保留最近 20 个
+      if (recentCharacters.length > 20) {
+        recentCharacters = recentCharacters.slice(0, 20);
+      }
+      // 保存到 localStorage
+      localStorage.setItem(RECENT_CHARACTERS_KEY, JSON.stringify(recentCharacters));
+    }
+
+    // 加载角色到网格（支持搜索和筛选）⭐ 更新
+    async function loadCharactersToGrid(gridId, type, searchQuery = '', filterType = 'all') {
       try {
         const response = await fetch(`${API_BASE}/character/list`);
         const result = await response.json();
@@ -905,12 +971,45 @@
           // 清空并重新填充
           gridElement.innerHTML = '';
 
-          if (result.data.length === 0) {
-            gridElement.innerHTML = '<div class="no-character-hint">暂无角色，请先创建角色或点击刷新</div>';
+          // 根据筛选类型过滤
+          let filteredCharacters = result.data;
+
+          // 筛选：收藏 / 最近使用
+          if (filterType === 'favorites') {
+            filteredCharacters = filteredCharacters.filter(c => c.favorite === true);
+          } else if (filterType === 'recent') {
+            filteredCharacters = filteredCharacters.filter(c => recentCharacters.includes(c.username));
+            // 按最近使用顺序排序
+            filteredCharacters.sort((a, b) => {
+              const indexA = recentCharacters.indexOf(a.username);
+              const indexB = recentCharacters.indexOf(b.username);
+              return indexA - indexB;
+            });
+          }
+
+          // 搜索：按用户名或别名过滤
+          if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            filteredCharacters = filteredCharacters.filter(c =>
+              c.username.toLowerCase().includes(query) ||
+              (c.alias && c.alias.toLowerCase().includes(query))
+            );
+          }
+
+          if (filteredCharacters.length === 0) {
+            if (filterType === 'favorites') {
+              gridElement.innerHTML = '<div class="no-character-hint">暂无收藏的角色</div>';
+            } else if (filterType === 'recent') {
+              gridElement.innerHTML = '<div class="no-character-hint">暂无最近使用的角色</div>';
+            } else if (searchQuery.trim()) {
+              gridElement.innerHTML = '<div class="no-character-hint">未找到匹配的角色</div>';
+            } else {
+              gridElement.innerHTML = '<div class="no-character-hint">暂无角色，请先创建角色或点击刷新</div>';
+            }
             return;
           }
 
-          result.data.forEach(char => {
+          filteredCharacters.forEach(char => {
             const card = document.createElement('div');
             card.className = 'character-card';
             card.dataset.username = char.username;
@@ -919,8 +1018,12 @@
             // 默认头像或使用角色头像
             const avatarUrl = char.profilePictureUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect fill="%23e0e0e0" width="80" height="80"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23999" font-size="30">?</text></svg>';
             const displayName = char.alias || char.username;
+            const isFavorite = char.favorite === true;
 
             card.innerHTML = `
+              <div class="character-card-favorite ${isFavorite ? 'active' : 'inactive'}" data-username="${char.username}" title="${isFavorite ? '取消收藏' : '收藏'}">
+                ${isFavorite ? '★' : '☆'}
+              </div>
               <img src="${avatarUrl}" alt="${displayName}" class="character-card-avatar" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 80 80%22><rect fill=%22%23e0e0e0%22 width=%2280%22 height=%2280%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22 font-size=%2230%22>?</text></svg>'">
               <div class="character-card-name">${displayName}</div>
               ${char.alias ? `<div class="character-card-username">@${char.username}</div>` : ''}
@@ -931,9 +1034,22 @@
               card.classList.add('selected');
             }
 
-            // 点击事件
-            card.addEventListener('click', () => {
+            // 点击事件 - 选择角色
+            card.addEventListener('click', (e) => {
+              // 如果点击的是收藏按钮，不选择角色
+              if (e.target.classList.contains('character-card-favorite')) {
+                return;
+              }
               selectCharacter(type, char.username, gridId);
+              // 保存到最近使用
+              saveRecentCharacter(char.username);
+            });
+
+            // 收藏按钮点击事件
+            const favoriteBtn = card.querySelector('.character-card-favorite');
+            favoriteBtn.addEventListener('click', (e) => {
+              e.stopPropagation(); // 阻止冒泡
+              toggleFavorite(char.username, char.favorite, favoriteBtn);
             });
 
             gridElement.appendChild(card);
@@ -946,6 +1062,95 @@
           gridElement.innerHTML = '<div class="no-character-hint">加载失败，请重试</div>';
         }
       }
+    }
+
+    // 切换收藏状态 ⭐ 新增
+    async function toggleFavorite(username, currentFavorite, btnElement) {
+      const newFavoriteStatus = !currentFavorite;
+
+      try {
+        const response = await fetch(`${API_BASE}/character/${username}/favorite`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ favorite: newFavoriteStatus })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          // 更新按钮状态
+          if (newFavoriteStatus) {
+            btnElement.classList.remove('inactive');
+            btnElement.classList.add('active');
+            btnElement.textContent = '★';
+            btnElement.title = '取消收藏';
+          } else {
+            btnElement.classList.remove('active');
+            btnElement.classList.add('inactive');
+            btnElement.textContent = '☆';
+            btnElement.title = '收藏';
+          }
+
+          // 更新数据
+          const char = charactersList['video']?.find(c => c.username === username) ||
+                       charactersList['storyboard']?.find(c => c.username === username);
+          if (char) {
+            char.favorite = newFavoriteStatus;
+          }
+
+          // 如果当前在收藏筛选视图，刷新网格
+          const currentFilter = document.getElementById('video-character-filter')?.value ||
+                               document.getElementById('storyboard-character-filter')?.value;
+          if (currentFilter === 'favorites') {
+            // 找到当前活动的网格并刷新
+            const activeGridId = document.querySelector('.tab-content.active .character-grid')?.id;
+            if (activeGridId) {
+              const type = activeGridId.includes('video') ? 'video' : 'storyboard';
+              const searchValue = document.getElementById(`${type}-character-search`)?.value || '';
+              loadCharactersToGrid(activeGridId, type, searchValue, 'favorites');
+            }
+          }
+        } else {
+          alert(`❌ ${result.error || '操作失败'}`);
+        }
+      } catch (error) {
+        console.error('收藏操作失败:', error);
+        alert(`❌ 网络错误: ${error.message}`);
+      }
+    }
+
+    // 设置搜索和筛选事件监听 ⭐ 新增
+    function setupCharacterSearchAndFilter(type) {
+      const searchInput = document.getElementById(`${type}-character-search`);
+      const filterSelect = document.getElementById(`${type}-character-filter`);
+      const refreshBtn = document.getElementById(`${type}-refresh-characters`);
+      const gridId = `${type}-character-grid`;
+
+      if (!searchInput || !filterSelect || !refreshBtn) return;
+
+      // 搜索输入（实时）
+      let searchTimeout;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          const searchValue = searchInput.value;
+          const filterValue = filterSelect.value;
+          loadCharactersToGrid(gridId, type, searchValue, filterValue);
+        }, 300);
+      });
+
+      // 筛选下拉框
+      filterSelect.addEventListener('change', () => {
+        const searchValue = searchInput.value;
+        const filterValue = filterSelect.value;
+        loadCharactersToGrid(gridId, type, searchValue, filterValue);
+      });
+
+      // 刷新按钮
+      refreshBtn.addEventListener('click', () => {
+        const searchValue = searchInput.value;
+        const filterValue = filterSelect.value;
+        loadCharactersToGrid(gridId, type, searchValue, filterValue);
+      });
     }
 
     // 选择角色
@@ -1042,15 +1247,11 @@
       lastFocusedSceneInput = e.target;
     }
 
-    // 文生视频 - 角色刷新按钮
-    document.getElementById('video-refresh-characters').addEventListener('click', () => {
-      loadCharactersToGrid('video-character-grid', 'video');
-    });
+    // 设置文生视频角色的搜索和筛选功能 ⭐ 新增
+    setupCharacterSearchAndFilter('video');
 
-    // 故事板 - 角色刷新按钮
-    document.getElementById('storyboard-refresh-characters').addEventListener('click', () => {
-      loadCharactersToGrid('storyboard-character-grid', 'storyboard');
-    });
+    // 设置故事板角色的搜索和筛选功能 ⭐ 新增
+    setupCharacterSearchAndFilter('storyboard');
 
     // 文生视频 - 添加图片按钮
     document.getElementById('add-image-btn').addEventListener('click', () => {

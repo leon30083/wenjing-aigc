@@ -1713,5 +1713,382 @@ try {
 
 ---
 
+## 16. 角色搜索、筛选和收藏 (Character Search, Filter & Favorites) ⭐ 新增
+
+### 16.1 功能概述
+
+随着角色数量增多（超过 20 个），用户需要更便捷的方式查找和使用角色。本功能实现了：
+
+| 功能 | 描述 | 实现方式 |
+|------|------|----------|
+| **搜索** | 实时搜索角色用户名和别名 | 前端过滤，300ms 防抖 |
+| **筛选** | 按类型过滤角色列表 | 全部/收藏/最近使用 |
+| **收藏** | 收藏常用角色，快速访问 | 后端持久化，星标图标 |
+| **最近使用** | 记录最近使用的角色 | localStorage，最多 20 个 |
+
+### 16.2 后端实现
+
+#### 16.2.1 存储层 - updateByUsername 方法
+
+**文件**: `src/server/character-storage.js`
+
+```javascript
+/**
+ * 按 username 更新角色 ⭐ 新增
+ * @param {string} username - 角色用户名
+ * @param {object} updates - 更新内容
+ * @returns {object|null} 更新后的角色，不存在返回 null
+ */
+updateByUsername(username, updates) {
+  const index = this.characters.findIndex(c => c.username === username);
+  if (index === -1) {
+    return null;
+  }
+
+  Object.assign(this.characters[index], updates);
+  this.characters[index].updatedAt = new Date().toISOString();
+  this._save();
+  return this.characters[index];
+}
+```
+
+**关键点**:
+- 使用 `username` 而非 `id` 作为查找键
+- 自动更新 `updatedAt` 时间戳
+- 自动保存到 JSON 文件
+
+#### 16.2.2 API 端点
+
+**文件**: `src/server/index.js`
+
+**设置角色收藏状态**:
+```javascript
+/**
+ * 设置角色收藏状态 ⭐ 新增
+ * PUT /api/character/:username/favorite
+ * 注意：参数名是 username（不是 ID），使用 updateByUsername 方法
+ */
+app.put('/api/character/:username/favorite', (req, res) => {
+  try {
+    const { username } = req.params;
+    const { favorite } = req.body;
+
+    // 使用 updateByUsername 方法（按 username 查找）
+    const updated = characterStorage.updateByUsername(username, {
+      favorite: !!favorite,
+      favoritedAt: !!favorite ? new Date().toISOString() : null
+    });
+    if (!updated) {
+      return res.json({ success: false, error: 'Character not found' });
+    }
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+```
+
+**获取收藏的角色列表**:
+```javascript
+/**
+ * 获取收藏的角色列表 ⭐ 新增
+ * GET /api/character/favorites
+ */
+app.get('/api/character/favorites', (req, res) => {
+  try {
+    const allCharacters = characterStorage.getAllCharacters();
+    const favorites = allCharacters.filter(c => c.favorite === true);
+    res.json({ success: true, data: favorites });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+```
+
+### 16.3 前端实现
+
+#### 16.3.1 UI 结构
+
+**文件**: `src/renderer/public/index.html`
+
+```html
+<div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+  <!-- 搜索输入框 -->
+  <input type="text" id="video-character-search" placeholder="🔍 搜索角色..."
+         style="flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;">
+
+  <!-- 筛选下拉框 -->
+  <select id="video-character-filter" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;">
+    <option value="all">全部角色</option>
+    <option value="favorites">⭐ 我的收藏</option>
+    <option value="recent">🕐 最近使用</option>
+  </select>
+
+  <!-- 刷新按钮 -->
+  <button class="btn btn-secondary" id="video-refresh-characters" style="padding: 8px 16px;">🔄 刷新</button>
+</div>
+
+<!-- 角色网格 -->
+<div id="video-character-grid" class="character-grid"></div>
+```
+
+**收藏图标样式**:
+```css
+.character-card-favorite {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.character-card-favorite:hover {
+  transform: scale(1.15);
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.character-card-favorite.active {
+  color: #f59e0b;  /* 金黄色 */
+}
+
+.character-card-favorite.inactive {
+  color: #d1d5db;  /* 灰色 */
+}
+```
+
+#### 16.3.2 搜索和筛选功能
+
+**文件**: `src/renderer/public/index.html`
+
+```javascript
+// 最近使用的角色（localStorage）
+const RECENT_CHARACTERS_KEY = 'recent_characters';
+let recentCharacters = JSON.parse(localStorage.getItem(RECENT_CHARACTERS_KEY) || '[]');
+
+// 保存最近使用的角色
+function saveRecentCharacter(username) {
+  // 移除已存在的（如果有的话）
+  recentCharacters = recentCharacters.filter(u => u !== username);
+  // 添加到开头
+  recentCharacters.unshift(username);
+  // 只保留最近 20 个
+  if (recentCharacters.length > 20) {
+    recentCharacters = recentCharacters.slice(0, 20);
+  }
+  // 保存到 localStorage
+  localStorage.setItem(RECENT_CHARACTERS_KEY, JSON.stringify(recentCharacters));
+}
+
+// 加载角色到网格（支持搜索和筛选）⭐ 更新
+async function loadCharactersToGrid(gridId, type, searchQuery = '', filterType = 'all') {
+  try {
+    const response = await fetch(`${API_BASE}/character/list`);
+    const result = await response.json();
+
+    if (result.success && result.data) {
+      charactersList[type] = result.data;
+      const gridElement = document.getElementById(gridId);
+      if (!gridElement) return;
+
+      gridElement.innerHTML = '';
+
+      // 根据筛选类型过滤
+      let filteredCharacters = result.data;
+
+      // 筛选：收藏 / 最近使用
+      if (filterType === 'favorites') {
+        filteredCharacters = filteredCharacters.filter(c => c.favorite === true);
+      } else if (filterType === 'recent') {
+        filteredCharacters = filteredCharacters.filter(c => recentCharacters.includes(c.username));
+        // 按最近使用顺序排序
+        filteredCharacters.sort((a, b) => {
+          const indexA = recentCharacters.indexOf(a.username);
+          const indexB = recentCharacters.indexOf(b.username);
+          return indexA - indexB;
+        });
+      }
+
+      // 搜索：按用户名或别名过滤
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        filteredCharacters = filteredCharacters.filter(c =>
+          c.username.toLowerCase().includes(query) ||
+          (c.alias && c.alias.toLowerCase().includes(query))
+        );
+      }
+
+      if (filteredCharacters.length === 0) {
+        if (filterType === 'favorites') {
+          gridElement.innerHTML = '<div class="no-character-hint">暂无收藏的角色</div>';
+        } else if (filterType === 'recent') {
+          gridElement.innerHTML = '<div class="no-character-hint">暂无最近使用的角色</div>';
+        } else if (searchQuery.trim()) {
+          gridElement.innerHTML = '<div class="no-character-hint">未找到匹配的角色</div>';
+        } else {
+          gridElement.innerHTML = '<div class="no-character-hint">暂无角色，请先创建角色或点击刷新</div>';
+        }
+        return;
+      }
+
+      // 渲染角色卡片...
+    }
+  } catch (error) {
+    console.error('加载角色列表失败:', error);
+  }
+}
+```
+
+#### 16.3.3 事件监听器
+
+```javascript
+// 设置搜索和筛选事件监听 ⭐ 新增
+function setupCharacterSearchAndFilter(type) {
+  const searchInput = document.getElementById(`${type}-character-search`);
+  const filterSelect = document.getElementById(`${type}-character-filter`);
+  const refreshBtn = document.getElementById(`${type}-refresh-characters`);
+  const gridId = `${type}-character-grid`;
+
+  if (!searchInput || !filterSelect || !refreshBtn) return;
+
+  // 搜索输入（实时，300ms 防抖）
+  let searchTimeout;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      const searchValue = searchInput.value;
+      const filterValue = filterSelect.value;
+      loadCharactersToGrid(gridId, type, searchValue, filterValue);
+    }, 300);
+  });
+
+  // 筛选下拉框
+  filterSelect.addEventListener('change', () => {
+    const searchValue = searchInput.value;
+    const filterValue = filterSelect.value;
+    loadCharactersToGrid(gridId, type, searchValue, filterValue);
+  });
+
+  // 刷新按钮
+  refreshBtn.addEventListener('click', () => {
+    const searchValue = searchInput.value;
+    const filterValue = filterSelect.value;
+    loadCharactersToGrid(gridId, type, searchValue, filterValue);
+  });
+}
+
+// 初始化时设置事件监听
+setupCharacterSearchAndFilter('video');
+setupCharacterSearchAndFilter('storyboard');
+```
+
+### 16.4 测试验证
+
+**测试案例 1: 搜索功能**
+```
+操作步骤:
+1. 打开文生视频页面
+2. 在搜索框输入"猫"
+3. 等待 300ms 防抖延迟
+
+预期结果:
+✅ 只显示用户名或别名包含"猫"的角色
+✅ 其他角色被过滤掉
+✅ 清空搜索框后显示所有角色
+```
+
+**测试案例 2: 收藏功能**
+```
+操作步骤:
+1. 点击角色卡片上的星标图标（☆）
+2. 切换到"⭐ 我的收藏"筛选
+3. 再次点击星标图标取消收藏
+
+预期结果:
+✅ 点击后星标变为金黄色（★）
+✅ 切换到收藏筛选后只显示已收藏的角色
+✅ 取消收藏后星标变回灰色（☆）
+✅ 取消收藏后角色从收藏列表消失
+```
+
+**测试案例 3: 最近使用**
+```
+操作步骤:
+1. 选择一个角色
+2. 切换到"🕐 最近使用"筛选
+
+预期结果:
+✅ 最近使用的角色显示在列表顶部
+✅ 角色按使用顺序排序
+✅ 数据保存在 localStorage，刷新页面后保留
+```
+
+### 16.5 最佳实践
+
+#### 16.5.1 搜索防抖
+
+```javascript
+// ✅ 正确：使用防抖减少 API 调用
+let searchTimeout;
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    // 执行搜索
+  }, 300); // 300ms 防抖
+});
+
+// ❌ 错误：每次输入都立即搜索
+searchInput.addEventListener('input', () => {
+  // 频繁调用 API，性能差
+});
+```
+
+#### 16.5.2 存储层设计
+
+```javascript
+// ✅ 正确：添加 updateByUsername 方法
+updateByUsername(username, updates) {
+  const index = this.characters.findIndex(c => c.username === username);
+  if (index === -1) return null;
+
+  Object.assign(this.characters[index], updates);
+  this._save();
+  return this.characters[index];
+}
+
+// ❌ 错误：API 和存储层不匹配
+// API 使用 username 参数，但存储只支持按 ID 查找
+```
+
+### 16.6 常见问题
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| **搜索无结果** | 大小写敏感 | 使用 `toLowerCase()` 统一为小写比较 |
+| **收藏失败** | API 使用 ID 但传入 username | 添加 `updateByUsername` 方法 |
+| **最近使用不更新** | 未调用 `saveRecentCharacter` | 选择角色时保存到 localStorage |
+| **筛选后不刷新** | 未触发 `change` 事件 | 手动触发或刷新页面 |
+
+### 16.7 扩展功能建议
+
+**未来可以添加的功能**:
+1. **高级搜索** - 支持通配符、正则表达式
+2. **标签系统** - 为角色添加自定义标签
+3. **收藏夹分组** - 创建多个收藏夹分组管理
+4. **导入导出** - 导出收藏配置，分享给其他用户
+
+---
+
 **最后更新**: 2025-12-29
 **维护者**: WinJin AIGC Team

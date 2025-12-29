@@ -112,6 +112,24 @@ class CharacterStorage {
   }
 
   /**
+   * 按 username 更新角色 ⭐ 新增
+   * @param {string} username - 角色用户名
+   * @param {object} updates - 更新内容
+   * @returns {object|null} 更新后的角色，不存在返回 null
+   */
+  updateByUsername(username, updates) {
+    const index = this.characters.findIndex(c => c.username === username);
+    if (index === -1) {
+      return null;
+    }
+
+    Object.assign(this.characters[index], updates);
+    this.characters[index].updatedAt = new Date().toISOString();
+    this._save();
+    return this.characters[index];
+  }
+
+  /**
    * 删除角色
    * @param {string} characterId - 角色 ID
    * @returns {boolean} 是否删除成功

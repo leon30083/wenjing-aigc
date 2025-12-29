@@ -288,6 +288,45 @@ app.put('/api/character/:characterId/alias', (req, res) => {
   }
 });
 
+/**
+ * 设置角色收藏状态 ⭐ 新增
+ * PUT /api/character/:username/favorite
+ * 注意：参数名是 username（不是 ID），使用 updateByUsername 方法
+ */
+app.put('/api/character/:username/favorite', (req, res) => {
+  try {
+    const { username } = req.params;
+    const { favorite } = req.body;
+
+    // 使用 updateByUsername 方法（按 username 查找）
+    const updated = characterStorage.updateByUsername(username, {
+      favorite: !!favorite,
+      favoritedAt: !!favorite ? new Date().toISOString() : null
+    });
+    if (!updated) {
+      return res.json({ success: false, error: 'Character not found' });
+    }
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 获取收藏的角色列表 ⭐ 新增
+ * GET /api/character/favorites
+ */
+app.get('/api/character/favorites', (req, res) => {
+  try {
+    const allCharacters = characterStorage.getAllCharacters();
+    const favorites = allCharacters.filter(c => c.favorite === true);
+    res.json({ success: true, data: favorites });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // ==================== 任务查询 ====================
 
 /**

@@ -80,6 +80,27 @@ paths: *
 - **⚠️ 禁止**: **不要传递 `model` 参数**，否则会导致 404 错误
 - **✅ 推荐**: 优先使用 `from_task` 参数（从已完成的视频任务创建）
 
+### 角色管理 API ⭐ 新增
+
+**设置角色收藏状态**:
+- **端点**: `PUT /api/character/:username/favorite`
+- **参数**: `username` - 角色用户名（路径参数），`favorite` - 布尔值（请求体）
+- **响应**: `{ success: true, data: { ...character, favorite: boolean } }`
+- **注意**: 使用 `username` 而非 `id` 作为路径参数
+
+**获取收藏的角色列表**:
+- **端点**: `GET /api/character/favorites`
+- **响应**: `{ success: true, data: [...] }`
+- **筛选**: 只返回 `favorite: true` 的角色
+
+**角色搜索和筛选** ⭐ 新增:
+- **搜索**: 前端实时搜索，按 `username` 或 `alias` 匹配（不区分大小写）
+- **筛选类型**:
+  - `all` - 显示全部角色
+  - `favorites` - 只显示收藏的角色
+  - `recent` - 显示最近使用的角色（localStorage，最多 20 个）
+- **防抖延迟**: 300ms（搜索输入）
+
 ### 参考图片功能 ⭐ 新增
 
 **文生视频 vs 图生视频**:

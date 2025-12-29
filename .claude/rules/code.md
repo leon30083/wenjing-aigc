@@ -867,6 +867,204 @@ async function deleteHistoryRecord(taskId) {
 }
 ```
 
+### 角色搜索、筛选和收藏功能 ⭐ 新增
+
+**后端存储 - updateByUsername 方法**:
+```javascript
+// character-storage.js - 按用户名更新角色
+updateByUsername(username, updates) {
+  const index = this.characters.findIndex(c => c.username === username);
+  if (index === -1) {
+    return null;
+  }
+
+  Object.assign(this.characters[index], updates);
+  this.characters[index].updatedAt = new Date().toISOString();
+  this._save();
+  return this.characters[index];
+}
+```
+
+**后端 API - 收藏端点**:
+```javascript
+// index.js - 设置角色收藏状态
+app.put('/api/character/:username/favorite', (req, res) => {
+  try {
+    const { username } = req.params;
+    const { favorite } = req.body;
+
+    // 使用 updateByUsername 方法（按 username 查找）
+    const updated = characterStorage.updateByUsername(username, {
+      favorite: !!favorite,
+      favoritedAt: !!favorite ? new Date().toISOString() : null
+    });
+    if (!updated) {
+      return res.json({ success: false, error: 'Character not found' });
+    }
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// 获取收藏的角色列表
+app.get('/api/character/favorites', (req, res) => {
+  try {
+    const allCharacters = characterStorage.getAllCharacters();
+    const favorites = allCharacters.filter(c => c.favorite === true);
+    res.json({ success: true, data: favorites });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+```
+
+**前端 - 角色网格加载（支持搜索和筛选）**:
+```javascript
+// 加载角色到网格（支持搜索和筛选）⭐ 更新
+async function loadCharactersToGrid(gridId, type, searchQuery = '', filterType = 'all') {
+  try {
+    const response = await fetch(`${API_BASE}/character/list`);
+    const result = await response.json();
+
+    if (result.success && result.data) {
+      charactersList[type] = result.data;
+      const gridElement = document.getElementById(gridId);
+      if (!gridElement) return;
+
+      gridElement.innerHTML = '';
+
+      // 根据筛选类型过滤
+      let filteredCharacters = result.data;
+
+      // 筛选：收藏 / 最近使用
+      if (filterType === 'favorites') {
+        filteredCharacters = filteredCharacters.filter(c => c.favorite === true);
+      } else if (filterType === 'recent') {
+        filteredCharacters = filteredCharacters.filter(c => recentCharacters.includes(c.username));
+        // 按最近使用顺序排序
+        filteredCharacters.sort((a, b) => {
+          const indexA = recentCharacters.indexOf(a.username);
+          const indexB = recentCharacters.indexOf(b.username);
+          return indexA - indexB;
+        });
+      }
+
+      // 搜索：按用户名或别名过滤
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        filteredCharacters = filteredCharacters.filter(c =>
+          c.username.toLowerCase().includes(query) ||
+          (c.alias && c.alias.toLowerCase().includes(query))
+        );
+      }
+
+      // 渲染角色卡片...
+    }
+  } catch (error) {
+    console.error('加载角色列表失败:', error);
+  }
+}
+```
+
+**前端 - 搜索和筛选事件监听**:
+```javascript
+// 设置搜索和筛选事件监听 ⭐ 新增
+function setupCharacterSearchAndFilter(type) {
+  const searchInput = document.getElementById(`${type}-character-search`);
+  const filterSelect = document.getElementById(`${type}-character-filter`);
+  const refreshBtn = document.getElementById(`${type}-refresh-characters`);
+  const gridId = `${type}-character-grid`;
+
+  if (!searchInput || !filterSelect || !refreshBtn) return;
+
+  // 搜索输入（实时，300ms 防抖）
+  let searchTimeout;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      const searchValue = searchInput.value;
+      const filterValue = filterSelect.value;
+      loadCharactersToGrid(gridId, type, searchValue, filterValue);
+    }, 300);
+  });
+
+  // 筛选下拉框
+  filterSelect.addEventListener('change', () => {
+    const searchValue = searchInput.value;
+    const filterValue = filterSelect.value;
+    loadCharactersToGrid(gridId, type, searchValue, filterValue);
+  });
+
+  // 刷新按钮
+  refreshBtn.addEventListener('click', () => {
+    const searchValue = searchInput.value;
+    const filterValue = filterSelect.value;
+    loadCharactersToGrid(gridId, type, searchValue, filterValue);
+  });
+}
+```
+
+**前端 - 最近使用（localStorage）**:
+```javascript
+// 最近使用的角色（localStorage）
+const RECENT_CHARACTERS_KEY = 'recent_characters';
+let recentCharacters = JSON.parse(localStorage.getItem(RECENT_CHARACTERS_KEY) || '[]');
+
+// 保存最近使用的角色
+function saveRecentCharacter(username) {
+  // 移除已存在的（如果有的话）
+  recentCharacters = recentCharacters.filter(u => u !== username);
+  // 添加到开头
+  recentCharacters.unshift(username);
+  // 只保留最近 20 个
+  if (recentCharacters.length > 20) {
+    recentCharacters = recentCharacters.slice(0, 20);
+  }
+  // 保存到 localStorage
+  localStorage.setItem(RECENT_CHARACTERS_KEY, JSON.stringify(recentCharacters));
+}
+
+// 选择角色时保存到最近使用
+card.addEventListener('click', () => {
+  selectCharacter(type, char.username, gridId);
+  saveRecentCharacter(char.username); // ✅ 保存到最近使用
+});
+```
+
+### 错误15: 使用 ID 而非 username 更新角色 ⭐ 新增
+```javascript
+// ❌ 错误：API 使用 username 作为参数，但存储用 ID 查找
+app.put('/api/character/:username/favorite', (req, res) => {
+  const { username } = req.params;
+  // 使用 updateCharacter 按 ID 查找会失败
+  const updated = characterStorage.updateCharacter(username, { favorite: true });
+  // username 不等于 id，返回 null
+});
+
+// ✅ 正确：添加 updateByUsername 方法
+// character-storage.js
+updateByUsername(username, updates) {
+  const index = this.characters.findIndex(c => c.username === username);
+  if (index === -1) return null;
+
+  Object.assign(this.characters[index], updates);
+  this._save();
+  return this.characters[index];
+}
+
+// index.js
+app.put('/api/character/:username/favorite', (req, res) => {
+  const { username } = req.params;
+  const updated = characterStorage.updateByUsername(username, { favorite: true });
+  // ✅ 按 username 查找，正确更新
+});
+```
+
+**问题**: 角色 API 端点使用 `username` 作为路径参数，但存储层使用 `id` 查找，导致更新失败
+**解决方案**: 添加 `updateByUsername` 方法，或在 API 中先通过 username 查找 id 再更新
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：
