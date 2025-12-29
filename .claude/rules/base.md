@@ -21,6 +21,33 @@ paths: *
 | axios | ^1.6.5 | HTTP 客户端 |
 | dotenv | ^17.2.3 | 环境变量管理 |
 | form-data | ^4.0.0 | 多表单数据 |
+| **React** | ^19.0.0 | **前端 UI 框架（工作流编辑器）** ⭐ 新增 |
+| **React Flow** | ^11.0.0 | **节点编辑器库（可视化工作流）** ⭐ 新增 |
+| **Vite** | ^5.0.0 | **前端构建工具** ⭐ 新增 |
+| **Tailwind CSS** | ^3.4.0 | **CSS 框架（可选）** ⭐ 新增 |
+
+### 前端架构说明 ⭐ 新增
+
+**当前架构**（v1.x）：
+```
+原生 HTML + JavaScript
+└── src/renderer/public/index.html
+```
+
+**工作流编辑器架构**（v2.0 - 开发中）：
+```
+React + React Flow
+└── src/client/
+    ├── src/nodes/         # 自定义节点
+    ├── src/components/   # UI 组件
+    └── src/hooks/        # 业务逻辑
+```
+
+**注意事项**：
+- Express 后端保持不变，继续服务现有 API
+- React 前端通过 HTTP 调用 Express API
+- 两种架构并存，逐步迁移
+
 
 ## Sora2 API 支持平台
 
