@@ -551,53 +551,203 @@ app.post('/api/character/create', async (req, res) => {
 });
 ```
 
-### 10.3 角色快速调用功能
+### 10.3 角色快速调用功能 ⭐ 可视化网格选择器
 
-在视频创建表单中添加角色选择器：
+**重要更新**: 2025-12-29 - 使用可视化角色卡片网格，支持光标位置插入
+
+#### 10.3.1 设计原则
+
+1. **可视化展示**: 使用角色卡片网格，显示头像、别名和用户名（不显示平台标签，因为 sora2 角色跨平台通用）
+2. **光标位置插入**: 点击角色时，在光标位置插入引用，而不是替换全部内容
+3. **独立状态管理**: 文生视频和故事板各自维护选中状态
+
+#### 10.3.2 文生视频 - 角色选择器
 
 ```javascript
-// 加载角色到下拉选择器
-async function loadCharactersToSelector(selectId) {
+// 加载角色到网格
+async function loadCharactersToGrid(gridId, type) {
   const response = await fetch(`${API_BASE}/character/list`);
   const result = await response.json();
 
   if (result.success && result.data) {
-    const selectElement = document.getElementById(selectId);
-    selectElement.innerHTML = '<option value="">-- 不使用角色 --</option>';
+    const gridElement = document.getElementById(gridId);
+    gridElement.innerHTML = '';
 
     result.data.forEach(char => {
-      const option = document.createElement('option');
-      option.value = char.username;
-      // 显示别名或用户名
-      const displayName = char.alias ? `${char.alias} (${char.username})` : char.username;
-      option.textContent = `[${char.platform === 'juxin' ? '聚鑫' : '贞贞'}] ${displayName}`;
-      selectElement.appendChild(option);
+      const card = document.createElement('div');
+      card.className = 'character-card';
+      card.dataset.username = char.username;
+
+      // 显示头像、别名和用户名（不显示平台标签）
+      const avatarUrl = char.profilePictureUrl || 'default-avatar.svg';
+      const displayName = char.alias || char.username;
+
+      card.innerHTML = `
+        <img src="${avatarUrl}" class="character-card-avatar">
+        <div class="character-card-name">${displayName}</div>
+        ${char.alias ? `<div class="character-card-username">@${char.username}</div>` : ''}
+      `;
+
+      // 点击选择角色
+      card.addEventListener('click', () => {
+        selectCharacter(type, char.username, gridId);
+      });
+
+      gridElement.appendChild(card);
     });
   }
 }
 
-// 角色选择变化时自动插入引用到提示词
-function handleCharacterChange() {
-  const selectElement = document.getElementById('video-character-select');
+// 在光标位置插入角色引用
+function updatePromptWithCharacter(username) {
   const promptElement = document.getElementById('video-prompt');
-  const selectedUsername = selectElement.value;
+  if (!promptElement || !username) return;
 
-  if (selectedUsername) {
-    const currentPrompt = promptElement.value;
-    // 检查是否已有角色引用
-    const roleRefRegex = /@[a-z0-9_.]+/gi;
-    const existingRefs = currentPrompt.match(roleRefRegex);
+  // 获取光标位置
+  const start = promptElement.selectionStart;
+  const end = promptElement.selectionEnd;
+  const text = promptElement.value;
+  const refText = `@${username} `;
 
-    if (existingRefs) {
-      // 替换现有引用
-      promptElement.value = currentPrompt.replace(roleRefRegex, `@${selectedUsername}`);
-    } else {
-      // 添加新引用
-      promptElement.value = `@${selectedUsername} ${currentPrompt}`.trim();
+  // 在光标位置插入
+  promptElement.value = text.substring(0, start) + refText + text.substring(end);
+  // 移动光标到插入内容之后
+  promptElement.setSelectionRange(start + refText.length, start + refText.length);
+  // 重新聚焦
+  promptElement.focus();
+}
+```
+
+#### 10.3.3 故事板 - 角色选择器
+
+```javascript
+// 记录最后焦点的场景输入框
+let lastFocusedSceneInput = null;
+
+// 为场景输入框添加焦点监听
+function setupSceneInputListeners() {
+  document.querySelectorAll('.shot-scene').forEach(input => {
+    input.addEventListener('focus', (e) => {
+      lastFocusedSceneInput = e.target;
+    });
+  });
+}
+
+// 在最后焦点的场景中插入角色引用
+function updateStoryboardSceneWithCharacter(username) {
+  // 使用最后焦点的场景输入框
+  let targetInput = lastFocusedSceneInput;
+
+  if (!targetInput || !document.body.contains(targetInput)) {
+    // 如果没有记录的焦点，尝试使用当前焦点
+    const activeElement = document.activeElement;
+    if (activeElement && activeElement.classList.contains('shot-scene')) {
+      targetInput = activeElement;
     }
+  }
+
+  if (targetInput && username) {
+    const start = targetInput.selectionStart;
+    const end = targetInput.selectionEnd;
+    const text = targetInput.value;
+    const refText = `@${username} `;
+
+    // 在光标位置插入
+    targetInput.value = text.substring(0, start) + refText + text.substring(end);
+    // 移动光标并重新聚焦
+    targetInput.setSelectionRange(start + refText.length, start + refText.length);
+    targetInput.focus();
   }
 }
 ```
+
+#### 10.3.4 HTML 结构
+
+```html
+<!-- 文生视频 - 角色选择网格 -->
+<div class="form-group">
+  <label>选择角色（可选）</label>
+  <button id="video-refresh-characters">刷新角色列表</button>
+  <div id="video-character-grid" class="character-grid"></div>
+  <p>选择角色后，会在提示词中自动插入 @username 引用（不带花括号）</p>
+</div>
+
+<!-- 故事板 - 角色选择网格 -->
+<div class="form-group">
+  <label>选择角色（可选）</label>
+  <button id="storyboard-refresh-characters">刷新角色列表</button>
+  <div id="storyboard-character-grid" class="character-grid"></div>
+  <p>选择角色后，会在最后焦点的场景描述中自动插入 @username 引用（不带花括号）</p>
+</div>
+```
+
+#### 10.3.5 CSS 样式
+
+```css
+.character-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.character-card {
+  background: #f8f9fa;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 16px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.character-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+  transform: translateY(-2px);
+}
+
+.character-card.selected {
+  border-color: #667eea;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+.character-card-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 12px;
+  border: 3px solid #e0e0e0;
+}
+
+.character-card.selected .character-card-avatar {
+  border-color: #667eea;
+}
+
+.character-card-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.character-card-username {
+  font-size: 12px;
+  color: #666;
+  word-break: break-all;
+}
+```
+
+#### 10.3.6 关键要点
+
+1. **不显示平台标签**: sora2 角色跨平台通用，聚鑫和贞贞创建的角色可以互相使用
+2. **光标位置插入**: 不会替换用户已输入的内容，只在光标位置插入 `@username` 引用
+3. **焦点管理**: 故事板需要记录最后焦点的场景输入框，因为点击角色卡片会转移焦点
+4. **选中状态**: 角色卡片支持选中/取消选中（再次点击取消）
 
 ### 10.4 角色别名功能
 
@@ -686,7 +836,9 @@ searchInput.addEventListener('input', (e) => {
 4. **时间戳记录**: 记录 createdAt 和 updatedAt，便于追踪
 5. **搜索优化**: 搜索使用不区分大小写的模糊匹配
 6. **别名系统**: 为角色设置易于记忆的别名，提升用户体验
-7. **快速调用**: 在视频创建表单中集成角色选择器，自动插入角色引用
+7. **快速调用**: 使用可视化角色卡片网格，在光标位置插入角色引用 ⭐
+8. **平台通用性**: sora2 角色跨平台通用，不在界面显示平台标签 ⭐
+9. **光标位置插入**: 点击角色时不替换全部内容，只在光标位置插入 `@username` 引用 ⭐
 
 ---
 
