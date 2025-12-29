@@ -308,6 +308,121 @@ app.put('/api/character/:characterId/alias', (req, res) => {
 });
 ```
 
+### 角色快速调用功能 ⭐ 可视化网格选择器
+
+**重要更新**: 2025-12-29 - 使用可视化角色卡片网格，支持光标位置插入
+
+#### 前端实现 - 加载角色到网格
+
+```javascript
+// 加载角色到网格
+async function loadCharactersToGrid(gridId, type) {
+  const response = await fetch(`${API_BASE}/character/list`);
+  const result = await response.json();
+
+  if (result.success && result.data) {
+    const gridElement = document.getElementById(gridId);
+    gridElement.innerHTML = '';
+
+    result.data.forEach(char => {
+      const card = document.createElement('div');
+      card.className = 'character-card';
+      card.dataset.username = char.username;
+
+      // 显示头像、别名和用户名（不显示平台标签）
+      const avatarUrl = char.profilePictureUrl || 'default-avatar.svg';
+      const displayName = char.alias || char.username;
+
+      card.innerHTML = `
+        <img src="${avatarUrl}" class="character-card-avatar">
+        <div class="character-card-name">${displayName}</div>
+        ${char.alias ? `<div class="character-card-username">@${char.username}</div>` : ''}
+      `;
+
+      // 点击选择角色
+      card.addEventListener('click', () => {
+        selectCharacter(type, char.username, gridId);
+      });
+
+      gridElement.appendChild(card);
+    });
+  }
+}
+```
+
+#### 前端实现 - 光标位置插入（文生视频）
+
+```javascript
+// 在光标位置插入角色引用
+function updatePromptWithCharacter(username) {
+  const promptElement = document.getElementById('video-prompt');
+  if (!promptElement || !username) return;
+
+  // 获取光标位置
+  const start = promptElement.selectionStart;
+  const end = promptElement.selectionEnd;
+  const text = promptElement.value;
+  const refText = `@${username} `;
+
+  // 在光标位置插入
+  promptElement.value = text.substring(0, start) + refText + text.substring(end);
+  // 移动光标到插入内容之后
+  promptElement.setSelectionRange(start + refText.length, start + refText.length);
+  // 重新聚焦
+  promptElement.focus();
+}
+```
+
+#### 前端实现 - 焦点管理（故事板）
+
+```javascript
+// 记录最后焦点的场景输入框
+let lastFocusedSceneInput = null;
+
+// 为场景输入框添加焦点监听
+function setupSceneInputListeners() {
+  document.querySelectorAll('.shot-scene').forEach(input => {
+    input.addEventListener('focus', (e) => {
+      lastFocusedSceneInput = e.target;
+    });
+  });
+}
+
+// 在最后焦点的场景中插入角色引用
+function updateStoryboardSceneWithCharacter(username) {
+  // 使用最后焦点的场景输入框
+  let targetInput = lastFocusedSceneInput;
+
+  if (!targetInput || !document.body.contains(targetInput)) {
+    // 如果没有记录的焦点，尝试使用当前焦点
+    const activeElement = document.activeElement;
+    if (activeElement && activeElement.classList.contains('shot-scene')) {
+      targetInput = activeElement;
+    }
+  }
+
+  if (targetInput && username) {
+    const start = targetInput.selectionStart;
+    const end = targetInput.selectionEnd;
+    const text = targetInput.value;
+    const refText = `@${username} `;
+
+    // 在光标位置插入
+    targetInput.value = text.substring(0, start) + refText + text.substring(end);
+    // 移动光标并重新聚焦
+    targetInput.setSelectionRange(start + refText.length, start + refText.length);
+    targetInput.focus();
+  }
+}
+```
+
+#### 关键要点
+
+1. **不显示平台标签**: sora2 角色跨平台通用，聚鑫和贞贞创建的角色可以互相使用
+2. **光标位置插入**: 不会替换用户已输入的内容，只在光标位置插入 `@username` 引用
+3. **焦点管理**: 故事板需要记录最后焦点的场景输入框，因为点击角色卡片会转移焦点
+4. **选中状态**: 角色卡片支持选中/取消选中（再次点击取消）
+
 ### 查询任务 - 返回统一格式
 
 ```javascript
@@ -437,6 +552,93 @@ app.post('/api/character/create', async (req, res) => {
   const result = await client.createCharacter({ url, timestamps, from_task });
   res.json(result);
 });
+```
+
+### 错误7: 角色插入替换全部内容 ⭐ 新增
+```javascript
+// ❌ 错误：替换整个提示词内容
+function handleCharacterChange() {
+  const promptElement = document.getElementById('video-prompt');
+  const selectedUsername = selectElement.value;
+
+  // 移除所有角色引用并在开头添加
+  const roleRefRegex = /@[a-z0-9_.]+/gi;
+  const cleanPrompt = promptElement.value.replace(roleRefRegex, '').trim();
+  promptElement.value = `@${selectedUsername} ${cleanPrompt}`;
+}
+
+// ✅ 正确：在光标位置插入
+function updatePromptWithCharacter(username) {
+  const promptElement = document.getElementById('video-prompt');
+  const start = promptElement.selectionStart;
+  const end = promptElement.selectionEnd;
+  const text = promptElement.value;
+  const refText = `@${username} `;
+
+  // 在光标位置插入，不影响其他内容
+  promptElement.value = text.substring(0, start) + refText + text.substring(end);
+  promptElement.setSelectionRange(start + refText.length, start + refText.length);
+  promptElement.focus();
+}
+```
+
+### 错误8: 故事板未管理焦点状态 ⭐ 新增
+```javascript
+// ❌ 错误：点击角色卡片后丢失焦点，无法插入
+function updateStoryboardScene(username) {
+  const activeElement = document.activeElement;
+  // activeElement 是角色卡片，不是场景输入框
+  if (activeElement && activeElement.classList.contains('shot-scene')) {
+    activeElement.value = `@${username} ` + activeElement.value;
+  }
+}
+
+// ✅ 正确：记录最后焦点的场景输入框
+let lastFocusedSceneInput = null;
+
+function setupSceneInputListeners() {
+  document.querySelectorAll('.shot-scene').forEach(input => {
+    input.addEventListener('focus', (e) => {
+      lastFocusedSceneInput = e.target;
+    });
+  });
+}
+
+function updateStoryboardScene(username) {
+  let targetInput = lastFocusedSceneInput;
+  if (!targetInput || !document.body.contains(targetInput)) {
+    const activeElement = document.activeElement;
+    if (activeElement && activeElement.classList.contains('shot-scene')) {
+      targetInput = activeElement;
+    }
+  }
+
+  if (targetInput && username) {
+    const start = targetInput.selectionStart;
+    const end = targetInput.selectionEnd;
+    const text = targetInput.value;
+    const refText = `@${username} `;
+
+    targetInput.value = text.substring(0, start) + refText + text.substring(end);
+    targetInput.setSelectionRange(start + refText.length, start + refText.length);
+    targetInput.focus();
+  }
+}
+```
+
+### 错误9: 显示平台标签（角色跨平台通用）⭐ 新增
+```javascript
+// ❌ 错误：显示平台标签（误导用户）
+const displayName = char.alias ? `${char.alias} (${char.username})` : char.username;
+option.textContent = `[${char.platform === 'juxin' ? '聚鑫' : '贞贞'}] ${displayName}`;
+
+// ✅ 正确：不显示平台标签（sora2 角色跨平台通用）
+const displayName = char.alias || char.username;
+card.innerHTML = `
+  <img src="${avatarUrl}" class="character-card-avatar">
+  <div class="character-card-name">${displayName}</div>
+  ${char.alias ? `<div class="character-card-username">@${char.username}</div>` : ''}
+`;
 ```
 
 ## 开发参考
