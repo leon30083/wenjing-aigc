@@ -376,6 +376,97 @@
       font-size: 13px;
     }
 
+    /* Character Selection Grid Styles */
+    .character-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .no-character-hint {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 40px;
+      color: #999;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 2px dashed #e0e0e0;
+    }
+
+    .character-card {
+      background: #f8f9fa;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .character-card:hover {
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+      transform: translateY(-2px);
+    }
+
+    .character-card.selected {
+      border-color: #667eea;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    }
+
+    .character-card-avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-bottom: 12px;
+      border: 3px solid #e0e0e0;
+      background: #f0f0f0;
+    }
+
+    .character-card.selected .character-card-avatar {
+      border-color: #667eea;
+    }
+
+    .character-card-name {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .character-card-username {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 8px;
+      word-break: break-all;
+    }
+
+    .character-card-platform {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #e0e0e0;
+      color: #666;
+    }
+
+    .character-card-platform.juxin {
+      background: #e3f2fd;
+      color: #1976d2;
+    }
+
+    .character-card-platform.zhenzhen {
+      background: #fce4ec;
+      color: #c2185b;
+    }
+
     /* Character Library Styles */
     .character-library-item {
       background: #f8f9fa;
@@ -469,15 +560,13 @@
         <textarea id="video-prompt" placeholder="描述你想要生成的视频内容..."></textarea>
       </div>
       <div class="form-group">
-        <label for="video-character-select">选择角色（可选）</label>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <select id="video-character-select" style="flex: 1;">
-            <option value="">-- 不使用角色 --</option>
-          </select>
-          <button class="btn btn-secondary" id="video-refresh-characters" style="padding: 8px 16px;">刷新角色</button>
+        <label>选择角色（可选）</label>
+        <button class="btn btn-secondary" id="video-refresh-characters" style="margin-bottom: 12px; padding: 8px 16px;">刷新角色列表</button>
+        <div id="video-character-grid" class="character-grid">
+          <div class="no-character-hint">暂无角色，请先创建角色或点击刷新</div>
         </div>
         <p style="color: #666; font-size: 13px; margin-top: 8px;">
-          选择角色后，会在提示词中自动插入 @{username} 引用
+          选择角色后，会在提示词中自动插入 @username 引用（不带花括号）
         </p>
       </div>
       <div class="form-row">
@@ -530,6 +619,16 @@
 
     <!-- 故事板 -->
     <div class="tab-content" id="storyboard-tab">
+      <div class="form-group">
+        <label>选择角色（可选）</label>
+        <button class="btn btn-secondary" id="storyboard-refresh-characters" style="margin-bottom: 12px; padding: 8px 16px;">刷新角色列表</button>
+        <div id="storyboard-character-grid" class="character-grid">
+          <div class="no-character-hint">暂无角色，请先创建角色或点击刷新</div>
+        </div>
+        <p style="color: #666; font-size: 13px; margin-top: 8px;">
+          选择角色后，会在所有场景描述中自动插入 @username 引用（不带花括号）
+        </p>
+      </div>
       <div class="form-group">
         <label>镜头列表</label>
         <div class="shots-container" id="shots-container">
@@ -696,77 +795,151 @@
 
     // ==================== 角色快速调用 ====================
 
-    // 存储角色列表
-    let charactersList = [];
+    // 存储角色列表和选中状态
+    let charactersList = {};
+    let selectedCharacters = {
+      video: null,
+      storyboard: null
+    };
 
-    // 加载角色到选择器
-    async function loadCharactersToSelector(selectId) {
+    // 加载角色到网格
+    async function loadCharactersToGrid(gridId, type) {
       try {
         const response = await fetch(`${API_BASE}/character/list`);
         const result = await response.json();
 
         if (result.success && result.data) {
-          charactersList = result.data;
-          const selectElement = document.getElementById(selectId);
-          if (!selectElement) return;
-
-          // 保存当前选中值
-          const currentValue = selectElement.value;
+          charactersList[type] = result.data;
+          const gridElement = document.getElementById(gridId);
+          if (!gridElement) return;
 
           // 清空并重新填充
-          selectElement.innerHTML = '<option value="">-- 不使用角色 --</option>';
+          gridElement.innerHTML = '';
 
-          charactersList.forEach(char => {
-            const option = document.createElement('option');
-            option.value = char.username;
-            // 显示别名（如果有）或用户名
-            const displayName = char.alias ? `${char.alias} (${char.username})` : char.username;
-            option.textContent = `[${char.platform === 'juxin' ? '聚鑫' : '贞贞'}] ${displayName}`;
-            option.dataset.characterId = char.id;
-            selectElement.appendChild(option);
+          if (result.data.length === 0) {
+            gridElement.innerHTML = '<div class="no-character-hint">暂无角色，请先创建角色或点击刷新</div>';
+            return;
+          }
+
+          result.data.forEach(char => {
+            const card = document.createElement('div');
+            card.className = 'character-card';
+            card.dataset.username = char.username;
+            card.dataset.type = type;
+
+            // 默认头像或使用角色头像
+            const avatarUrl = char.profilePictureUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect fill="%23e0e0e0" width="80" height="80"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23999" font-size="30">?</text></svg>';
+            const displayName = char.alias || char.username;
+
+            card.innerHTML = `
+              <img src="${avatarUrl}" alt="${displayName}" class="character-card-avatar" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 80 80%22><rect fill=%22%23e0e0e0%22 width=%2280%22 height=%2280%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22 font-size=%2230%22>?</text></svg>'">
+              <div class="character-card-name">${displayName}</div>
+              ${char.alias ? `<div class="character-card-username">@${char.username}</div>` : ''}
+            `;
+
+            // 检查是否是当前选中的角色
+            if (selectedCharacters[type] === char.username) {
+              card.classList.add('selected');
+            }
+
+            // 点击事件
+            card.addEventListener('click', () => {
+              selectCharacter(type, char.username, gridId);
+            });
+
+            gridElement.appendChild(card);
           });
-
-          // 恢复选中值
-          selectElement.value = currentValue;
         }
       } catch (error) {
         console.error('加载角色列表失败:', error);
-      }
-    }
-
-    // 角色选择变化时，在提示词中插入引用
-    function handleCharacterChange() {
-      const selectElement = document.getElementById('video-character-select');
-      const promptElement = document.getElementById('video-prompt');
-      const selectedUsername = selectElement.value;
-
-      if (selectedUsername) {
-        // 检查提示词中是否已经有角色引用
-        const currentPrompt = promptElement.value;
-        // 所有平台都使用 @username 格式
-        const roleRefRegex = /@[a-z0-9_.]+/gi;
-        const existingRefs = currentPrompt.match(roleRefRegex);
-
-        // 如果已经有角色引用，替换它
-        if (existingRefs) {
-          promptElement.value = currentPrompt.replace(roleRefRegex, `@${selectedUsername}`);
-        } else {
-          // 否则在开头插入
-          promptElement.value = `@${selectedUsername} ${currentPrompt}`.trim();
+        const gridElement = document.getElementById(gridId);
+        if (gridElement) {
+          gridElement.innerHTML = '<div class="no-character-hint">加载失败，请重试</div>';
         }
       }
     }
 
-    // 角色刷新按钮
+    // 选择角色
+    function selectCharacter(type, username, gridId) {
+      // 如果点击已选中的角色，则取消选中
+      if (selectedCharacters[type] === username) {
+        selectedCharacters[type] = null;
+        updateCharacterGridSelection(gridId);
+        updatePromptWithCharacter(type, null);
+        return;
+      }
+
+      // 选中新角色
+      selectedCharacters[type] = username;
+      updateCharacterGridSelection(gridId);
+      updatePromptWithCharacter(type, username);
+    }
+
+    // 更新角色网格的选中状态
+    function updateCharacterGridSelection(gridId) {
+      const gridElement = document.getElementById(gridId);
+      if (!gridElement) return;
+
+      const cards = gridElement.querySelectorAll('.character-card');
+      cards.forEach(card => {
+        const cardUsername = card.dataset.username;
+        if (selectedCharacters[card.dataset.type] === cardUsername) {
+          card.classList.add('selected');
+        } else {
+          card.classList.remove('selected');
+        }
+      });
+    }
+
+    // 更新提示词或场景描述中的角色引用
+    function updatePromptWithCharacter(type, username) {
+      if (type === 'video') {
+        const promptElement = document.getElementById('video-prompt');
+        const currentPrompt = promptElement.value;
+        const roleRefRegex = /@[a-z0-9_.]+/gi;
+
+        // 移除现有角色引用
+        const cleanPrompt = currentPrompt.replace(roleRefRegex, '').trim();
+
+        // 添加新角色引用（如果选中了角色）
+        if (username) {
+          promptElement.value = `@${username} ${cleanPrompt}`.trim();
+        } else {
+          promptElement.value = cleanPrompt;
+        }
+      } else if (type === 'storyboard') {
+        // 更新所有场景描述
+        const sceneInputs = document.querySelectorAll('.shot-scene');
+        const roleRefRegex = /@[a-z0-9_.]+/gi;
+
+        sceneInputs.forEach(input => {
+          const currentScene = input.value;
+          // 移除现有角色引用
+          const cleanScene = currentScene.replace(roleRefRegex, '').trim();
+
+          // 添加新角色引用（如果选中了角色）
+          if (username) {
+            input.value = `@${username} ${cleanScene}`.trim();
+          } else {
+            input.value = cleanScene;
+          }
+        });
+      }
+    }
+
+    // 文生视频 - 角色刷新按钮
     document.getElementById('video-refresh-characters').addEventListener('click', () => {
-      loadCharactersToSelector('video-character-select');
+      loadCharactersToGrid('video-character-grid', 'video');
     });
 
-    // 角色选择变化事件
-    document.getElementById('video-character-select').addEventListener('change', handleCharacterChange);
+    // 故事板 - 角色刷新按钮
+    document.getElementById('storyboard-refresh-characters').addEventListener('click', () => {
+      loadCharactersToGrid('storyboard-character-grid', 'storyboard');
+    });
 
     // 页面加载时自动加载角色列表
-    loadCharactersToSelector('video-character-select');
+    loadCharactersToGrid('video-character-grid', 'video');
+    loadCharactersToGrid('storyboard-character-grid', 'storyboard');
 
     // 创建视频
     document.getElementById('video-create-btn').addEventListener('click', async () => {
