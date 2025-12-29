@@ -588,6 +588,127 @@ app.delete('/api/history/all', (req, res) => {
   }
 });
 
+// ==================== 备份管理 ====================
+
+/**
+ * GET /api/backup/export
+ * 导出所有数据（历史记录 + 角色库）
+ */
+app.get('/api/backup/export', (req, res) => {
+  try {
+    const backup = {
+      version: '1.0',
+      timestamp: new Date().toISOString(),
+      data: {
+        history: historyStorage.getAllRecords(),
+        characters: characterStorage.getAllCharacters(),
+      },
+    };
+
+    res.json({ success: true, data: backup });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/backup/import
+ * 导入备份数据
+ * Body: { history: [], characters: [] }
+ */
+app.post('/api/backup/import', (req, res) => {
+  try {
+    const { history, characters } = req.body;
+
+    if (!history && !characters) {
+      return res.json({ success: false, error: 'No data provided' });
+    }
+
+    const result = {
+      history: { imported: 0, skipped: 0, errors: [] },
+      characters: { imported: 0, skipped: 0, errors: [] },
+    };
+
+    // 导入历史记录
+    if (Array.isArray(history)) {
+      history.forEach((record) => {
+        try {
+          if (record.taskId) {
+            // 检查是否已存在
+            const existing = historyStorage.getRecord(record.taskId);
+            if (!existing) {
+              historyStorage.addRecord(record);
+              result.history.imported++;
+            } else {
+              result.history.skipped++;
+            }
+          }
+        } catch (error) {
+          result.history.errors.push({ record, error: error.message });
+        }
+      });
+    }
+
+    // 导入角色库
+    if (Array.isArray(characters)) {
+      characters.forEach((character) => {
+        try {
+          if (character.id) {
+            // 检查是否已存在
+            const existing = characterStorage.getCharacter(character.id);
+            if (!existing) {
+              characterStorage.addCharacter(character);
+              result.characters.imported++;
+            } else {
+              result.characters.skipped++;
+            }
+          }
+        } catch (error) {
+          result.characters.errors.push({ character, error: error.message });
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result,
+      message: `导入完成：历史记录 ${result.history.imported} 条，角色 ${result.characters.imported} 个`,
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/backup/info
+ * 获取数据统计信息
+ */
+app.get('/api/backup/info', (req, res) => {
+  try {
+    const historyStats = historyStorage.getStats();
+    const characterStats = characterStorage.getStats();
+
+    res.json({
+      success: true,
+      data: {
+        history: {
+          total: historyStats.total || 0,
+          queued: historyStats.queued || 0,
+          processing: historyStats.processing || 0,
+          completed: historyStats.completed || 0,
+          failed: historyStats.failed || 0,
+        },
+        characters: {
+          total: characterStats.total || 0,
+        },
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // ==================== 错误处理 ====================
 
 app.use((req, res) => {
