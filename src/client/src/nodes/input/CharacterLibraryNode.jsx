@@ -13,7 +13,7 @@ function CharacterLibraryNode({ data }) {
   const [recentCharacters, setRecentCharacters] = useState([]);
 
   // 状态管理
-  // selectionMode: 'transfer' = 传送到视频节点（多选）, 'manage' = 批量删除
+  // selectionMode: 'transfer' = 传送到视频节点（多选）, 'manage' = 角色编辑
   const [selectionMode, setSelectionMode] = useState('transfer');
   const [selectedCharacters, setSelectedCharacters] = useState(new Set()); // 多选角色
   const [batchMode, setBatchMode] = useState(false);
@@ -123,7 +123,7 @@ function CharacterLibraryNode({ data }) {
     }
   };
 
-  // 批量删除角色
+  // 角色编辑功能
   const deleteBatchCharacters = async (characterIds) => {
     try {
       const promises = characterIds.map(id =>
@@ -241,7 +241,7 @@ function CharacterLibraryNode({ data }) {
     }
   };
 
-  // 批量删除选中的角色
+  // 删除选中的角色（编辑模式下）
   const deleteSelected = async () => {
     if (selectedCharacters.size === 0) {
       alert('请先选择要删除的角色');
@@ -435,7 +435,7 @@ function CharacterLibraryNode({ data }) {
             cursor: 'pointer',
           }}
         >
-          🗑️ 批量删除
+          ✏️ 角色编辑
         </button>
       </div>
 
