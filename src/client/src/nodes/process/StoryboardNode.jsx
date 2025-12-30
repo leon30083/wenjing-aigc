@@ -548,6 +548,11 @@ function StoryboardNode({ data }) {
         }}>
           <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
             📤 最终提示词 (API):
+            {connectedCharacters.length > 0 && (
+              <span style={{ fontWeight: 'normal', marginLeft: '8px', color: '#059669' }}>
+                ({connectedCharacters.length} 个角色)
+              </span>
+            )}
           </div>
           {shots.filter(s => s.scene.trim()).map((shot, index) => (
             <div key={shot.id} style={{ marginBottom: '2px' }}>
