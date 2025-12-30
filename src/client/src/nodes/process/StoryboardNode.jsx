@@ -9,10 +9,12 @@ function StoryboardNode({ data }) {
 
   const [config, setConfig] = useState({
     model: 'Sora-2',
-    duration: 10,
     aspect: '16:9',
     watermark: false,
   });
+
+  // ⭐ 新增：总时长选项（用于自动均分）
+  const [totalDuration, setTotalDuration] = useState(15); // 5, 10, 15, 25
 
   const [shots, setShots] = useState([
     { id: '1', scene: '', duration: 5, image: '' },
@@ -22,8 +24,22 @@ function StoryboardNode({ data }) {
 
   // ⭐ Phase 1: 角色引用相关状态
   const connectedCharacters = data.connectedCharacters || [];
+  const connectedImages = data.connectedImages || [];
   const sceneRefs = useRef([]);
   const lastFocusedSceneIndex = useRef(null);
+
+  // ⭐ 新增：全局图片控制和镜头图片选择状态
+  const [useGlobalImages, setUseGlobalImages] = useState(false); // 全局图片复选框
+  const [showImageSelector, setShowImageSelector] = useState(false); // 图片选择器模态框
+  const [selectedShotIndex, setSelectedShotIndex] = useState(null); // 当前选择图片的镜头索引
+
+  // ⭐ 自动计算每个镜头的时长
+  const shotDuration = shots.length > 0
+    ? (totalDuration / shots.length).toFixed(1)
+    : 5;
+
+  // ⭐ 计算当前总时长（用于智能提示）
+  const currentTotalDuration = shots.reduce((sum, shot) => sum + (shot.duration || 0), 0);
 
   const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
     data,
@@ -91,6 +107,26 @@ function StoryboardNode({ data }) {
     ));
   };
 
+  // ⭐ 新增：为镜头选择图片
+  const openImageSelector = (index) => {
+    setSelectedShotIndex(index);
+    setShowImageSelector(true);
+  };
+
+  const selectImageForShot = (imageUrl) => {
+    const newShots = [...shots];
+    newShots[selectedShotIndex].image = imageUrl;
+    setShots(newShots);
+    setShowImageSelector(false);
+  };
+
+  const clearShotImage = () => {
+    const newShots = [...shots];
+    newShots[selectedShotIndex].image = '';
+    setShots(newShots);
+    setShowImageSelector(false);
+  };
+
   // ⭐ Phase 1: 场景输入框获取焦点时记录索引
   const handleSceneFocus = (index) => {
     lastFocusedSceneIndex.current = index;
@@ -143,20 +179,26 @@ function StoryboardNode({ data }) {
     setStatus('generating');
 
     try {
-      // ✅ 收集所有图片
+      // ⭐ 收集所有图片（根据复选框和镜头选择）
       const allImages = [];
 
-      // 全局图片（从 ReferenceImageNode 连接）
-      if (data.connectedImages && data.connectedImages.length > 0) {
-        allImages.push(...data.connectedImages);
+      // 1. 全局图片（仅当复选框选中时）
+      if (useGlobalImages && connectedImages.length > 0) {
+        allImages.push(...connectedImages);
       }
 
-      // 每个镜头的图片
+      // 2. 镜头图片（每个镜头独立选择的图片）
       validShots.forEach(shot => {
         if (shot.image && shot.image.trim()) {
           allImages.push(shot.image.trim());
         }
       });
+
+      // ⭐ 使用自动均分的时长
+      const shotsWithDuration = validShots.map(s => ({
+        ...s,
+        duration: parseFloat(shotDuration),
+      }));
 
       // ✅ 调用后端故事板 API
       const response = await fetch(`${API_BASE}/api/video/storyboard`, {
@@ -165,12 +207,9 @@ function StoryboardNode({ data }) {
         body: JSON.stringify({
           platform: 'juxin',
           model: config.model.toLowerCase(),
-          shots: validShots.map(s => ({
-            duration: s.duration,
-            scene: s.scene,
-            image: s.image,
-          })),
+          shots: shotsWithDuration,
           images: allImages,
+          duration: totalDuration, // ⭐ 传递总时长给后端
           aspect_ratio: config.aspect,
           watermark: config.watermark,
         }),
@@ -303,8 +342,8 @@ function StoryboardNode({ data }) {
         )}
       </div>
 
-      {/* ⭐ Connected Images Display with thumbnails */}
-      {data.connectedImages && data.connectedImages.length > 0 ? (
+      {/* ⭐ Connected Images Display with thumbnails and checkbox control */}
+      {connectedImages.length > 0 ? (
         <div style={{
           padding: '6px',
           backgroundColor: '#f3e8ff',
@@ -314,11 +353,26 @@ function StoryboardNode({ data }) {
           color: '#6b21a8',
         }}>
           <div style={{ marginBottom: '4px', fontWeight: 'bold' }}>
-            🖼️ 全局参考图 ({data.connectedImages.length} 张)
+            🖼️ 全局参考图 ({connectedImages.length} 张)
           </div>
+
+          {/* 复选框控制 */}
+          <div className="nodrag" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+            <input
+              className="nodrag"
+              type="checkbox"
+              checked={useGlobalImages}
+              onChange={(e) => setUseGlobalImages(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            <label style={{ fontSize: '11px', color: '#6b21a8', cursor: 'pointer' }}>
+              启用全局参考图（应用到所有镜头）
+            </label>
+          </div>
+
           {/* Thumbnail grid */}
           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-            {data.connectedImages.map((url, index) => (
+            {connectedImages.map((url, index) => (
               <img
                 key={index}
                 src={url}
@@ -350,6 +404,43 @@ function StoryboardNode({ data }) {
           💡 提示：连接参考图节点添加全局图片
         </div>
       )}
+
+      {/* ⭐ Total Duration Setting */}
+      <div style={{
+        padding: '6px',
+        backgroundColor: '#ecfdf5',
+        borderRadius: '4px',
+        marginBottom: '8px',
+        fontSize: '10px',
+      }}>
+        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#059669', marginBottom: '4px' }}>
+          ⏱️ 总时长设置
+        </div>
+        <div className="nodrag" style={{ display: 'flex', gap: '4px' }}>
+          <select
+            className="nodrag"
+            value={totalDuration}
+            onChange={(e) => setTotalDuration(Number(e.target.value))}
+            disabled={status === 'generating'}
+            style={{ flex: 1, padding: '4px', fontSize: '11px', borderRadius: '3px', border: '1px solid #6ee7b7' }}
+          >
+            <option value={5}>5 秒</option>
+            <option value={10}>10 秒</option>
+            <option value={15}>15 秒</option>
+            <option value={25}>25 秒</option>
+          </select>
+          <div style={{ fontSize: '10px', color: '#047857', padding: '4px' }}>
+            每镜头: {shotDuration} 秒
+          </div>
+        </div>
+
+        {/* 智能提示 */}
+        {currentTotalDuration > 25 && (
+          <div style={{ marginTop: '4px', padding: '4px', backgroundColor: '#fecaca', borderRadius: '3px', fontSize: '10px', color: '#991b1b' }}>
+            ⚠️ 当前总时长 {currentTotalDuration} 秒超过 API 限制（25秒）
+          </div>
+        )}
+      </div>
 
       {/* Global Config */}
       <div style={{
@@ -479,40 +570,38 @@ function StoryboardNode({ data }) {
               }}
             />
 
-            {/* Duration & Image */}
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <input
+            {/* Duration hint & Image selector */}
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <span style={{ fontSize: '9px', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                ⏱️ 自动均分 {shotDuration}秒
+              </span>
+
+              {/* ⭐ 图片选择按钮 */}
+              <button
                 className="nodrag"
-                type="number"
-                value={shot.duration}
-                onChange={(e) => updateShot(shot.id, 'duration', Number(e.target.value))}
-                min="5"
-                max="30"
+                onClick={() => openImageSelector(index)}
                 disabled={status === 'generating'}
                 style={{
-                  width: '50px',
-                  padding: '4px',
-                  borderRadius: '3px',
-                  border: '1px solid #c7d2fe',
+                  padding: '4px 8px',
+                  backgroundColor: shot.image ? '#8b5cf6' : '#e5e7eb',
+                  color: shot.image ? 'white' : '#374151',
                   fontSize: '10px',
-                }}
-              />
-              <input
-                className="nodrag"
-                type="text"
-                value={shot.image}
-                onChange={(e) => updateShot(shot.id, 'image', e.target.value)}
-                placeholder="图片URL (可选)"
-                disabled={status === 'generating'}
-                style={{
-                  flex: 1,
-                  padding: '4px',
+                  border: 'none',
                   borderRadius: '3px',
-                  border: '1px solid #c7d2fe',
-                  fontSize: '10px',
+                  cursor: status === 'generating' ? 'not-allowed' : 'pointer',
                 }}
-              />
+                title={shot.image ? '已选择参考图' : '选择参考图'}
+              >
+                📷
+              </button>
             </div>
+
+            {/* Selected image info */}
+            {shot.image && (
+              <div style={{ fontSize: '9px', color: '#6b21a8', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                已选图: {shot.image}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -607,6 +696,99 @@ function StoryboardNode({ data }) {
         <span>↑ 角色 / 图片</span>
         <span>视频 →</span>
       </div>
+
+      {/* ⭐ Image Selector Modal */}
+      {showImageSelector && connectedImages.length > 0 && (
+        <div
+          onClick={() => setShowImageSelector(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white',
+              padding: '16px',
+              borderRadius: '8px',
+              maxWidth: '500px',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+            }}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: '12px', fontSize: '14px', color: '#4338ca' }}>
+              为镜头 {selectedShotIndex + 1} 选择参考图
+            </h3>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+              {connectedImages.map((url, index) => (
+                <div
+                  key={index}
+                  onClick={() => selectImageForShot(url)}
+                  style={{
+                    padding: '4px',
+                    border: shots[selectedShotIndex]?.image === url
+                      ? '2px solid #8b5cf6'
+                      : '1px solid #e5e7eb',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    backgroundColor: shots[selectedShotIndex]?.image === url ? '#f3e8ff' : 'white',
+                  }}
+                >
+                  <img
+                    src={url}
+                    alt={`ref-${index}`}
+                    style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '3px' }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button
+                className="nodrag"
+                onClick={clearShotImage}
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                }}
+              >
+                清除选择
+              </button>
+              <button
+                className="nodrag"
+                onClick={() => setShowImageSelector(false)}
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: '#6b7280',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                }}
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Resize Handle (ComfyUI style) */}
       <div

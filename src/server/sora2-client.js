@@ -319,6 +319,7 @@ class Sora2Client {
     try {
       const {
         shots,
+        duration, // ⭐ 新增：总时长参数（可选）
         model = 'sora-2',
         orientation = 'landscape',
         size = 'small',
@@ -353,6 +354,11 @@ class Sora2Client {
         watermark,
         private: isPrivate,
       };
+
+      // ⭐ 如果提供了 duration，添加到请求体
+      if (duration) {
+        body.duration = duration;
+      }
 
       // 转换画面方向参数
       const orientationParam = this._convertOrientationParam(orientation);
