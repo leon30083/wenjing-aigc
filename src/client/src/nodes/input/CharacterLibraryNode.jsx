@@ -18,7 +18,7 @@ function CharacterLibraryNode({ data }) {
   const loadCharacters = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/character/list`);
+      const response = await fetch(`${API_BASE}/api/character/list`);
       const result = await response.json();
       if (result.success && result.data) {
         setCharacters(result.data);
