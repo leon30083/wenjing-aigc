@@ -1,9 +1,11 @@
-import { Handle, Position } from 'reactflow';
+import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
 import React, { useState, useEffect } from 'react';
 
 const API_BASE = 'http://localhost:9000';
 
 function CharacterLibraryNode({ data }) {
+  const nodeId = useNodeId(); // ⭐ 获取当前节点 ID
+  const { setNodes, getNodes, getEdges } = useReactFlow();
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -12,11 +14,47 @@ function CharacterLibraryNode({ data }) {
 
   // 新增状态
   const [batchMode, setBatchMode] = useState(false);
-  const [selectedCharacters, setSelectedCharacters] = useState(new Set());
+  const [selectedCharacters, setSelectedCharacters] = useState(new Set()); // 批量选择
+  const [selectedCharacter, setSelectedCharacter] = useState(null); // ⭐ MVP: 单个角色选择（输出）
   const [editingCharacter, setEditingCharacter] = useState(null);
   const [editAlias, setEditAlias] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState(null);
+
+  // ⭐ MVP: 当选中角色改变时，更新连接的节点数据
+  useEffect(() => {
+    if (data.onCharacterSelect) {
+      data.onCharacterSelect(selectedCharacter);
+    }
+    // 同时更新 data 对象，让 App.jsx 的连接逻辑可以读取
+    data.selectedCharacter = selectedCharacter;
+
+    // ⭐ 关键：主动更新连接到角色输出端点的节点
+    if (selectedCharacter && nodeId) {
+      const edges = getEdges();
+
+      // 找到所有从当前节点发出的连接（使用 nodeId 而不是 data.id）
+      const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+      // 更新所有连接的目标节点
+      setNodes((nds) =>
+        nds.map((node) => {
+          const isConnected = outgoingEdges.some(e => e.target === node.id);
+
+          if (isConnected) {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                connectedCharacter: selectedCharacter
+              }
+            };
+          }
+          return node;
+        })
+      );
+    }
+  }, [selectedCharacter, data, nodeId, getEdges, getNodes, setNodes]);
 
   useEffect(() => {
     loadCharacters();
@@ -191,6 +229,39 @@ function CharacterLibraryNode({ data }) {
       setBatchMode(false);
     } else {
       alert('❌ 删除失败');
+    }
+  };
+
+  // ⭐ MVP: 处理角色选择（单击选择）
+  const handleSelectCharacter = (char) => {
+    // 如果点击已选中的角色，取消选择
+    if (selectedCharacter?.id === char.id) {
+      setSelectedCharacter(null);
+    } else {
+      // 选中新角色
+      setSelectedCharacter(char);
+    }
+  };
+
+  // ⭐ MVP: 获取卡片背景色（显示选中状态）
+  const getCardBackgroundColor = (char) => {
+    if (batchMode) {
+      // 批量模式：显示批量选中状态
+      return selectedCharacters.has(char.id) ? '#fef3c7' : 'white';
+    } else {
+      // 非批量模式：显示单选状态（MVP）
+      return selectedCharacter?.id === char.id ? '#d1fae5' : 'white';
+    }
+  };
+
+  // ⭐ MVP: 获取卡片边框（显示选中状态）
+  const getCardBorder = (char) => {
+    if (batchMode) {
+      // 批量模式：显示批量选中状态
+      return selectedCharacters.has(char.id) ? '2px solid #f59e0b' : '1px solid #a5f3fc';
+    } else {
+      // 非批量模式：显示单选状态（MVP）
+      return selectedCharacter?.id === char.id ? '2px solid #10b981' : '1px solid #a5f3fc';
     }
   };
 
@@ -382,18 +453,19 @@ function CharacterLibraryNode({ data }) {
           filteredCharacters.map((char) => (
             <div
               key={char.id}
-              onClick={() => batchMode ? toggleCharacterSelection(char.id) : openEditDialog(char)}
+              onClick={() => batchMode ? toggleCharacterSelection(char.id) : handleSelectCharacter(char)}
+              onDoubleClick={() => !batchMode && openEditDialog(char)}
               style={{
                 padding: '6px',
-                backgroundColor: batchMode && selectedCharacters.has(char.id) ? '#fef3c7' : 'white',
+                backgroundColor: getCardBackgroundColor(char),
                 borderRadius: '4px',
-                border: batchMode && selectedCharacters.has(char.id) ? '2px solid #f59e0b' : '1px solid #a5f3fc',
+                border: getCardBorder(char),
                 cursor: 'pointer',
                 fontSize: '10px',
                 textAlign: 'center',
                 position: 'relative',
               }}
-              title={`@${char.username}${char.alias ? ` (${char.alias})` : ''}`}
+              title={`@${char.username}${char.alias ? ` (${char.alias})` : ''}\n${batchMode ? '点击切换选中' : '点击选择角色，双击编辑别名'}`}
             >
               {/* Checkbox in batch mode */}
               {batchMode && (
@@ -448,6 +520,31 @@ function CharacterLibraryNode({ data }) {
                 >
                   ✕
                 </button>
+              )}
+
+              {/* ⭐ MVP: 选中标识（非批量模式） */}
+              {!batchMode && selectedCharacter?.id === char.id && (
+                <div style={{
+                  position: 'absolute',
+                  top: '2px',
+                  left: '2px',
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '50%',
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  border: '2px solid #ecfdf5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                }}
+                title="已选中"
+                >
+                  ✓
+                </div>
               )}
 
               <img

@@ -217,20 +217,74 @@ function VideoGenerateNode({ data }) {
         </div>
       </div>
 
-      {/* Connected Inputs Display */}
-      {connectedCharacter && (
+      {/* Connected Character Display - MVP Layer 1 */}
+      <div style={{ marginBottom: '8px' }}>
         <div style={{
-          padding: '6px',
-          backgroundColor: '#fef3c7',
-          borderRadius: '4px',
-          marginBottom: '6px',
-          fontSize: '10px',
-          color: '#92400e',
+          fontSize: '11px',
+          fontWeight: 'bold',
+          color: '#059669',
+          marginBottom: '4px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px'
         }}>
-          <span>🐱 @{connectedCharacter.username}</span>
+          🔗 已连接角色
         </div>
-      )}
+        {connectedCharacter ? (
+          <div style={{
+            padding: '6px',
+            backgroundColor: '#ecfdf5',
+            borderRadius: '4px',
+            border: '1px solid #6ee7b7',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* Character Avatar */}
+              <img
+                src={connectedCharacter.profilePictureUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"%3E%3Cpath d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/%3E%3C/svg%3E'}
+                alt=""
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  border: '2px solid #10b981',
+                  objectFit: 'cover'
+                }}
+              />
+              {/* Character Info */}
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  color: '#047857'
+                }}>
+                  {connectedCharacter.alias || connectedCharacter.username}
+                </div>
+                <div style={{
+                  fontSize: '9px',
+                  color: '#065f46',
+                  fontFamily: 'monospace'
+                }}>
+                  @{connectedCharacter.username}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            padding: '8px',
+            backgroundColor: '#fef3c7',
+            borderRadius: '4px',
+            fontSize: '10px',
+            color: '#92400e',
+            textAlign: 'center',
+            border: '1px dashed #f59e0b'
+          }}>
+            未连接角色
+          </div>
+        )}
+      </div>
 
+      {/* Connected Images Display */}
       {connectedImages.length > 0 && (
         <div style={{
           padding: '6px',
@@ -246,35 +300,71 @@ function VideoGenerateNode({ data }) {
 
       {/* Prompt Display / Input */}
       {connectedPrompt ? (
-        <div style={{
-          padding: '6px 8px',
-          backgroundColor: '#dbeafe',
-          borderRadius: '4px',
-          marginBottom: '8px',
-          fontSize: '11px',
-          color: '#1e40af',
-          wordBreak: 'break-word',
-        }}>
-          {connectedCharacter && <span>@{connectedCharacter.username} </span>}
-          {connectedPrompt}
+        <div>
+          <div style={{
+            padding: '6px 8px',
+            backgroundColor: '#dbeafe',
+            borderRadius: '4px',
+            marginBottom: '6px',
+            fontSize: '11px',
+            color: '#1e40af',
+            wordBreak: 'break-word',
+          }}>
+            {connectedCharacter && (
+              <span style={{ fontWeight: 'bold', color: '#0369a1' }}>
+                @{connectedCharacter.username}{' '}
+              </span>
+            )}
+            {connectedPrompt}
+          </div>
+          {/* Final Prompt Preview */}
+          <div style={{
+            padding: '6px 8px',
+            backgroundColor: '#f0fdf4',
+            borderRadius: '4px',
+            marginBottom: '8px',
+            fontSize: '10px',
+            color: '#166534',
+            fontStyle: 'italic',
+            border: '1px dashed #6ee7b7',
+          }}>
+            📤 最终提示词:{connectedCharacter ? ` @${connectedCharacter.username}` : ''} {connectedPrompt}
+          </div>
         </div>
       ) : (
-        <textarea
-          value={manualPrompt}
-          onChange={(e) => setManualPrompt(e.target.value)}
-          placeholder="输入提示词或连接文本节点..."
-          disabled={status === 'generating'}
-          style={{
-            width: '100%',
-            minHeight: '50px',
-            padding: '6px 8px',
-            borderRadius: '4px',
-            border: '1px solid #6ee7b7',
-            fontSize: '11px',
-            marginBottom: '8px',
-            resize: 'vertical',
-          }}
-        />
+        <div>
+          <textarea
+            value={manualPrompt}
+            onChange={(e) => setManualPrompt(e.target.value)}
+            placeholder="输入提示词或连接文本节点..."
+            disabled={status === 'generating'}
+            style={{
+              width: '100%',
+              minHeight: '50px',
+              padding: '6px 8px',
+              borderRadius: '4px',
+              border: '1px solid #6ee7b7',
+              fontSize: '11px',
+              marginBottom: '6px',
+              resize: 'vertical',
+            }}
+          />
+          {/* Final Prompt Preview (manual mode) */}
+          {manualPrompt && connectedCharacter && (
+            <div style={{
+              padding: '6px 8px',
+              backgroundColor: '#f0fdf4',
+              borderRadius: '4px',
+              marginBottom: '8px',
+              fontSize: '10px',
+              color: '#166534',
+              fontStyle: 'italic',
+              border: '1px dashed #6ee7b7',
+            }}>
+              📤 最终提示词: @{connectedCharacter.username} {manualPrompt}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Generate Button */}
@@ -340,7 +430,7 @@ function VideoGenerateNode({ data }) {
         color: '#64748b',
       }}>
         <div>↑ 提示词</div>
-        <div>↑ 角色</div>
+        <div>↑ 角色 (MVP Layer 1)</div>
         <div>↑ 图片</div>
         <div style={{ textAlign: 'right', marginTop: '2px' }}>视频 →</div>
       </div>

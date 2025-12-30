@@ -1428,6 +1428,233 @@ const payload = {
 };
 ```
 
+### 角色引用实现 ⭐ 新增
+
+**VideoGenerateNode - MVP 角色引用（自动插入模式）**:
+```javascript
+import { useState, useEffect } from 'react';
+import { Handle, Position } from 'reactflow';
+
+function VideoGenerateNode({ data }) {
+  // 状态管理
+  const [connectedCharacter, setConnectedCharacter] = useState(null);
+  const [userPrompt, setUserPrompt] = useState('');
+
+  // 计算所有角色（MVP: 只有连接的角色）
+  const allCharacters = connectedCharacter ? [connectedCharacter] : [];
+
+  // 从连接的节点获取角色数据
+  useEffect(() => {
+    if (data.connectedCharacter) {
+      setConnectedCharacter(data.connectedCharacter);
+    }
+  }, [data.connectedCharacter]);
+
+  // 组装最终提示词（自动插入角色引用）
+  const assembleFinalPrompt = () => {
+    if (allCharacters.length === 0) {
+      return userPrompt;
+    }
+
+    // 在提示词开头插入所有角色引用
+    const roleRefs = allCharacters
+      .map(c => `@${c.username}`)
+      .join(' ');
+
+    return `${roleRefs} ${userPrompt}`.trim();
+  };
+
+  const finalPrompt = assembleFinalPrompt();
+
+  // 生成视频
+  const handleGenerate = async () => {
+    if (!finalPrompt) {
+      alert('请输入提示词或连接角色库节点');
+      return;
+    }
+
+    // 调用 API
+    const response = await fetch(`${API_BASE}/api/video/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform: 'juxin',
+        model: 'sora-2',
+        prompt: finalPrompt,
+        duration: 10,
+        aspect_ratio: '16:9',
+        watermark: false,
+      }),
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      // 派发事件，通知 TaskResultNode
+      const taskId = result.data.id || result.data.task_id;
+      window.dispatchEvent(new CustomEvent('video-task-created', {
+        detail: { sourceNodeId: data.id, taskId }
+      }));
+    }
+  };
+
+  return (
+    <div style={{ padding: '10px', border: '2px solid #10b981', borderRadius: '8px' }}>
+      {/* 输入端口 */}
+      <Handle type="target" position={Position.Left} id="prompt" />
+      <Handle type="target" position={Position.Left} id="character" />
+      <Handle type="target" position={Position.Left} id="images" />
+
+      {/* 已连接角色显示 */}
+      <div style={{ marginBottom: '8px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#059669' }}>
+          🔗 已连接角色
+        </div>
+        {connectedCharacter ? (
+          <div style={{
+            padding: '6px',
+            backgroundColor: '#d1fae5',
+            borderRadius: '4px',
+            border: '1px solid #6ee7b7'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <img
+                src={connectedCharacter.profilePictureUrl}
+                alt=""
+                style={{ width: '24px', height: '24px', borderRadius: '50%' }}
+              />
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#047857' }}>
+                  {connectedCharacter.alias || connectedCharacter.username}
+                </div>
+                <div style={{ fontSize: '9px', color: '#065f46' }}>
+                  @{connectedCharacter.username}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            padding: '8px',
+            backgroundColor: '#fef3c7',
+            borderRadius: '4px',
+            fontSize: '10px',
+            color: '#92400e',
+            textAlign: 'center'
+          }}>
+            ⚠️ 未连接角色
+          </div>
+        )}
+      </div>
+
+      {/* 提示词输入 */}
+      <textarea
+        value={userPrompt}
+        onChange={(e) => setUserPrompt(e.target.value)}
+        placeholder="输入提示词..."
+        style={{
+          width: '100%',
+          minHeight: '60px',
+          padding: '6px',
+          borderRadius: '4px',
+          border: '1px solid #6ee7b7',
+          fontSize: '11px'
+        }}
+      />
+
+      {/* 提示词预览 */}
+      {finalPrompt && (
+        <div style={{
+          marginTop: '8px',
+          padding: '6px',
+          backgroundColor: '#f0fdf4',
+          borderRadius: '4px',
+          fontSize: '10px',
+          color: '#166534',
+          fontStyle: 'italic'
+        }}>
+          预览: {finalPrompt}
+        </div>
+      )}
+
+      {/* 生成按钮 */}
+      <button
+        onClick={handleGenerate}
+        style={{
+          marginTop: '8px',
+          width: '100%',
+          padding: '6px',
+          backgroundColor: '#10b981',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
+      >
+        生成视频
+      </button>
+
+      {/* 输出端口 */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="video"
+        style={{ background: '#10b981', width: 10, height: 10 }}
+      />
+    </div>
+  );
+}
+```
+
+**角色引用组装函数**:
+```javascript
+/**
+ * 组装带角色引用的提示词
+ * @param {string} userPrompt - 用户输入的提示词
+ * @param {Array} allCharacters - 所有角色对象数组
+ * @returns {string} 组装后的完整提示词
+ */
+function assemblePromptWithCharacters(userPrompt, allCharacters) {
+  // 如果没有角色，直接返回用户输入
+  if (!allCharacters || allCharacters.length === 0) {
+    return userPrompt;
+  }
+
+  // 提取所有角色引用
+  const roleRefs = allCharacters
+    .map(c => `@${c.username}`)
+    .join(' ');
+
+  // 在开头插入角色引用，后面跟用户输入
+  const finalPrompt = `${roleRefs} ${userPrompt}`.trim();
+
+  return finalPrompt;
+}
+
+// 使用示例
+const userPrompt = "在花园里玩耍";
+const characters = [
+  { username: "user1", alias: "阳光小猫" },
+  { username: "user2", alias: "装载机" }
+];
+
+const result = assemblePromptWithCharacters(userPrompt, characters);
+// 输出: "@user1 @user2 在花园里玩耍"
+```
+
+**角色对象结构**:
+```javascript
+// CharacterLibraryNode 输出的角色对象
+{
+  id: "ch_69536e7ce60481919c4e9a2a3cf4c6d5",
+  username: "de3602969.sunnykitty",
+  alias: "小小猫",
+  permalink: "https://sora.chatgpt.com/profile/de3602969.sunnykitty",
+  profilePictureUrl: "https://...",
+  source: "connected" | "manual"  // 数据来源标识
+}
+```
+
+
 ```javascript
 // ❌ 错误: 时长为字符串类型
 const [config, setConfig] = useState({
