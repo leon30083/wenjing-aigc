@@ -20,25 +20,70 @@ function VideoGenerateNode({ data }) {
   const connectedImages = data.connectedImages || [];
 
   // Manual inputs
-  const [manualPrompt, setManualPrompt] = useState('');
+  const [manualPrompt, setManualPrompt] = useState(''); // 存储真实ID（给API用）
   const [status, setStatus] = useState('idle'); // idle, generating, success, error
   const [taskId, setTaskId] = useState(null);
   const [error, setError] = useState(null);
 
+  // ⭐ 创建用户名到别名的映射
+  const usernameToAlias = React.useMemo(() => {
+    const map = {};
+    connectedCharacters.forEach(char => {
+      map[char.username] = char.alias || char.username;
+    });
+    return map;
+  }, [connectedCharacters]);
+
+  // ⭐ 将真实提示词转换为显示提示词（用户看：别名）
+  const realToDisplay = (text) => {
+    if (!text) return '';
+    let result = text;
+    // 替换 @username 为 @alias
+    Object.entries(usernameToAlias).forEach(([username, alias]) => {
+      const regex = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+      result = result.replace(regex, `@${alias}`);
+    });
+    return result;
+  };
+
+  // ⭐ 将显示提示词转换为真实提示词（API用：真实ID）
+  const displayToReal = (text) => {
+    if (!text) return '';
+    let result = text;
+
+    // 替换 @alias 为 @username（按最长匹配优先，避免部分匹配问题）
+    const sortedAliases = Object.entries(usernameToAlias)
+      .sort((a, b) => b[1].length - a[1].length); // 长别名优先
+
+    sortedAliases.forEach(([username, alias]) => {
+      // 使用正向肯定预查 (?=\s|$|@) 确保匹配到 @alias 后面是：
+      // - 空白字符 \s（空格、换行等）
+      // - 字符串结尾 $
+      // - 下一个 @ 符号（下一个引用的开始）
+      const regex = new RegExp(`@${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|@)`, 'g');
+      result = result.replace(regex, `@${username}`);
+    });
+
+    return result;
+  };
+
   // ⭐ 在光标位置插入角色引用
-  const insertCharacterAtCursor = (username) => {
+  const insertCharacterAtCursor = (username, alias) => {
     const promptElement = promptInputRef.current;
     if (!promptElement) return;
 
-    // 获取光标位置
+    // 获取光标位置（在显示文本中的位置）
     const start = promptElement.selectionStart;
     const end = promptElement.selectionEnd;
-    const text = manualPrompt;
-    const refText = `@${username} `;
+    const displayText = realToDisplay(manualPrompt);
+    const refText = `@${alias} `; // ⭐ 插入别名到显示位置
 
-    // 在光标位置插入
-    const newText = text.substring(0, start) + refText + text.substring(end);
-    setManualPrompt(newText);
+    // 在光标位置插入到显示文本
+    const newDisplayText = displayText.substring(0, start) + refText + displayText.substring(end);
+
+    // ⭐ 转换回真实ID并存储
+    const newRealText = displayToReal(newDisplayText);
+    setManualPrompt(newRealText);
 
     // 移动光标到插入内容之后
     setTimeout(() => {
@@ -243,7 +288,7 @@ function VideoGenerateNode({ data }) {
             {connectedCharacters.map((char) => (
               <div
                 key={char.id}
-                onClick={() => insertCharacterAtCursor(char.username)}
+                onClick={() => insertCharacterAtCursor(char.username, char.alias || char.username)}
                 style={{
                   padding: '4px 8px',
                   backgroundColor: '#ecfdf5',
@@ -255,7 +300,7 @@ function VideoGenerateNode({ data }) {
                   gap: '4px',
                   transition: 'background 0.2s',
                 }}
-                title="点击插入到光标位置"
+                title={`点击插入 @${char.alias || char.username}`}
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#d1fae5'}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ecfdf5'}
               >
@@ -330,9 +375,12 @@ function VideoGenerateNode({ data }) {
         <div>
           <textarea
             ref={promptInputRef}
-            value={manualPrompt}
-            onChange={(e) => setManualPrompt(e.target.value)}
-            placeholder="输入提示词，点击上方角色卡片插入 @username 引用..."
+            value={realToDisplay(manualPrompt)}
+            onChange={(e) => {
+              const realText = displayToReal(e.target.value);
+              setManualPrompt(realText);
+            }}
+            placeholder="输入提示词，点击上方角色卡片插入角色引用..."
             disabled={status === 'generating'}
             style={{
               width: '100%',
@@ -358,9 +406,21 @@ function VideoGenerateNode({ data }) {
               fontStyle: 'italic',
               border: '1px dashed #6ee7b7',
             }}>
-              📤 最终提示词: {manualPrompt}
+              📤 最终提示词 (API): {manualPrompt}
             </div>
           )}
+          {/* Display hint for user */}
+          <div style={{
+              padding: '4px 8px',
+              backgroundColor: '#fffbeb',
+              borderRadius: '4px',
+              marginBottom: '8px',
+              fontSize: '9px',
+              color: '#92400e',
+              fontStyle: 'italic',
+            }}>
+            💡 输入框显示别名，API使用真实ID
+          </div>
         </div>
       )}
 
