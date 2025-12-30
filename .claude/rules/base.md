@@ -274,14 +274,16 @@ VideoGenerateNode (接收候选角色列表)
 ```
 
 **CharacterLibraryNode - 初筛功能**:
-- **多选模式切换**: 提供"传送到视频节点"和"批量删除"两种模式
+- **多选模式切换**: 提供"传送到视频节点"和"角色编辑"两种模式
 - **传送到视频节点模式**:
   - 点击角色卡片进行多选（绿色边框 + ✓ 标识）
   - 再次点击取消选择
   - 通过节点连接传递选中的角色数组
-- **批量删除模式**:
-  - 原有的批量删除功能
-  - hover 显示删除按钮
+- **角色编辑模式**:
+  - 单个角色删除：hover 显示删除按钮（✕）
+  - 双击编辑角色别名
+  - 批量选择和删除操作
+  - 更准确的模式描述（原名"批量删除"）
 - **搜索和筛选**: 支持按用户名/别名搜索，支持筛选（全部/收藏/最近）
 
 **VideoGenerateNode - 手动插入功能**:
@@ -290,7 +292,7 @@ VideoGenerateNode (接收候选角色列表)
   - 每个角色显示：头像 + 别名/用户名
   - hover 高亮效果
 - **点击插入**:
-  - 点击角色卡片，在光标位置插入 `@username `
+  - 点击角色卡片，在光标位置插入 `@alias`
   - 自动移动光标到插入内容之后
   - 可多次插入，插入到不同位置
 - **提示词编辑**:
@@ -301,9 +303,70 @@ VideoGenerateNode (接收候选角色列表)
   - 未连接角色库节点时：显示提示信息
   - 连接但未选择角色时：显示提示信息
 
+**双显示功能** ⭐ 新增:
+- **设计理念**: 用户看到友好的别名，API接收准确的真实ID
+- **用户体验**:
+  - 输入框显示：`@阳光小猫 和@测试小猫 在海边玩`（易读）
+  - 内部存储：`@5562be00d.sunbeamkit 和@ebfb9a758.sunnykitte 在海边玩`（准确）
+- **映射机制**:
+  - 创建 `usernameToAlias` 映射表（React.useMemo 优化性能）
+  - `realToDisplay()`: 将真实ID转换为别名（显示用）
+  - `displayToReal()`: 将别名转换为真实ID（API用）
+- **正则表达式修复** ⚠️ 关键:
+  - 问题：`\b` 单词边界不支持中文（只匹配 `[a-zA-Z0-9_]`）
+  - 解决：使用 `(?=\s|$|@)` 正向肯定预查
+  - 匹配：空白字符、字符串结尾、或下一个 `@` 符号
+- **实现示例**:
+  ```javascript
+  // 创建映射
+  const usernameToAlias = React.useMemo(() => {
+    const map = {};
+    connectedCharacters.forEach(char => {
+      map[char.username] = char.alias || char.username;
+    });
+    return map;
+  }, [connectedCharacters]);
+
+  // 真实ID → 显示别名
+  const realToDisplay = (text) => {
+    let result = text;
+    Object.entries(usernameToAlias).forEach(([username, alias]) => {
+      const regex = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+      result = result.replace(regex, `@${alias}`);
+    });
+    return result;
+  };
+
+  // 显示别名 → 真实ID（按最长匹配优先，支持中文）
+  const displayToReal = (text) => {
+    let result = text;
+    const sortedAliases = Object.entries(usernameToAlias)
+      .sort((a, b) => b[1].length - a[1].length); // 长别名优先
+    sortedAliases.forEach(([username, alias]) => {
+      // ⚠️ 关键：使用 (?=\s|$|@) 而不是 \b
+      const regex = new RegExp(`@${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|@)`, 'g');
+      result = result.replace(regex, `@${username}`);
+    });
+    return result;
+  };
+
+  // Textarea 显示别名
+  <textarea
+    value={realToDisplay(manualPrompt)}
+    onChange={(e) => setManualPrompt(displayToReal(e.target.value))}
+  />
+
+  // 预览显示真实ID
+  <div>📤 最终提示词 (API): {manualPrompt}</div>
+  <div>💡 输入框显示别名，API使用真实ID</div>
+  ```
+
 **角色引用格式**:
-- 格式：`@username`（不带花括号）
-- 示例：`@user1 一边吃饭，一边和 @user2 聊天`
+- **显示格式**（用户输入框显示）：`@alias`（用户友好的别名）
+- **API格式**（内部存储和API调用）：`@username`（真实用户名ID）
+- **示例**：
+  - 显示：`@阳光小猫 和@测试小猫 在海边玩`
+  - API：`@5562be00d.sunbeamkit 和@ebfb9a758.sunnykitte 在海边玩`
 - 位置：用户完全控制插入位置，系统不做任何自动插入
 
 **数据传递格式**:
@@ -324,21 +387,24 @@ data.connectedCharacters = [
 const [connectedCharacters, setConnectedCharacters] = useState([]);
 ```
 
-**光标插入实现**:
+**光标插入实现**（支持双显示）:
 ```javascript
-const insertCharacterAtCursor = (username) => {
+const insertCharacterAtCursor = (username, alias) => {
   const promptElement = promptInputRef.current;
   if (!promptElement) return;
 
-  // 获取光标位置
+  // 获取光标位置（在显示文本中的位置）
   const start = promptElement.selectionStart;
   const end = promptElement.selectionEnd;
-  const text = manualPrompt;
-  const refText = `@${username} `;
+  const displayText = realToDisplay(manualPrompt);
+  const refText = `@${alias} `; // 插入别名到显示位置
 
-  // 在光标位置插入
-  const newText = text.substring(0, start) + refText + text.substring(end);
-  setManualPrompt(newText);
+  // 在光标位置插入到显示文本
+  const newDisplayText = displayText.substring(0, start) + refText + displayText.substring(end);
+
+  // 转换回真实ID并存储
+  const newRealText = displayToReal(newDisplayText);
+  setManualPrompt(newRealText);
 
   // 移动光标到插入内容之后
   setTimeout(() => {
@@ -353,6 +419,7 @@ const insertCharacterAtCursor = (username) => {
 - ✅ 用户完全控制角色引用的位置和数量
 - ✅ 完全复刻网页版的灵活交互方式
 - ✅ 支持任意复杂的多角色场景（`@user1 和 @user2 在一起，@user3 在旁边观看`）
+- ✅ 双显示功能：输入框显示易读别名，API使用准确ID（避免混淆）
 
 ### 角色结果节点 ⭐ 新增
 

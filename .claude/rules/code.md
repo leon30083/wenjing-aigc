@@ -2325,6 +2325,138 @@ async function deleteCharacter(characterId) {
 }
 ```
 
+**问题**: 删除操作后列表未刷新，用户看不到变化
+**解决方案**: 删除成功后必须重新加载数据列表
+
+---
+
+### 角色引用双显示功能 ⭐ 新增
+
+**功能描述**: 输入框显示别名（便于用户阅读），API使用真实ID（用于角色引用）
+
+```javascript
+// VideoGenerateNode.jsx - 角色引用双显示实现
+function VideoGenerateNode({ data }) {
+  const [connectedCharacters, setConnectedCharacters] = useState([]);
+  const [manualPrompt, setManualPrompt] = useState('');
+
+  // ⭐ 创建用户名到别名的映射
+  const usernameToAlias = React.useMemo(() => {
+    const map = {};
+    connectedCharacters.forEach(char => {
+      map[char.username] = char.alias || char.username;
+    });
+    return map;
+  }, [connectedCharacters]);
+
+  // ⭐ 将真实提示词转换为显示提示词（用户看：别名）
+  const realToDisplay = (text) => {
+    if (!text) return '';
+    let result = text;
+    Object.entries(usernameToAlias).forEach(([username, alias]) => {
+      const regex = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+      result = result.replace(regex, `@${alias}`);
+    });
+    return result;
+  };
+
+  // ⭐ 将显示提示词转换为真实提示词（API用：真实ID）
+  const displayToReal = (text) => {
+    if (!text) return '';
+    let result = text;
+    // 按最长匹配优先排序，避免部分匹配
+    const sortedAliases = Object.entries(usernameToAlias)
+      .sort((a, b) => b[1].length - a[1].length);
+
+    sortedAliases.forEach(([username, alias]) => {
+      // ⚠️ 关键：使用 (?=\s|$|@) 而不是 \b，支持中文
+      const regex = new RegExp(`@${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|@)`, 'g');
+      result = result.replace(regex, `@${username}`);
+    });
+    return result;
+  };
+
+  // ⭐ 在光标位置插入角色引用
+  const insertCharacterAtCursor = (username, alias) => {
+    const promptElement = promptInputRef.current;
+    if (!promptElement) return;
+
+    const start = promptElement.selectionStart;
+    const end = promptElement.selectionEnd;
+    const displayText = realToDisplay(manualPrompt);
+    const refText = `@${alias} `; // 插入别名到显示位置
+
+    const newDisplayText = displayText.substring(0, start) + refText + displayText.substring(end);
+    const newRealText = displayToReal(newDisplayText); // 转换回真实ID并存储
+    setManualPrompt(newRealText);
+
+    setTimeout(() => {
+      promptElement.setSelectionRange(start + refText.length, start + refText.length);
+      promptElement.focus();
+    }, 0);
+  };
+
+  return (
+    <div>
+      {/* 输入框显示别名 */}
+      <textarea
+        value={realToDisplay(manualPrompt)}
+        onChange={(e) => {
+          const realText = displayToReal(e.target.value);
+          setManualPrompt(realText);
+        }}
+      />
+
+      {/* 最终提示词预览显示真实ID */}
+      {manualPrompt && (
+        <div>
+          📤 最终提示词 (API): {manualPrompt}
+        </div>
+      )}
+
+      {/* 提示信息 */}
+      <div>💡 输入框显示别名，API使用真实ID</div>
+    </div>
+  );
+}
+```
+
+**使用示例**:
+```javascript
+// 用户在输入框看到和输入：
+textarea value = "@阳光小猫 和@测试小猫 在海边玩"
+
+// 内部存储（manualPrompt）和API接收：
+manualPrompt = "@5562be00d.sunbeamkit 和@ebfb9a758.sunnykitte 在海边玩"
+
+// 测试验证：
+// ✅ @测试小猫 → @ebfb9a758.sunnykitte
+// ✅ @装载机 → @783316a1d.diggyloade
+// ✅ 视频生成成功: video_399a3462-9eff-4d2a-a11d-910dcc7838e6
+```
+
+### 错误24: 正则表达式 \b 不支持中文 ⭐ 新增
+```javascript
+// ❌ 错误：使用 \b 单词边界无法匹配中文
+const displayToReal = (text) => {
+  const regex = new RegExp(`@阳光小猫\\b`, 'g');
+  // 问题：\b 在 "阳光小猫 " 后无法匹配（中文不是单词字符）
+  return text.replace(regex, '@5562be00d.sunbeamkit');
+};
+
+// ✅ 正确：使用正向肯定预查 (?=\s|$|@)
+const displayToReal = (text) => {
+  // 匹配 @别名 后面是：空白字符、字符串结尾、或下一个@
+  const regex = new RegExp(`@阳光小猫(?=\\s|$|@)`, 'g');
+  return text.replace(regex, '@5562be00d.sunbeamkit');
+};
+```
+
+**问题**: `\b` 单词边界只匹配 `[a-zA-Z0-9_]` 和非单词字符之间，无法处理中文
+**解决方案**: 使用 `(?=\s|$|@)` 正向肯定预查，匹配空白字符、字符串结尾或下一个引用
+
+---
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：
