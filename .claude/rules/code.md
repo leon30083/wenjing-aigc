@@ -1196,6 +1196,318 @@ const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=juxin`);
 **影响范围**: TaskResultNode.jsx 中的轮询和手动刷新函数
 **修复日期**: 2025-12-30
 
+### 工作流存储管理 ⭐ 新增
+
+**WorkflowStorage 工具类**:
+```javascript
+// src/client/src/utils/workflowStorage.js
+export class WorkflowStorage {
+  static STORAGE_KEY = 'winjin-workflows';
+  static CURRENT_WORKFLOW_KEY = 'winjin-current-workflow';
+
+  // 获取所有已保存的工作流
+  static getAllWorkflows() {
+    const data = localStorage.getItem(this.STORAGE_KEY);
+    return data ? JSON.parse(data) : {};
+  }
+
+  // 保存工作流
+  static saveWorkflow(name, nodes, edges, description = '') {
+    const workflows = this.getAllWorkflows();
+    workflows[name] = {
+      name,
+      description,
+      nodes,
+      edges,
+      updatedAt: new Date().toISOString(),
+      createdAt: workflows[name]?.createdAt || new Date().toISOString(),
+    };
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(workflows));
+    localStorage.setItem(this.CURRENT_WORKFLOW_KEY, name);
+    return { success: true, data: workflows[name] };
+  }
+
+  // 加载工作流
+  static loadWorkflow(name) {
+    const workflows = this.getAllWorkflows();
+    const workflow = workflows[name];
+    if (!workflow) {
+      return { success: false, error: 'Workflow not found' };
+    }
+    localStorage.setItem(this.CURRENT_WORKFLOW_KEY, name);
+    return { success: true, data: workflow };
+  }
+
+  // 删除工作流
+  static deleteWorkflow(name) {
+    const workflows = this.getAllWorkflows();
+    if (!workflows[name]) {
+      return { success: false, error: 'Workflow not found' };
+    }
+    delete workflows[name];
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(workflows));
+
+    // 如果删除的是当前工作流，清除标记
+    const current = localStorage.getItem(this.CURRENT_WORKFLOW_KEY);
+    if (current === name) {
+      localStorage.removeItem(this.CURRENT_WORKFLOW_KEY);
+    }
+    return { success: true };
+  }
+
+  // 导出工作流为 JSON 文件
+  static exportWorkflow(name) {
+    const workflows = this.getAllWorkflows();
+    const workflow = workflows[name];
+    if (!workflow) {
+      return { success: false, error: 'Workflow not found' };
+    }
+
+    const blob = new Blob([JSON.stringify(workflow, null, 2)], {
+      type: 'application/json'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `workflow-${name}-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return { success: true };
+  }
+
+  // 从 JSON 文件导入工作流
+  static async importWorkflow(file) {
+    const text = await file.text();
+    const workflow = JSON.parse(text);
+
+    if (!workflow.name || !workflow.nodes || !workflow.edges) {
+      return { success: false, error: 'Invalid workflow file format' };
+    }
+
+    // 重命名以避免冲突
+    const workflows = this.getAllWorkflows();
+    let name = workflow.name;
+    let counter = 1;
+    while (workflows[name]) {
+      name = `${workflow.name} (${counter})`;
+      counter++;
+    }
+
+    return this.saveWorkflow(name, workflow.nodes, workflow.edges, workflow.description);
+  }
+}
+```
+
+**React 组件中使用 WorkflowStorage**:
+```javascript
+// App.jsx - 工作流状态管理
+const [currentWorkflowName, setCurrentWorkflowName] = useState(() =>
+  WorkflowStorage.getCurrentWorkflowName()
+);
+const [showWorkflowList, setShowWorkflowList] = useState(false);
+const [showSaveAsDialog, setShowSaveAsDialog] = useState(false);
+const [saveAsName, setSaveAsName] = useState('');
+const [saveAsDescription, setSaveAsDescription] = useState('');
+
+// 保存工作流
+const handleSaveWorkflow = () => {
+  if (currentWorkflowName) {
+    WorkflowStorage.saveWorkflow(currentWorkflowName, nodes, edges);
+    alert(`✅ 工作流 "${currentWorkflowName}" 已保存`);
+  } else {
+    setShowSaveAsDialog(true);
+  }
+};
+
+// 另存为工作流
+const confirmSaveAs = () => {
+  const name = saveAsName.trim();
+  if (!name) {
+    alert('请输入工作流名称');
+    return;
+  }
+  const result = WorkflowStorage.saveWorkflow(
+    name, nodes, edges, saveAsDescription
+  );
+  if (result.success) {
+    setCurrentWorkflowName(name);
+    setSaveAsName('');
+    setSaveAsDescription('');
+    setShowSaveAsDialog(false);
+    alert(`✅ 工作流 "${name}" 已保存`);
+  }
+};
+
+// 加载工作流
+const handleLoadWorkflow = (name) => {
+  const result = WorkflowStorage.loadWorkflow(name);
+  if (result.success) {
+    const { nodes: savedNodes, edges: savedEdges } = result.data;
+    setNodes(savedNodes);
+    setEdges(savedEdges);
+    setCurrentWorkflowName(name);
+
+    // 更新 nextNodeId
+    if (savedNodes.length > 0) {
+      const maxId = Math.max(...savedNodes.map(n => parseInt(n.id) || 0));
+      setNextNodeId(maxId + 1);
+    } else {
+      setNextNodeId(10);
+    }
+  }
+};
+
+// 删除工作流
+const handleDeleteWorkflow = (name) => {
+  if (!confirm(`确定要删除工作流 "${name}" 吗？此操作不可恢复。`)) {
+    return;
+  }
+  const result = WorkflowStorage.deleteWorkflow(name);
+  if (result.success) {
+    if (currentWorkflowName === name) {
+      setCurrentWorkflowName(null);
+    }
+    alert(`✅ 工作流 "${name}" 已删除`);
+  }
+};
+```
+
+### 剪贴板复制功能 ⭐ 新增
+
+**复制到剪贴板（带旧浏览器降级）**:
+```javascript
+// TaskResultNode.jsx - 复制 TaskId 和视频 URL
+const copyToClipboard = async (text, type) => {
+  try {
+    // 优先使用现代 clipboard API
+    await navigator.clipboard.writeText(text);
+    setCopySuccess(type);
+    setTimeout(() => setCopySuccess(null), 2000);
+  } catch (err) {
+    console.error('Failed to copy:', err);
+    // 降级方案: execCommand (兼容旧浏览器)
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+    setCopySuccess(type);
+    setTimeout(() => setCopySuccess(null), 2000);
+  }
+};
+
+// 使用示例
+<button onClick={() => copyToClipboard(taskId, 'taskId')}>
+  {copySuccess === 'taskId' ? '✓ 已复制' : '📋 复制'}
+</button>
+```
+
+### 视频生成节点参数配置 ⭐ 更新
+
+**VideoGenerateNode - 时长和比例配置**:
+```javascript
+// ✅ 正确: 时长为数字类型，移除 1:1 比例
+const [config, setConfig] = useState({
+  model: 'Sora-2',
+  duration: 10,  // 数字类型: 5, 10, 15, 25
+  aspect: '16:9', // 仅 16:9 或 9:16
+  watermark: false,
+});
+
+// API 调用时转换为小写
+const payload = {
+  platform: 'juxin',
+  model: config.model.toLowerCase(),  // Sora-2 -> sora-2
+  prompt: finalPrompt,
+  duration: config.duration,          // 数字类型
+  aspect_ratio: config.aspect,
+  watermark: config.watermark,
+};
+```
+
+```javascript
+// ❌ 错误: 时长为字符串类型
+const [config, setConfig] = useState({
+  duration: '10',  // 字符串会导致 API 调用失败
+});
+
+// ❌ 错误: Sora2 不支持 1:1 比例
+<select value={config.aspect}>
+  <option value="1:1">1:1 正方形</option>  // 会导致 API 错误
+</select>
+```
+
+### 错误18: localStorage 数据未验证 ⭐ 新增
+```javascript
+// ❌ 错误: 直接使用 localStorage 数据，未验证格式
+const saved = localStorage.getItem('workflow-nodes');
+const nodes = JSON.parse(saved);  // 可能损坏或格式不正确
+setNodes(nodes);
+```
+
+```javascript
+// ✅ 正确: 使用 try-catch 和默认值
+const loadSavedWorkflow = () => {
+  try {
+    const saved = localStorage.getItem('workflow-nodes');
+    if (saved) {
+      const nodes = JSON.parse(saved);
+      // 验证数据格式
+      if (Array.isArray(nodes)) {
+        return { nodes, edges: [] };
+      }
+    }
+    return { nodes: [], edges: [] };
+  } catch (error) {
+    console.error('Failed to load saved workflow:', error);
+    return { nodes: [], edges: [] };  // 返回安全的默认值
+  }
+};
+```
+
+**问题**: localStorage 数据可能损坏或格式不正确，直接使用会导致应用崩溃
+**解决方案**: 使用 try-catch 捕获错误，并验证数据格式，返回安全的默认值
+
+### 错误19: 导入工作流未验证 JSON 格式 ⭐ 新增
+```javascript
+// ❌ 错误: 未验证 JSON 格式直接使用
+const importWorkflow = async (file) => {
+  const text = await file.text();
+  const workflow = JSON.parse(text);  // 可能格式不正确
+  saveWorkflow(workflow.name, workflow.nodes, workflow.edges);
+};
+```
+
+```javascript
+// ✅ 正确: 验证必需字段
+const importWorkflow = async (file) => {
+  try {
+    const text = await file.text();
+    const workflow = JSON.parse(text);
+
+    // 验证必需字段
+    if (!workflow.name || !workflow.nodes || !workflow.edges) {
+      return { success: false, error: 'Invalid workflow file format' };
+    }
+
+    // 验证数据类型
+    if (!Array.isArray(workflow.nodes) || !Array.isArray(workflow.edges)) {
+      return { success: false, error: 'Invalid data format' };
+    }
+
+    return saveWorkflow(workflow.name, workflow.nodes, workflow.edges);
+  } catch (error) {
+    return { success: false, error: 'Failed to parse JSON' };
+  }
+};
+```
+
+**问题**: 导入的 JSON 文件可能格式不正确，缺少必需字段
+**解决方案**: 验证 name, nodes, edges 字段存在，并验证数据类型
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：

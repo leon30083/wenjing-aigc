@@ -161,6 +161,84 @@ React + React Flow
 - **响应**: `{ success: true, data: { message: 'All records cleared' } }`
 - **⚠️ 注意**: 前端应实现二次确认机制，防止误操作
 
+### 备份管理 API ⭐ 新增
+
+**导出备份数据**:
+- **端点**: `GET /api/backup/export`
+- **响应**: `{ success: true, data: { characters: [...], history: [...], version: "1.0" } }`
+- **格式**: JSON 格式，包含角色库和历史记录
+
+**导入备份数据**:
+- **端点**: `POST /api/backup/import`
+- **请求体**: `{ characters: [...], history: [...], version: "1.0" }`
+- **响应**: `{ success: true, data: { imported: { characters: N, history: M } } }`
+- **⚠️ 注意**: 导入时跳过已存在的记录（不覆盖）
+
+**获取备份信息**:
+- **端点**: `GET /api/backup/info`
+- **响应**: `{ success: true, data: { characterCount: N, historyCount: M, version: "1.0" } }`
+
+## 前端架构 - 工作流管理 ⭐ 新增
+
+### 工作流持久化方案
+
+**存储位置**: `localStorage`
+
+**存储结构**:
+```javascript
+// 键名: winjin-workflows
+{
+  "工作流名称": {
+    name: "工作流名称",
+    description: "工作流描述",
+    nodes: [...],      // React Flow 节点数组
+    edges: [...],      // React Flow 连线数组
+    createdAt: "2025-12-30T12:00:00.000Z",
+    updatedAt: "2025-12-30T12:30:00.000Z"
+  }
+}
+
+// 键名: winjin-current-workflow
+// 值: 当前工作流名称
+```
+
+**核心功能**:
+- **保存**: 覆盖当前工作流或另存为新名称
+- **加载**: 加载已保存的工作流（节点、连线）
+- **删除**: 删除指定工作流（带确认）
+- **导出**: 下载为 JSON 文件
+- **导入**: 从 JSON 文件导入（自动重命名避免冲突）
+
+**技术细节**:
+- **自动递增 ID**: 加载工作流后，`nextNodeId` 根据现有节点最大 ID 自动递增
+- **当前工作流显示**: 工具栏显示蓝色标签 "📁 工作流名称"
+- **数据验证**: 导入时验证 JSON 格式（必须包含 name, nodes, edges）
+- **冲突处理**: 导入时如果名称冲突，自动添加 "(1), (2)" 后缀
+
+### 视频生成节点参数 ⭐ 更新
+
+**时长参数**:
+- **有效值**: 5, 10, 15, 25（秒）
+- **类型**: `number`（非字符串）
+- **API 对应**: Sora2 API 的 `duration` 参数
+
+**比例参数**:
+- **有效值**: "16:9", "9:16"
+- **⚠️ 注意**: Sora2 **不支持** 1:1 比例
+
+**完整请求示例**:
+```javascript
+{
+  platform: 'juxin',
+  model: 'sora-2',           // 注意: API 传递小写
+  prompt: '一只可爱的猫咪',
+  duration: 10,              // 数字类型
+  aspect_ratio: '16:9',      // 横屏/竖屏
+  watermark: false,
+  images: ['url1', 'url2']  // 可选: 参考图片
+}
+```
+
 ## 轮询策略
 
 ### 后台自动轮询服务
