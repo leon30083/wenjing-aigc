@@ -17,7 +17,6 @@ import { WorkflowStorage } from './utils/workflowStorage';
 // Import test nodes
 import TextNode from './nodes/input/TextNode';
 import ReferenceImageNode from './nodes/input/ReferenceImageNode';
-import CharacterSelectNode from './nodes/input/CharacterSelectNode';
 import CharacterLibraryNode from './nodes/input/CharacterLibraryNode';
 import CharacterCreateNode from './nodes/process/CharacterCreateNode';
 import VideoGenerateNode from './nodes/process/VideoGenerateNode';
@@ -29,7 +28,6 @@ import CharacterResultNode from './nodes/output/CharacterResultNode';
 const nodeTypes = {
   textNode: TextNode,
   referenceImageNode: ReferenceImageNode,
-  characterSelectNode: CharacterSelectNode,
   characterLibraryNode: CharacterLibraryNode,
   characterCreateNode: CharacterCreateNode,
   videoGenerateNode: VideoGenerateNode,
@@ -125,7 +123,6 @@ const initialEdges = [
 const nodeTemplates = [
   { type: 'textNode', label: '📝 文本节点', category: 'input' },
   { type: 'referenceImageNode', label: '🖼️ 参考图片', category: 'input' },
-  { type: 'characterSelectNode', label: '🐱 角色选择', category: 'input' },
   { type: 'characterLibraryNode', label: '📊 角色库', category: 'input' },
   { type: 'characterCreateNode', label: '🎭 角色生成', category: 'process' },
   { type: 'videoGenerateNode', label: '🎬 视频生成', category: 'process' },
