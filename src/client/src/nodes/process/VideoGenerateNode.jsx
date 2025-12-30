@@ -405,8 +405,8 @@ function VideoGenerateNode({ data }) {
         )}
       </div>
 
-      {/* Connected Images Display */}
-      {connectedImages.length > 0 && (
+      {/* ⭐ Connected Images Display with thumbnails */}
+      {connectedImages.length > 0 ? (
         <div style={{
           padding: '6px',
           backgroundColor: '#f3e8ff',
@@ -415,7 +415,41 @@ function VideoGenerateNode({ data }) {
           fontSize: '10px',
           color: '#6b21a8',
         }}>
-          <span>🖼️ {connectedImages.length} 张参考图</span>
+          <div style={{ marginBottom: '4px', fontWeight: 'bold' }}>
+            🖼️ 已连接参考图 ({connectedImages.length} 张)
+          </div>
+          {/* Thumbnail grid */}
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+            {connectedImages.map((url, index) => (
+              <img
+                key={index}
+                src={url}
+                alt={`ref-${index}`}
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  objectFit: 'cover',
+                  borderRadius: '3px',
+                  border: '1px solid #c4b5fd',
+                }}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          padding: '6px',
+          backgroundColor: '#fef3c7',
+          borderRadius: '4px',
+          marginBottom: '6px',
+          fontSize: '10px',
+          color: '#92400e',
+          textAlign: 'center'
+        }}>
+          💡 提示：连接参考图节点并选择图片
         </div>
       )}
 

@@ -2906,6 +2906,177 @@ const insertCharacterToFocusedScene = (username, alias) => {
 
 ---
 
+### 参考图片节点协作实现 ⭐ 新增 (2025-12-30)
+
+**功能概述**: 参考图片节点与视频生成/故事板节点的协作，实现图片预览和自动合并
+
+#### ReferenceImageNode - 双模式设计
+
+```javascript
+import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
+import React, { useState, useEffect } from 'react';
+
+function ReferenceImageNode({ data }) {
+  const nodeId = useNodeId();
+  const { setNodes, getEdges } = useReactFlow();
+
+  const [images, setImages] = useState(data.images || []);
+  const [inputValue, setInputValue] = useState('');
+  const [selectedImages, setSelectedImages] = useState(new Set());
+  const [selectionMode, setSelectionMode] = useState('select');
+  const [previewImage, setPreviewImage] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
+
+  // 传递选中的图片到连接节点
+  useEffect(() => {
+    if (selectedImages.size > 0 && nodeId) {
+      const edges = getEdges();
+      const outgoingEdges = edges.filter(e => e.source === nodeId);
+      const imageUrls = images.filter(img => selectedImages.has(img));
+
+      setNodes((nds) =>
+        nds.map((node) => {
+          const isConnected = outgoingEdges.some(e => e.target === node.id);
+          if (isConnected) {
+            return {
+              ...node,
+              data: { ...node.data, connectedImages: imageUrls }
+            };
+          }
+          return node;
+        })
+      );
+    }
+  }, [selectedImages, images, nodeId, getEdges, setNodes]);
+
+  return (
+    <div>
+      {/* 模式切换：选择 / 预览 */}
+      <div style={{ display: 'flex', gap: '4px' }}>
+        <button onClick={() => setSelectionMode('select')}>✓ 选择模式</button>
+        <button onClick={() => setSelectionMode('preview')}>👁️ 预览模式</button>
+      </div>
+
+      {/* 图片网格 */}
+      {images.map((url, index) => (
+        <div
+          key={index}
+          onClick={() => selectionMode === 'select'
+            ? toggleSelection(url)
+            : openPreview(url)}
+          style={{
+            border: selectedImages.has(url) ? '2px solid #8b5cf6' : '1px solid #c4b5fd'
+          }}
+        >
+          <img src={url} alt="" style={{ width: '100%', aspectRatio: '16/9' }} />
+        </div>
+      ))}
+
+      {/* 预览模态框 */}
+      {showPreview && previewImage && (
+        <div onClick={closePreview} style={{ position: 'fixed', zIndex: 1000, ... }}>
+          <div style={{ background: 'white', padding: '16px', borderRadius: '8px' }}>
+            <img src={previewImage} alt="" style={{ maxWidth: '100%', maxHeight: '400px' }} />
+            <div>{previewImage}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+#### VideoGenerateNode - 接收和显示参考图
+
+```javascript
+function VideoGenerateNode({ data }) {
+  const [connectedImages, setConnectedImages] = useState([]);
+
+  useEffect(() => {
+    if (data.connectedImages) {
+      setConnectedImages(data.connectedImages);
+    }
+  }, [data.connectedImages]);
+
+  const handleGenerate = async () => {
+    const response = await fetch(`${API_BASE}/api/video/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform: 'juxin',
+        model: 'sora-2',
+        prompt: manualPrompt,
+        duration: 10,
+        aspect_ratio: '16:9',
+        watermark: false,
+        images: connectedImages, // ✅ 自动添加
+      }),
+    });
+  };
+
+  return (
+    <div>
+      {connectedImages.length > 0 ? (
+        <div>
+          <div>🖼️ 已连接参考图 ({connectedImages.length} 张)</div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {connectedImages.map((url, i) => (
+              <img key={i} src={url} alt="" style={{ width: '48px', height: '48px' }} />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div>💡 提示：连接参考图节点并选择图片</div>
+      )}
+    </div>
+  );
+}
+```
+
+#### StoryboardNode - 合并全局和镜头图片
+
+```javascript
+function StoryboardNode({ data }) {
+  const connectedImages = data.connectedImages || [];
+
+  const handleGenerate = async () => {
+    // 收集所有图片
+    const allImages = [];
+
+    // 1. 全局图片
+    if (connectedImages.length > 0) {
+      allImages.push(...connectedImages);
+    }
+
+    // 2. 镜头图片
+    validShots.forEach(shot => {
+      if (shot.image && shot.image.trim()) {
+        allImages.push(shot.image.trim());
+      }
+    });
+
+    // API 调用
+    await fetch(`${API_BASE}/api/video/storyboard`, {
+      method: 'POST',
+      body: JSON.stringify({
+        shots: validShots,
+        images: allImages, // ✅ 合并后的图片数组
+      }),
+    });
+  };
+
+  return (
+    <div>
+      {connectedImages.length > 0 && (
+        <div>🖼️ {connectedImages.length} 张全局参考图</div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：

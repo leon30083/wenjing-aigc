@@ -303,8 +303,8 @@ function StoryboardNode({ data }) {
         )}
       </div>
 
-      {/* Connected Images Display */}
-      {data.connectedImages && data.connectedImages.length > 0 && (
+      {/* ⭐ Connected Images Display with thumbnails */}
+      {data.connectedImages && data.connectedImages.length > 0 ? (
         <div style={{
           padding: '6px',
           backgroundColor: '#f3e8ff',
@@ -313,7 +313,41 @@ function StoryboardNode({ data }) {
           fontSize: '10px',
           color: '#6b21a8',
         }}>
-          <span>🖼️ {data.connectedImages.length} 张参考图</span>
+          <div style={{ marginBottom: '4px', fontWeight: 'bold' }}>
+            🖼️ 全局参考图 ({data.connectedImages.length} 张)
+          </div>
+          {/* Thumbnail grid */}
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+            {data.connectedImages.map((url, index) => (
+              <img
+                key={index}
+                src={url}
+                alt={`global-ref-${index}`}
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  objectFit: 'cover',
+                  borderRadius: '3px',
+                  border: '1px solid #c4b5fd',
+                }}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          padding: '6px',
+          backgroundColor: '#fef3c7',
+          borderRadius: '4px',
+          marginBottom: '8px',
+          fontSize: '10px',
+          color: '#92400e',
+          textAlign: 'center'
+        }}>
+          💡 提示：连接参考图节点添加全局图片
         </div>
       )}
 

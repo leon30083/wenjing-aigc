@@ -1,17 +1,46 @@
-import { Handle, Position } from 'reactflow';
-import React, { useState } from 'react';
+import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
+import React, { useState, useEffect } from 'react';
 import { useNodeResize } from '../../hooks/useNodeResize';
 
 function ReferenceImageNode({ data }) {
+  const nodeId = useNodeId();
+  const { setNodes, getEdges } = useReactFlow();
+
   const [images, setImages] = useState(data.images || []);
   const [inputValue, setInputValue] = useState('');
+  const [selectedImages, setSelectedImages] = useState(new Set());
+  const [selectionMode, setSelectionMode] = useState('select'); // 'select' | 'preview'
+  const [previewImage, setPreviewImage] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
     data,
     240, // minWidth
-    180, // minHeight
-    { width: 260, height: 200 } // initialSize
+    280, // minHeight (increased for mode buttons)
+    { width: 260, height: 300 } // initialSize
   );
+
+  // ⭐ Data transfer: Pass selected images to connected nodes
+  useEffect(() => {
+    if (selectedImages.size > 0 && nodeId) {
+      const edges = getEdges();
+      const outgoingEdges = edges.filter(e => e.source === nodeId);
+      const imageUrls = images.filter(img => selectedImages.has(img));
+
+      setNodes((nds) =>
+        nds.map((node) => {
+          const isConnected = outgoingEdges.some(e => e.target === node.id);
+          if (isConnected) {
+            return {
+              ...node,
+              data: { ...node.data, connectedImages: imageUrls }
+            };
+          }
+          return node;
+        })
+      );
+    }
+  }, [selectedImages, images, nodeId, getEdges, setNodes]);
 
   const addImage = () => {
     if (inputValue.trim() && !images.includes(inputValue.trim())) {
@@ -27,9 +56,39 @@ function ReferenceImageNode({ data }) {
   const removeImage = (indexToRemove) => {
     const newImages = images.filter((_, index) => index !== indexToRemove);
     setImages(newImages);
+    // Remove from selection if present
+    const removedUrl = images[indexToRemove];
+    if (selectedImages.has(removedUrl)) {
+      const newSelected = new Set(selectedImages);
+      newSelected.delete(removedUrl);
+      setSelectedImages(newSelected);
+    }
     if (data.onImagesChange) {
       data.onImagesChange(newImages);
     }
+  };
+
+  // ⭐ Toggle image selection (select mode)
+  const toggleImageSelection = (url) => {
+    const newSelected = new Set(selectedImages);
+    if (newSelected.has(url)) {
+      newSelected.delete(url);
+    } else {
+      newSelected.add(url);
+    }
+    setSelectedImages(newSelected);
+  };
+
+  // ⭐ Open preview modal (preview mode)
+  const openPreview = (url) => {
+    setPreviewImage(url);
+    setShowPreview(true);
+  };
+
+  // ⭐ Close preview modal
+  const closePreview = () => {
+    setShowPreview(false);
+    setPreviewImage(null);
   };
 
   return (
@@ -58,6 +117,46 @@ function ReferenceImageNode({ data }) {
         fontSize: '14px',
       }}>
         🖼️ {data.label || '参考图片'}
+      </div>
+
+      {/* ⭐ Mode Toggle Buttons */}
+      <div className="nodrag" style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+        <button
+          className="nodrag"
+          onClick={() => setSelectionMode('select')}
+          style={{
+            flex: 1,
+            padding: '4px',
+            fontSize: '10px',
+            backgroundColor: selectionMode === 'select' ? '#10b981' : '#e5e7eb',
+            color: selectionMode === 'select' ? 'white' : '#374151',
+            border: 'none',
+            borderRadius: '3px',
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+          }}
+          title="多选图片传送到视频节点"
+        >
+          ✓ 选择模式
+        </button>
+        <button
+          className="nodrag"
+          onClick={() => setSelectionMode('preview')}
+          style={{
+            flex: 1,
+            padding: '4px',
+            fontSize: '10px',
+            backgroundColor: selectionMode === 'preview' ? '#3b82f6' : '#e5e7eb',
+            color: selectionMode === 'preview' ? 'white' : '#374151',
+            border: 'none',
+            borderRadius: '3px',
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+          }}
+          title="点击图片查看大图"
+        >
+          👁️ 预览模式
+        </button>
       </div>
 
       {/* Input for Image URL */}
@@ -96,7 +195,7 @@ function ReferenceImageNode({ data }) {
       </div>
 
       {/* Image List */}
-      <div className="nodrag" style={{ maxHeight: '120px', overflowY: 'auto' }}>
+      <div className="nodrag" style={{ maxHeight: '200px', overflowY: 'auto' }}>
         {images.length === 0 ? (
           <div style={{
             fontSize: '11px',
@@ -111,23 +210,69 @@ function ReferenceImageNode({ data }) {
           images.map((url, index) => (
             <div
               key={index}
+              onClick={() => selectionMode === 'select'
+                ? toggleImageSelection(url)
+                : openPreview(url)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
                 padding: '6px',
-                backgroundColor: '#ede9fe',
+                backgroundColor: selectionMode === 'select' && selectedImages.has(url)
+                  ? '#d1fae5'
+                  : '#ede9fe',
                 borderRadius: '4px',
                 marginBottom: '4px',
+                border: selectionMode === 'select' && selectedImages.has(url)
+                  ? '2px solid #10b981'
+                  : '1px solid #c4b5fd',
+                cursor: selectionMode === 'select' ? 'pointer' : 'default',
+                position: 'relative',
+                transition: 'background 0.2s',
+              }}
+              title={selectionMode === 'select'
+                ? (selectedImages.has(url) ? '取消选择' : '选择此图片')
+                : '点击预览大图'}
+              onMouseEnter={(e) => {
+                if (selectionMode === 'preview') {
+                  e.currentTarget.style.backgroundColor = '#ddd6fe';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (selectionMode === 'preview') {
+                  e.currentTarget.style.backgroundColor = '#ede9fe';
+                }
               }}
             >
+              {/* ⭐ Selection indicator (select mode) */}
+              {selectionMode === 'select' && selectedImages.has(url) && (
+                <div style={{
+                  position: 'absolute',
+                  top: '2px',
+                  left: '2px',
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '50%',
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                  zIndex: 1,
+                }}>
+                  ✓
+                </div>
+              )}
+
               {/* Thumbnail */}
               <img
                 src={url}
                 alt={`ref-${index}`}
                 style={{
-                  width: '32px',
-                  height: '32px',
+                  width: '48px',
+                  height: '48px',
                   objectFit: 'cover',
                   borderRadius: '3px',
                 }}
@@ -149,7 +294,10 @@ function ReferenceImageNode({ data }) {
               {/* Remove Button */}
               <button
                 className="nodrag"
-                onClick={() => removeImage(index)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeImage(index);
+                }}
                 style={{
                   padding: '2px 6px',
                   backgroundColor: '#ef4444',
@@ -159,6 +307,7 @@ function ReferenceImageNode({ data }) {
                   cursor: 'pointer',
                   fontSize: '10px',
                 }}
+                title="删除图片"
               >
                 ✕
               </button>
@@ -176,6 +325,11 @@ function ReferenceImageNode({ data }) {
           textAlign: 'right',
         }}>
           {images.length} 张图片
+          {selectionMode === 'select' && selectedImages.size > 0 && (
+            <span style={{ color: '#10b981', marginLeft: '8px' }}>
+              (已选 {selectedImages.size})
+            </span>
+          )}
         </div>
       )}
 
@@ -188,6 +342,71 @@ function ReferenceImageNode({ data }) {
       }}>
         图片数组 →
       </div>
+
+      {/* ⭐ Preview Modal */}
+      {showPreview && previewImage && (
+        <div
+          onClick={closePreview}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white',
+              padding: '16px',
+              borderRadius: '8px',
+              maxWidth: '90%',
+              maxHeight: '90%',
+            }}
+          >
+            <img
+              src={previewImage}
+              alt="Preview"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '70vh',
+                objectFit: 'contain',
+              }}
+            />
+            <div style={{
+              marginTop: '12px',
+              fontSize: '11px',
+              color: '#64748b',
+              wordBreak: 'break-all',
+            }}>
+              {previewImage}
+            </div>
+            <button
+              className="nodrag"
+              onClick={closePreview}
+              style={{
+                marginTop: '12px',
+                width: '100%',
+                padding: '8px',
+                backgroundColor: '#8b5cf6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              关闭预览
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Resize Handle (ComfyUI style) */}
       <div
