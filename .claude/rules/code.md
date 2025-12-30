@@ -3033,45 +3033,293 @@ function VideoGenerateNode({ data }) {
 }
 ```
 
-#### StoryboardNode - 合并全局和镜头图片
+#### StoryboardNode - 全局图片控制 + 镜头图片选择 + 自动均分时长 ⭐ 更新 (2025-12-30)
 
 ```javascript
 function StoryboardNode({ data }) {
   const connectedImages = data.connectedImages || [];
+  const [useGlobalImages, setUseGlobalImages] = useState(false); // ⭐ 全局图片复选框
+  const [totalDuration, setTotalDuration] = useState(15); // ⭐ 总时长选项
+  const [showImageSelector, setShowImageSelector] = useState(false);
+  const [selectedShotIndex, setSelectedShotIndex] = useState(null);
+
+  // ⭐ 自动计算每个镜头的时长
+  const shotDuration = shots.length > 0
+    ? (totalDuration / shots.length).toFixed(1)
+    : 5;
+
+  // ⭐ 计算当前总时长（用于提示）
+  const currentTotalDuration = shots.reduce((sum, shot) => sum + (shot.duration || 0), 0);
+
+  // ⭐ 为镜头选择图片
+  const openImageSelector = (index) => {
+    setSelectedShotIndex(index);
+    setShowImageSelector(true);
+  };
+
+  const selectImageForShot = (imageUrl) => {
+    const newShots = [...shots];
+    newShots[selectedShotIndex].image = imageUrl;
+    setShots(newShots);
+    setShowImageSelector(false);
+  };
+
+  const clearShotImage = () => {
+    const newShots = [...shots];
+    newShots[selectedShotIndex].image = '';
+    setShots(newShots);
+    setShowImageSelector(false);
+  };
 
   const handleGenerate = async () => {
-    // 收集所有图片
+    const validShots = shots.filter(s => s.scene.trim());
+    if (validShots.length === 0) {
+      alert('请至少填写一个分镜头场景');
+      return;
+    }
+
+    // ⭐ 收集所有图片（根据复选框和镜头选择）
     const allImages = [];
 
-    // 1. 全局图片
-    if (connectedImages.length > 0) {
+    // 1. 全局图片（仅当复选框选中时）
+    if (useGlobalImages && connectedImages.length > 0) {
       allImages.push(...connectedImages);
     }
 
-    // 2. 镜头图片
+    // 2. 镜头图片（每个镜头独立选择的图片）
     validShots.forEach(shot => {
       if (shot.image && shot.image.trim()) {
         allImages.push(shot.image.trim());
       }
     });
 
-    // API 调用
+    // ⭐ 使用自动均分的时长
+    const shotsWithDuration = validShots.map(s => ({
+      ...s,
+      duration: parseFloat(shotDuration),
+    }));
+
+    // API 调用（包含 duration 参数）
     await fetch(`${API_BASE}/api/video/storyboard`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        shots: validShots,
-        images: allImages, // ✅ 合并后的图片数组
+        platform: 'juxin',
+        model: 'sora-2',
+        shots: shotsWithDuration,
+        images: allImages,
+        duration: totalDuration, // ⭐ 传递总时长给后端
+        aspect_ratio: '16:9',
+        watermark: false,
       }),
     });
   };
 
   return (
     <div>
+      {/* ⭐ 全局参考图区域（带复选框控制） */}
       {connectedImages.length > 0 && (
-        <div>🖼️ {connectedImages.length} 张全局参考图</div>
+        <div style={{ padding: '6px', backgroundColor: '#f3e8ff', borderRadius: '4px' }}>
+          <div style={{ marginBottom: '4px', fontWeight: 'bold' }}>
+            🖼️ 全局参考图 ({connectedImages.length} 张)
+          </div>
+
+          {/* 复选框控制 */}
+          <div className="nodrag" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+            <input
+              className="nodrag"
+              type="checkbox"
+              checked={useGlobalImages}
+              onChange={(e) => setUseGlobalImages(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            <label style={{ fontSize: '11px', color: '#6b21a8', cursor: 'pointer' }}>
+              启用全局参考图（应用到所有镜头）
+            </label>
+          </div>
+
+          {/* 缩略图预览 */}
+          <div style={{ display: 'flex', gap: '4px' }}>
+            {connectedImages.map((url, index) => (
+              <img key={index} src={url} alt="" style={{ width: '36px', height: '36px', borderRadius: '3px' }} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ⭐ 总时长选项 */}
+      <div style={{ padding: '6px', backgroundColor: '#ecfdf5', borderRadius: '4px', marginBottom: '8px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#059669', marginBottom: '4px' }}>
+          ⏱️ 总时长设置
+        </div>
+        <div className="nodrag" style={{ display: 'flex', gap: '4px' }}>
+          <select
+            className="nodrag"
+            value={totalDuration}
+            onChange={(e) => setTotalDuration(Number(e.target.value))}
+            style={{ flex: 1, padding: '4px', fontSize: '11px' }}
+          >
+            <option value={5}>5 秒</option>
+            <option value={10}>10 秒</option>
+            <option value={15}>15 秒</option>
+            <option value={25}>25 秒</option>
+          </select>
+          <div style={{ fontSize: '10px', color: '#047857', padding: '4px' }}>
+            每镜头: {shotDuration} 秒
+          </div>
+        </div>
+
+        {/* ⭐ 智能提示 */}
+        {currentTotalDuration > 25 && (
+          <div style={{ marginTop: '4px', padding: '4px', backgroundColor: '#fecaca', borderRadius: '3px', fontSize: '10px', color: '#991b1b' }}>
+            ⚠️ 当前总时长 {currentTotalDuration} 秒超过 API 限制（25秒）
+          </div>
+        )}
+      </div>
+
+      {/* 镜头列表 */}
+      <div>
+        {shots.map((shot, index) => (
+          <div key={shot.id} style={{ marginBottom: '4px' }}>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <span style={{ fontSize: '10px', color: '#6b7280' }}>
+                ⏱️ 自动均分 {shotDuration}秒
+              </span>
+
+              {/* 场景输入 */}
+              <input
+                className="nodrag"
+                type="text"
+                value={shot.scene}
+                onChange={(e) => updateShot(shot.id, 'scene', e.target.value)}
+                placeholder="场景描述"
+                style={{ flex: 1, padding: '4px', fontSize: '11px' }}
+              />
+
+              {/* ⭐ 图片选择按钮 */}
+              <button
+                className="nodrag"
+                onClick={() => openImageSelector(index)}
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: shot.image ? '#8b5cf6' : '#e5e7eb',
+                  color: shot.image ? 'white' : '#374151',
+                  fontSize: '10px',
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                }}
+                title={shot.image ? '已选择参考图' : '选择参考图'}
+              >
+                📷
+              </button>
+            </div>
+            {shot.image && (
+              <div style={{ fontSize: '9px', color: '#6b21a8', marginTop: '2px' }}>
+                已选图: {shot.image.substring(0, 40)}...
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ⭐ 图片选择模态框 */}
+      {showImageSelector && (
+        <div onClick={() => setShowImageSelector(false)} style={{ position: 'fixed', zIndex: 1000, ... }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: 'white', padding: '16px', borderRadius: '8px' }}>
+            <h3>为镜头 {selectedShotIndex + 1} 选择参考图</h3>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {connectedImages.map((url, index) => (
+                <div
+                  key={index}
+                  onClick={() => selectImageForShot(url)}
+                  style={{
+                    padding: '4px',
+                    border: shots[selectedShotIndex]?.image === url
+                      ? '2px solid #8b5cf6'
+                      : '1px solid #e5e7eb',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <img src={url} alt="" style={{ width: '80px', height: '80px', objectFit: 'cover' }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
+              <button onClick={clearShotImage} style={{ padding: '6px 12px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px' }}>
+                清除选择
+              </button>
+              <button onClick={() => setShowImageSelector(false)} style={{ padding: '6px 12px', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '4px' }}>
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
+}
+```
+
+#### 后端 sora2-client.js - 添加 duration 参数支持 ⭐ 新增 (2025-12-30)
+
+```javascript
+// src/server/sora2-client.js
+async createStoryboardVideo(options) {
+  try {
+    const {
+      shots,
+      duration, // ⭐ 新增：总时长参数（可选）
+      model = 'sora-2',
+      orientation = 'landscape',
+      size = 'small',
+      watermark = false,
+      private: isPrivate = true,
+      images = [],
+    } = options;
+
+    if (!shots || !Array.isArray(shots) || shots.length === 0) {
+      throw new Error('shots 是必填参数，且必须是非空数组');
+    }
+
+    // 收集所有镜头的参考图片
+    const allImages = [...images];
+    shots.forEach((shot) => {
+      if (shot.image) {
+        allImages.push(shot.image);
+      }
+    });
+
+    // 构建故事板提示词
+    const promptParts = shots.map((shot, index) => {
+      return `Shot ${index + 1}:\nduration: ${shot.duration}sec\nScene: ${shot.scene}`;
+    });
+    const prompt = promptParts.join('\n\n');
+
+    // 构建请求体
+    const body = {
+      model,
+      prompt,
+      images: allImages,
+      watermark,
+      private: isPrivate,
+    };
+
+    // ⭐ 如果提供了 duration，添加到请求体
+    if (duration) {
+      body.duration = duration;
+    }
+
+    // 转换画面方向参数
+    const orientationParam = this._convertOrientationParam(orientation);
+    if (this.platform.useAspectRatio) {
+      body.aspect_ratio = orientationParam;
+    } else {
+      body.orientation = orientationParam;
+    }
+
+    // ... 其余代码
+  }
 }
 ```
 

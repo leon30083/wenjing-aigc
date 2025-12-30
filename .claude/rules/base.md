@@ -190,16 +190,21 @@ React + React Flow
   - **模式切换**: "选择模式" / "预览模式" 按钮
 - **数据传递**:
   - `selectedImages` Set → `connectedImages` 数组
-  - 通过 `data.onImagesChange` 回调更新连接节点
-  - 使用 `useReactFlow.setNodes()` 主动传递数据
+  - 通过 `useReactFlow.setNodes()` 主动传递数据
 - **VideoGenerateNode 协作**:
+  - 复选框控制：`[ ] 使用参考图` - 选中才添加到 API
   - 显示已连接的参考图预览（缩略图网格）
-  - API 调用时自动添加到 `images` 参数
-  - 状态提示：`🖼️ 已连接参考图 (N 张)`
+  - 空状态提示：`💡 提示：连接参考图节点并选择图片`
 - **StoryboardNode 协作**:
-  - 显示全局参考图提示：`🖼️ N 张全局参考图`
-  - 合并全局图片 + 镜头图片到 API
-  - 合并顺序：全局图片在前，镜头图片在后
+  - **全局图片控制**: 复选框 `[] 启用全局参考图` - 选中才添加到 API
+  - **镜头图片选择**: 每个镜头独立选择（📷 按钮打开选择器）
+  - **图片合并逻辑**:
+    - 如果启用全局：`allImages = [...globalImages, ...shotImages]`
+    - 如果禁用全局：`allImages = [...shotImages]`（只用镜头图片）
+  - **总时长自动均分**: 新增 `totalDuration` 选项（5/10/15/25秒）
+    - 自动计算：`shotDuration = totalDuration / shots.length`
+    - 智能提示：显示当前总时长，超过 25 秒警告
+    - 每个镜头显示：`⏱️ 自动均分 X.X 秒`
 
 ### 历史记录管理 API ⭐ 新增
 
