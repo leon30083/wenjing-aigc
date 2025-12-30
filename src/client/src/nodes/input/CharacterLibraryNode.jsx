@@ -148,6 +148,8 @@ function CharacterLibraryNode({ data }) {
           fontSize: '11px',
           marginBottom: '8px',
           backgroundColor: 'white',
+          color: '#0e7490',
+          cursor: 'pointer',
         }}
       >
         <option value="all">全部角色 ({characters.length})</option>
