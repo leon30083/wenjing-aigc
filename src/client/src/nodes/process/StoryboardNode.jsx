@@ -15,7 +15,7 @@ function StoryboardNode({ data }) {
   });
 
   const [shots, setShots] = useState([
-    { id: '1', scene: '', duration: 10, image: '' },
+    { id: '1', scene: '', duration: 5, image: '' },
   ]);
 
   const [status, setStatus] = useState('idle'); // idle, generating, success, error
@@ -32,12 +32,46 @@ function StoryboardNode({ data }) {
     { width: 360, height: 420 } // initialSize
   );
 
+  // ⭐ 双显示功能：创建用户名到别名的映射
+  const usernameToAlias = React.useMemo(() => {
+    const map = {};
+    connectedCharacters.forEach(char => {
+      map[char.username] = char.alias || char.username;
+    });
+    return map;
+  }, [connectedCharacters]);
+
+  // ⭐ 双显示功能：将真实提示词转换为显示提示词（用户看：别名）
+  const realToDisplay = (text) => {
+    if (!text) return '';
+    let result = text;
+    Object.entries(usernameToAlias).forEach(([username, alias]) => {
+      const regex = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+      result = result.replace(regex, `@${alias}`);
+    });
+    return result;
+  };
+
+  // ⭐ 双显示功能：将显示提示词转换为真实提示词（API用：真实ID）
+  const displayToReal = (text) => {
+    if (!text) return '';
+    let result = text;
+    const sortedAliases = Object.entries(usernameToAlias)
+      .sort((a, b) => b[1].length - a[1].length); // 长别名优先
+
+    sortedAliases.forEach(([username, alias]) => {
+      const regex = new RegExp(`@${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|@)`, 'g');
+      result = result.replace(regex, `@${username}`);
+    });
+    return result;
+  };
+
   // Add a new shot
   const addShot = () => {
     const newShot = {
       id: Date.now().toString(),
       scene: '',
-      duration: 10,
+      duration: 5,
       image: '',
     };
     setShots([...shots, newShot]);
@@ -62,7 +96,7 @@ function StoryboardNode({ data }) {
     lastFocusedSceneIndex.current = index;
   };
 
-  // ⭐ Phase 1: 在焦点场景插入角色引用
+  // ⭐ 双显示功能：在焦点场景插入角色引用
   const insertCharacterToFocusedScene = (username, alias) => {
     const targetIndex = lastFocusedSceneIndex.current;
     if (targetIndex === null) {
@@ -73,14 +107,22 @@ function StoryboardNode({ data }) {
     const sceneInput = sceneRefs.current[targetIndex];
     if (!sceneInput) return;
 
+    // 获取当前场景的真实值
+    const realText = shots[targetIndex].scene;
+    // 转换为显示文本（用户看别名）
+    const displayText = realToDisplay(realText);
+
     const start = sceneInput.selectionStart;
     const end = sceneInput.selectionEnd;
-    const text = shots[targetIndex].scene;
-    const refText = `@${alias} `;
+    const refText = `@${alias} `; // 插入别名到显示位置
 
-    // 更新场景描述
-    const newScene = text.substring(0, start) + refText + text.substring(end);
-    updateShot(shots[targetIndex].id, 'scene', newScene);
+    // 在光标位置插入到显示文本
+    const newDisplayText = displayText.substring(0, start) + refText + displayText.substring(end);
+    // 转换回真实ID并存储
+    const newRealText = displayToReal(newDisplayText);
+
+    // 更新场景描述（存储真实ID）
+    updateShot(shots[targetIndex].id, 'scene', newRealText);
 
     // 移动光标
     setTimeout(() => {
@@ -380,13 +422,16 @@ function StoryboardNode({ data }) {
               )}
             </div>
 
-            {/* ⭐ Phase 1: Scene Input with focus tracking */}
+            {/* ⭐ 双显示功能：Scene Input 显示别名，内部存储真实ID */}
             <input
               className="nodrag"
               ref={(el) => sceneRefs.current[index] = el}
               type="text"
-              value={shot.scene}
-              onChange={(e) => updateShot(shot.id, 'scene', e.target.value)}
+              value={realToDisplay(shot.scene)}
+              onChange={(e) => {
+                const realText = displayToReal(e.target.value);
+                updateShot(shot.id, 'scene', realText);
+              }}
               onFocus={() => handleSceneFocus(index)}
               placeholder="场景描述..."
               disabled={status === 'generating'}
@@ -486,6 +531,31 @@ function StoryboardNode({ data }) {
         {status === 'success' && '✓ 已提交'}
         {status === 'error' && '✗ 失败'}
       </button>
+
+      {/* ⭐ 双显示功能：预览区域 - 显示最终传递给API的真实ID */}
+      {shots.some(s => s.scene.trim()) && (
+        <div style={{
+          marginTop: '8px',
+          padding: '6px 8px',
+          backgroundColor: '#f0fdf4',
+          borderRadius: '4px',
+          fontSize: '10px',
+          color: '#166534',
+          fontFamily: 'monospace',
+          border: '1px dashed #6ee7b7',
+          maxHeight: '100px',
+          overflowY: 'auto',
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+            📤 最终提示词 (API):
+          </div>
+          {shots.filter(s => s.scene.trim()).map((shot, index) => (
+            <div key={shot.id} style={{ marginBottom: '2px' }}>
+              镜头{index + 1}: {shot.scene}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Labels */}
       <div style={{
