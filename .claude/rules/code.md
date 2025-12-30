@@ -1178,6 +1178,24 @@ function TaskResultNode({ data }) {
 2. 使用 useNodeId() Hook 获取节点 ID
 3. 使用自定义事件系统在节点间传递数据
 
+### 错误17: API 端点路径缺少前缀 ⭐ 新增
+```javascript
+// ❌ 错误：API 路径缺少 /api/ 前缀
+const response = await fetch(`${API_BASE}/task/${taskId}?platform=juxin`);
+// 返回 404 Not Found - 端点不存在
+```
+
+```javascript
+// ✅ 正确：使用完整的 API 路径
+const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=juxin`);
+// 返回 200 OK - 成功获取任务状态
+```
+
+**问题**: 前端调用后端 API 时路径不完整，缺少 `/api/` 前缀，导致 404 错误
+**解决方案**: 所有 API 调用必须包含完整路径 `/api/{endpoint}`
+**影响范围**: TaskResultNode.jsx 中的轮询和手动刷新函数
+**修复日期**: 2025-12-30
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：

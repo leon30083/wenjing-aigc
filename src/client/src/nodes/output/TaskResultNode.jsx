@@ -63,7 +63,7 @@ function TaskResultNode({ data }) {
 
     const pollInterval = setInterval(async () => {
       try {
-        const response = await fetch(`${API_BASE}/task/${taskId}?platform=juxin`);
+        const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=juxin`);
         const result = await response.json();
 
         if (result.success && result.data) {
@@ -99,7 +99,7 @@ function TaskResultNode({ data }) {
     if (!taskId) return;
 
     try {
-      const response = await fetch(`${API_BASE}/task/${taskId}?platform=juxin`);
+      const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=juxin`);
       const result = await response.json();
 
       if (result.success && result.data) {
