@@ -1,34 +1,56 @@
-import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
-import React, { useState, useEffect } from 'react';
+import { Handle, Position, useNodeId } from 'reactflow';
+import React, { useState, useEffect, useRef } from 'react';
 
 const API_BASE = 'http://localhost:9000';
 
 function VideoGenerateNode({ data }) {
   const nodeId = useNodeId();
-  const { setNodes } = useReactFlow();
+  const promptInputRef = useRef(null);
 
   const [config, setConfig] = useState({
     model: 'Sora-2',
-    duration: 10, // Duration in seconds (10, 15, 25)
+    duration: 10, // Duration in seconds (5, 10, 15, 25)
     aspect: '16:9',
     watermark: false,
   });
 
   // Connected inputs (from connected nodes) - passed via data
   const connectedPrompt = data.connectedPrompt || '';
-  const connectedCharacter = data.connectedCharacter || null;
+  const connectedCharacters = data.connectedCharacters || []; // ⭐ 改为数组
   const connectedImages = data.connectedImages || [];
 
-  // Manual override inputs
+  // Manual inputs
   const [manualPrompt, setManualPrompt] = useState('');
   const [status, setStatus] = useState('idle'); // idle, generating, success, error
   const [taskId, setTaskId] = useState(null);
   const [error, setError] = useState(null);
 
-  // Get final prompt (connected or manual)
-  const finalPrompt = connectedPrompt || manualPrompt;
+  // ⭐ 在光标位置插入角色引用
+  const insertCharacterAtCursor = (username) => {
+    const promptElement = promptInputRef.current;
+    if (!promptElement) return;
+
+    // 获取光标位置
+    const start = promptElement.selectionStart;
+    const end = promptElement.selectionEnd;
+    const text = manualPrompt;
+    const refText = `@${username} `;
+
+    // 在光标位置插入
+    const newText = text.substring(0, start) + refText + text.substring(end);
+    setManualPrompt(newText);
+
+    // 移动光标到插入内容之后
+    setTimeout(() => {
+      promptElement.setSelectionRange(start + refText.length, start + refText.length);
+      promptElement.focus();
+    }, 0);
+  };
 
   const handleGenerate = async () => {
+    // 使用连接的提示词或手动输入的提示词（不做任何自动组装）
+    const finalPrompt = connectedPrompt || manualPrompt;
+
     if (!finalPrompt.trim()) {
       setError('请输入提示词或连接文本节点');
       return;
@@ -42,16 +64,11 @@ function VideoGenerateNode({ data }) {
       const payload = {
         platform: 'juxin',
         model: config.model.toLowerCase(), // Convert to lowercase (Sora-2 -> sora-2)
-        prompt: finalPrompt,
+        prompt: finalPrompt, // ⭐ 直接使用提示词，不做任何自动组装
         duration: config.duration,
         aspect_ratio: config.aspect,
         watermark: config.watermark,
       };
-
-      // Add character reference if connected
-      if (connectedCharacter) {
-        payload.prompt = `@${connectedCharacter.username} ${finalPrompt}`;
-      }
 
       // Add images if connected
       if (connectedImages.length > 0) {
@@ -72,15 +89,8 @@ function VideoGenerateNode({ data }) {
         setStatus('success');
 
         // Update node data so taskId can be passed to connected nodes
-        setNodes((nodes) =>
-          nodes.map((node) =>
-            node.id === data.id
-              ? { ...node, data: { ...node.data, taskId: id } }
-              : node
-          )
-        );
-
-        // Dispatch custom event for connected nodes to listen
+        // Note: Using useReactFlow() here would require importing it
+        // For now, we use the event system
         console.log('[VideoGenerateNode] Dispatching event:', { sourceNodeId: nodeId, taskId: id });
         window.dispatchEvent(new CustomEvent('video-task-created', {
           detail: { sourceNodeId: nodeId, taskId: id }
@@ -115,19 +125,19 @@ function VideoGenerateNode({ data }) {
         type="target"
         position={Position.Left}
         id="prompt-input"
-        style={{ background: '#10b981', width: 10, height: 10, top: '30%' }}
+        style={{ background: '#10b981', width: 10, height: 10, top: '25%' }}
       />
       <Handle
         type="target"
         position={Position.Left}
         id="character-input"
-        style={{ background: '#f59e0b', width: 10, height: 10, top: '50%' }}
+        style={{ background: '#f59e0b', width: 10, height: 10, top: '45%' }}
       />
       <Handle
         type="target"
         position={Position.Left}
         id="images-input"
-        style={{ background: '#8b5cf6', width: 10, height: 10, top: '70%' }}
+        style={{ background: '#8b5cf6', width: 10, height: 10, top: '65%' }}
       />
 
       {/* Output Handle */}
@@ -217,69 +227,59 @@ function VideoGenerateNode({ data }) {
         </div>
       </div>
 
-      {/* Connected Character Display - MVP Layer 1 */}
+      {/* ⭐ 候选角色显示 */}
       <div style={{ marginBottom: '8px' }}>
         <div style={{
           fontSize: '11px',
           fontWeight: 'bold',
           color: '#059669',
           marginBottom: '4px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px'
         }}>
-          🔗 已连接角色
+          📊 候选角色 (点击插入到光标位置)
         </div>
-        {connectedCharacter ? (
-          <div style={{
-            padding: '6px',
-            backgroundColor: '#ecfdf5',
-            borderRadius: '4px',
-            border: '1px solid #6ee7b7',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {/* Character Avatar */}
-              <img
-                src={connectedCharacter.profilePictureUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"%3E%3Cpath d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/%3E%3C/svg%3E'}
-                alt=""
+
+        {connectedCharacters.length > 0 ? (
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {connectedCharacters.map((char) => (
+              <div
+                key={char.id}
+                onClick={() => insertCharacterAtCursor(char.username)}
                 style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  border: '2px solid #10b981',
-                  objectFit: 'cover'
+                  padding: '4px 8px',
+                  backgroundColor: '#ecfdf5',
+                  borderRadius: '4px',
+                  border: '1px solid #6ee7b7',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'background 0.2s',
                 }}
-              />
-              {/* Character Info */}
-              <div style={{ flex: 1 }}>
-                <div style={{
-                  fontSize: '11px',
-                  fontWeight: 'bold',
-                  color: '#047857'
-                }}>
-                  {connectedCharacter.alias || connectedCharacter.username}
-                </div>
-                <div style={{
-                  fontSize: '9px',
-                  color: '#065f46',
-                  fontFamily: 'monospace'
-                }}>
-                  @{connectedCharacter.username}
-                </div>
+                title="点击插入到光标位置"
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#d1fae5'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ecfdf5'}
+              >
+                <img
+                  src={char.profilePictureUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"%3E%3Cpath d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/%3E%3C/svg%3E'}
+                  alt=""
+                  style={{ width: '20px', height: '20px', borderRadius: '50%' }}
+                />
+                <span style={{ fontSize: '10px', color: '#047857' }}>
+                  {char.alias || char.username}
+                </span>
               </div>
-            </div>
+            ))}
           </div>
         ) : (
           <div style={{
-            padding: '8px',
+            padding: '6px',
             backgroundColor: '#fef3c7',
             borderRadius: '4px',
             fontSize: '10px',
             color: '#92400e',
-            textAlign: 'center',
-            border: '1px dashed #f59e0b'
+            textAlign: 'center'
           }}>
-            未连接角色
+            💡 提示：连接角色库节点并选择角色后，点击角色卡片插入
           </div>
         )}
       </div>
@@ -310,11 +310,6 @@ function VideoGenerateNode({ data }) {
             color: '#1e40af',
             wordBreak: 'break-word',
           }}>
-            {connectedCharacter && (
-              <span style={{ fontWeight: 'bold', color: '#0369a1' }}>
-                @{connectedCharacter.username}{' '}
-              </span>
-            )}
             {connectedPrompt}
           </div>
           {/* Final Prompt Preview */}
@@ -328,29 +323,31 @@ function VideoGenerateNode({ data }) {
             fontStyle: 'italic',
             border: '1px dashed #6ee7b7',
           }}>
-            📤 最终提示词:{connectedCharacter ? ` @${connectedCharacter.username}` : ''} {connectedPrompt}
+            📤 最终提示词: {connectedPrompt}
           </div>
         </div>
       ) : (
         <div>
           <textarea
+            ref={promptInputRef}
             value={manualPrompt}
             onChange={(e) => setManualPrompt(e.target.value)}
-            placeholder="输入提示词或连接文本节点..."
+            placeholder="输入提示词，点击上方角色卡片插入 @username 引用..."
             disabled={status === 'generating'}
             style={{
               width: '100%',
-              minHeight: '50px',
+              minHeight: '80px',
               padding: '6px 8px',
               borderRadius: '4px',
               border: '1px solid #6ee7b7',
               fontSize: '11px',
+              fontFamily: 'monospace',
               marginBottom: '6px',
               resize: 'vertical',
             }}
           />
-          {/* Final Prompt Preview (manual mode) */}
-          {manualPrompt && connectedCharacter && (
+          {/* Final Prompt Preview */}
+          {manualPrompt && (
             <div style={{
               padding: '6px 8px',
               backgroundColor: '#f0fdf4',
@@ -361,7 +358,7 @@ function VideoGenerateNode({ data }) {
               fontStyle: 'italic',
               border: '1px dashed #6ee7b7',
             }}>
-              📤 最终提示词: @{connectedCharacter.username} {manualPrompt}
+              📤 最终提示词: {manualPrompt}
             </div>
           )}
         </div>
@@ -430,7 +427,7 @@ function VideoGenerateNode({ data }) {
         color: '#64748b',
       }}>
         <div>↑ 提示词</div>
-        <div>↑ 角色 (MVP Layer 1)</div>
+        <div>↑ 角色 (多选)</div>
         <div>↑ 图片</div>
         <div style={{ textAlign: 'right', marginTop: '2px' }}>视频 →</div>
       </div>

@@ -12,41 +12,59 @@ function CharacterLibraryNode({ data }) {
   const [filterType, setFilterType] = useState('all');
   const [recentCharacters, setRecentCharacters] = useState([]);
 
-  // 新增状态
+  // 状态管理
+  // selectionMode: 'transfer' = 传送到视频节点（多选）, 'manage' = 批量删除
+  const [selectionMode, setSelectionMode] = useState('transfer');
+  const [selectedCharacters, setSelectedCharacters] = useState(new Set()); // 多选角色
   const [batchMode, setBatchMode] = useState(false);
-  const [selectedCharacters, setSelectedCharacters] = useState(new Set()); // 批量选择
-  const [selectedCharacter, setSelectedCharacter] = useState(null); // ⭐ MVP: 单个角色选择（输出）
   const [editingCharacter, setEditingCharacter] = useState(null);
   const [editAlias, setEditAlias] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState(null);
 
-  // ⭐ MVP: 当选中角色改变时，更新连接的节点数据
+  // ⭐ 多选模式：传递选中的角色数组到视频节点
   useEffect(() => {
-    if (data.onCharacterSelect) {
-      data.onCharacterSelect(selectedCharacter);
-    }
-    // 同时更新 data 对象，让 App.jsx 的连接逻辑可以读取
-    data.selectedCharacter = selectedCharacter;
+    data.selectedCharacters = Array.from(selectedCharacters);
 
-    // ⭐ 关键：主动更新连接到角色输出端点的节点
-    if (selectedCharacter && nodeId) {
+    if (selectedCharacters.size > 0 && nodeId) {
       const edges = getEdges();
-
-      // 找到所有从当前节点发出的连接（使用 nodeId 而不是 data.id）
       const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+      // 获取选中的角色完整对象
+      const characterObjects = characters.filter(c =>
+        selectedCharacters.has(c.id)
+      );
 
       // 更新所有连接的目标节点
       setNodes((nds) =>
         nds.map((node) => {
           const isConnected = outgoingEdges.some(e => e.target === node.id);
-
           if (isConnected) {
             return {
               ...node,
               data: {
                 ...node.data,
-                connectedCharacter: selectedCharacter
+                connectedCharacters: characterObjects
+              }
+            };
+          }
+          return node;
+        })
+      );
+    } else if (nodeId) {
+      // 清空连接时，传递空数组
+      const edges = getEdges();
+      const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+      setNodes((nds) =>
+        nds.map((node) => {
+          const isConnected = outgoingEdges.some(e => e.target === node.id);
+          if (isConnected) {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                connectedCharacters: []
               }
             };
           }
@@ -54,7 +72,7 @@ function CharacterLibraryNode({ data }) {
         })
       );
     }
-  }, [selectedCharacter, data, nodeId, getEdges, getNodes, setNodes]);
+  }, [selectedCharacters, data, nodeId, getEdges, getNodes, setNodes, characters]);
 
   useEffect(() => {
     loadCharacters();
@@ -146,7 +164,7 @@ function CharacterLibraryNode({ data }) {
     setSelectedCharacters(new Set());
   };
 
-  // 切换角色选择
+  // 切换角色选择（用于 transfer 和 manage 模式）
   const toggleCharacterSelection = (characterId) => {
     const newSelected = new Set(selectedCharacters);
     if (newSelected.has(characterId)) {
@@ -164,6 +182,18 @@ function CharacterLibraryNode({ data }) {
     } else {
       setSelectedCharacters(new Set(filteredCharacters.map(c => c.id)));
     }
+  };
+
+  // 根据模式决定点击行为
+  const handleCharacterClick = (char) => {
+    if (selectionMode === 'transfer') {
+      // 传送模式：多选角色
+      toggleCharacterSelection(char.id);
+    } else if (selectionMode === 'manage' && batchMode) {
+      // 管理模式 + 批量模式：多选角色用于删除
+      toggleCharacterSelection(char.id);
+    }
+    // manage 模式非批量状态：单击不处理，等待双击编辑
   };
 
   // 打开编辑对话框
@@ -232,37 +262,28 @@ function CharacterLibraryNode({ data }) {
     }
   };
 
-  // ⭐ MVP: 处理角色选择（单击选择）
-  const handleSelectCharacter = (char) => {
-    // 如果点击已选中的角色，取消选择
-    if (selectedCharacter?.id === char.id) {
-      setSelectedCharacter(null);
-    } else {
-      // 选中新角色
-      setSelectedCharacter(char);
-    }
-  };
-
-  // ⭐ MVP: 获取卡片背景色（显示选中状态）
+  // 获取卡片背景色（显示选中状态）
   const getCardBackgroundColor = (char) => {
-    if (batchMode) {
-      // 批量模式：显示批量选中状态
+    if (selectionMode === 'transfer') {
+      // 传送模式：显示多选状态
+      return selectedCharacters.has(char.id) ? '#d1fae5' : 'white';
+    } else if (selectionMode === 'manage' && batchMode) {
+      // 管理模式 + 批量模式：显示批量选中状态
       return selectedCharacters.has(char.id) ? '#fef3c7' : 'white';
-    } else {
-      // 非批量模式：显示单选状态（MVP）
-      return selectedCharacter?.id === char.id ? '#d1fae5' : 'white';
     }
+    return 'white';
   };
 
-  // ⭐ MVP: 获取卡片边框（显示选中状态）
+  // 获取卡片边框（显示选中状态）
   const getCardBorder = (char) => {
-    if (batchMode) {
-      // 批量模式：显示批量选中状态
+    if (selectionMode === 'transfer') {
+      // 传送模式：显示多选状态
+      return selectedCharacters.has(char.id) ? '2px solid #10b981' : '1px solid #a5f3fc';
+    } else if (selectionMode === 'manage' && batchMode) {
+      // 管理模式 + 批量模式：显示批量选中状态
       return selectedCharacters.has(char.id) ? '2px solid #f59e0b' : '1px solid #a5f3fc';
-    } else {
-      // 非批量模式：显示单选状态（MVP）
-      return selectedCharacter?.id === char.id ? '2px solid #10b981' : '1px solid #a5f3fc';
     }
+    return '1px solid #a5f3fc';
   };
 
   // Filter characters
@@ -377,58 +398,101 @@ function CharacterLibraryNode({ data }) {
         <option value="recent">最近使用 ({recentCharacters.length})</option>
       </select>
 
-      {/* Batch Mode Toggle */}
+      {/* Mode Toggle Buttons */}
       <div style={{ marginBottom: '8px', display: 'flex', gap: '4px' }}>
         <button
-          onClick={toggleBatchMode}
+          onClick={() => {
+            setSelectionMode('transfer');
+            setBatchMode(false);
+            setSelectedCharacters(new Set());
+          }}
           style={{
             flex: 1,
             padding: '4px',
             fontSize: '10px',
-            backgroundColor: batchMode ? '#f59e0b' : '#e5e7eb',
-            color: 'white',
+            backgroundColor: selectionMode === 'transfer' ? '#10b981' : '#e5e7eb',
+            color: selectionMode === 'transfer' ? 'white' : '#374151',
             border: 'none',
             borderRadius: '3px',
             cursor: 'pointer',
           }}
         >
-          {batchMode ? '✓ 批量模式' : '批量操作'}
+          📤 传送到视频节点
         </button>
-        {batchMode && (
-          <>
-            <button
-              onClick={toggleSelectAll}
-              style={{
-                flex: 1,
-                padding: '4px',
-                fontSize: '10px',
-                backgroundColor: '#06b6d4',
-                color: 'white',
-                border: 'none',
-                borderRadius: '3px',
-                cursor: 'pointer',
-              }}
-            >
-              {selectedCharacters.size === filteredCharacters.length ? '取消全选' : '全选'}
-            </button>
-            <button
-              onClick={deleteSelected}
-              style={{
-                flex: 1,
-                padding: '4px',
-                fontSize: '10px',
-                backgroundColor: selectedCharacters.size > 0 ? '#dc2626' : '#d1d5db',
-                color: 'white',
-                border: 'none',
-                borderRadius: '3px',
-                cursor: selectedCharacters.size > 0 ? 'pointer' : 'not-allowed',
-              }}
-            >
-              删除 ({selectedCharacters.size})
-            </button>
-          </>
-        )}
+        <button
+          onClick={() => {
+            setSelectionMode('manage');
+            setSelectedCharacters(new Set());
+          }}
+          style={{
+            flex: 1,
+            padding: '4px',
+            fontSize: '10px',
+            backgroundColor: selectionMode === 'manage' ? '#f59e0b' : '#e5e7eb',
+            color: selectionMode === 'manage' ? 'white' : '#374151',
+            border: 'none',
+            borderRadius: '3px',
+            cursor: 'pointer',
+          }}
+        >
+          🗑️ 批量删除
+        </button>
       </div>
+
+      {/* Manage Mode: Batch Toggle */}
+      {selectionMode === 'manage' && (
+        <div style={{ marginBottom: '8px', display: 'flex', gap: '4px' }}>
+          <button
+            onClick={toggleBatchMode}
+            style={{
+              flex: 1,
+              padding: '4px',
+              fontSize: '10px',
+              backgroundColor: batchMode ? '#f59e0b' : '#e5e7eb',
+              color: 'white',
+              border: 'none',
+              borderRadius: '3px',
+              cursor: 'pointer',
+            }}
+          >
+            {batchMode ? '✓ 批量模式' : '批量操作'}
+          </button>
+          {batchMode && (
+            <>
+              <button
+                onClick={toggleSelectAll}
+                style={{
+                  flex: 1,
+                  padding: '4px',
+                  fontSize: '10px',
+                  backgroundColor: '#06b6d4',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                }}
+              >
+                {selectedCharacters.size === filteredCharacters.length ? '取消全选' : '全选'}
+              </button>
+              <button
+                onClick={deleteSelected}
+                style={{
+                  flex: 1,
+                  padding: '4px',
+                  fontSize: '10px',
+                  backgroundColor: selectedCharacters.size > 0 ? '#dc2626' : '#d1d5db',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '3px',
+                  cursor: selectedCharacters.size > 0 ? 'pointer' : 'not-allowed',
+                }}
+              >
+                删除 ({selectedCharacters.size})
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Character Grid */}
       <div style={{
@@ -453,8 +517,8 @@ function CharacterLibraryNode({ data }) {
           filteredCharacters.map((char) => (
             <div
               key={char.id}
-              onClick={() => batchMode ? toggleCharacterSelection(char.id) : handleSelectCharacter(char)}
-              onDoubleClick={() => !batchMode && openEditDialog(char)}
+              onClick={() => handleCharacterClick(char)}
+              onDoubleClick={() => selectionMode === 'manage' && openEditDialog(char)}
               style={{
                 padding: '6px',
                 backgroundColor: getCardBackgroundColor(char),
@@ -465,31 +529,35 @@ function CharacterLibraryNode({ data }) {
                 textAlign: 'center',
                 position: 'relative',
               }}
-              title={`@${char.username}${char.alias ? ` (${char.alias})` : ''}\n${batchMode ? '点击切换选中' : '点击选择角色，双击编辑别名'}`}
+              title={`@${char.username}${char.alias ? ` (${char.alias})` : ''}\n${selectionMode === 'transfer' ? '点击选择/取消选择' : batchMode ? '点击切换选中' : '双击编辑别名'}`}
             >
-              {/* Checkbox in batch mode */}
-              {batchMode && (
+              {/* 选中标识 */}
+              {(selectionMode === 'transfer' || (selectionMode === 'manage' && batchMode)) && selectedCharacters.has(char.id) && (
                 <div style={{
                   position: 'absolute',
-                  top: '4px',
-                  right: '4px',
-                  width: '14px',
-                  height: '14px',
-                  borderRadius: '2px',
-                  border: '1px solid #d1d5db',
-                  backgroundColor: selectedCharacters.has(char.id) ? '#f59e0b' : 'white',
+                  top: '2px',
+                  left: '2px',
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '50%',
+                  backgroundColor: selectionMode === 'transfer' ? '#10b981' : '#f59e0b',
+                  color: 'white',
+                  border: '2px solid #ecfdf5',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontSize: '10px',
-                  color: selectedCharacters.has(char.id) ? 'white' : '#9ca3af',
-                }}>
-                  {selectedCharacters.has(char.id) ? '✓' : ''}
+                  fontWeight: 'bold',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                }}
+                title={selectionMode === 'transfer' ? '已选中' : '将删除'}
+                >
+                  ✓
                 </div>
               )}
 
-              {/* Delete button (hover) */}
-              {!batchMode && (
+              {/* Delete button (hover) - only in manage mode without batch */}
+              {selectionMode === 'manage' && !batchMode && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -522,31 +590,6 @@ function CharacterLibraryNode({ data }) {
                 </button>
               )}
 
-              {/* ⭐ MVP: 选中标识（非批量模式） */}
-              {!batchMode && selectedCharacter?.id === char.id && (
-                <div style={{
-                  position: 'absolute',
-                  top: '2px',
-                  left: '2px',
-                  width: '16px',
-                  height: '16px',
-                  borderRadius: '50%',
-                  backgroundColor: '#10b981',
-                  color: 'white',
-                  border: '2px solid #ecfdf5',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '10px',
-                  fontWeight: 'bold',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                }}
-                title="已选中"
-                >
-                  ✓
-                </div>
-              )}
-
               <img
                 src={char.profilePictureUrl || '/default-avatar.svg'}
                 alt={char.username}
@@ -571,6 +614,11 @@ function CharacterLibraryNode({ data }) {
               }}>
                 {char.alias || char.username}
               </div>
+              {char.alias && (
+                <div style={{ fontSize: '8px', color: '#6b7280' }}>
+                  @{char.username}
+                </div>
+              )}
               {char.favorite && (
                 <div style={{ color: '#f59e0b' }}>⭐</div>
               )}
