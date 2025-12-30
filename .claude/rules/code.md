@@ -2733,6 +2733,125 @@ function VideoGenerateNode({ data }) {
 4. **最小尺寸**: 限制节点不能小于指定尺寸
 5. **用户选择**: `userSelect: isResizing ? 'none' : 'auto'` 调整大小时禁用文本选择
 
+### 错误27: 故事板实现错误 ⭐ 重大纠正
+
+**问题**: 故事板被错误理解为"批量生成多个视频"，导致循环调用 N 次 API
+
+**错误理解**:
+- ❌ 故事板 = 多个独立视频任务
+- ❌ 每个镜头调用一次 API
+- ❌ 返回 N 个 taskId 数组
+
+**正确理解**:
+- ✅ 故事板 = **单个视频任务**，通过特殊格式描述多个时间段
+- ✅ 调用 **一次 API**，返回 **单个 taskId**
+- ✅ API 通过特殊提示词格式识别故事板模式
+
+**故事板格式**（贞贞平台文档）:
+```
+Shot 1:
+duration: 7.5sec
+Scene: 飞机起飞
+
+Shot 2:
+duration: 7.5sec
+Scene: 飞机降落
+```
+
+```javascript
+// ❌ 错误：循环调用 API（每个 shot 一次）
+for (let i = 0; i < validShots.length; i++) {
+  const shot = validShots[i];
+  const payload = {
+    platform: 'juxin',
+    prompt: shot.scene,  // ❌ 直接用 scene，未拼接故事板格式
+    storyboard_mode: true,  // ❌ 后端不识别此参数
+    shot_index: i,  // ❌ 后端不识别此参数
+  };
+  const response = await fetch(`${API_BASE}/video/create`, ...);
+  // ❌ 每次循环创建一个独立视频
+}
+
+// ✅ 正确：拼接故事板格式，调用一次 API
+const promptParts = shots.map((shot, index) => {
+  return `Shot ${index + 1}:\nduration: ${shot.duration}sec\nScene: ${shot.scene}`;
+});
+const prompt = promptParts.join('\n\n');  // ✅ 拼接故事板格式
+
+const response = await fetch(`${API_BASE}/api/video/storyboard`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    platform: 'juxin',
+    model: 'sora-2',
+    shots: validShots,  // ✅ 传递完整的 shots 数组
+    images: allImages,  // ✅ 收集所有图片（全局 + 镜头）
+    aspect_ratio: config.aspect,
+    watermark: config.watermark,
+  }),
+});
+
+const result = await response.json();
+const taskId = result.data.id || result.data.task_id;  // ✅ 单个 taskId
+```
+
+**后端实现**（sora2-client.js - createStoryboardVideo）:
+```javascript
+async createStoryboardVideo(options) {
+  const { shots, model = 'sora-2', orientation, size, watermark, images = [] } = options;
+
+  // 收集所有镜头的参考图片
+  const allImages = [...images];
+  shots.forEach((shot) => {
+    if (shot.image) {
+      allImages.push(shot.image);
+    }
+  });
+
+  // ✅ 拼接故事板提示词格式
+  const promptParts = shots.map((shot, index) => {
+    return `Shot ${index + 1}:\nduration: ${shot.duration}sec\nScene: ${shot.scene}`;
+  });
+  const prompt = promptParts.join('\n\n');
+
+  // ✅ 调用一次统一的视频创建 API
+  const body = {
+    model,
+    prompt,  // 故事板格式的提示词
+    images: allImages,
+    watermark,
+    private: isPrivate,
+  };
+
+  // 转换画面方向和分辨率参数
+  if (this.platform.useAspectRatio) {
+    body.aspect_ratio = this._convertOrientationParam(orientation);
+    if (typeof size === 'boolean') {
+      body.hd = size;
+    } else {
+      body.duration = size;
+    }
+  } else {
+    body.orientation = this._convertOrientationParam(orientation);
+    body.size = size;
+  }
+
+  return await this.createVideo(body);  // ✅ 调用一次 API
+}
+```
+
+**影响范围**:
+- StoryboardNode.jsx（工作流编辑器节点）
+- index.html（网页版故事板功能）
+- 所有调用故事板 API 的前端代码
+
+**关键要点**:
+1. 故事板是**单个视频任务**，不是多个视频
+2. 提示词必须使用特殊格式：`Shot N:\nduration: Xsec\nScene: Y\n\n`
+3. 调用 `/api/video/storyboard` 端点（后端已正确实现）
+4. 收集所有镜头的参考图片并合并到 `images` 数组
+5. 返回单个 taskId，轮询获取最终视频
+
 ---
 
 ## 开发参考
