@@ -258,54 +258,101 @@ React + React Flow
 }
 ```
 
-### 角色引用策略 ⭐ 新增
+### 角色引用策略 ⭐ 更新
 
-**分层设计**（混合策略）:
-- **Layer 1: 连接的角色**（自动获取）
-  - 从 `character` 输入端口自动获取
-  - 显示为 `[🔗 已连接]` 标识
-  - 作为基础角色，不可手动删除
-- **Layer 2: 收藏夹角色**（快速访问）
-  - 显示收藏的角色列表（快速选择）
-  - 点击添加到【当前使用角色】
-  - 适合：常用角色
-- **Layer 3: 角色库搜索**（按需选择）
-  - 搜索框 + 角色列表
-  - 点击添加到【当前使用角色】
-  - 适合：一次性使用或新创建的角色
+**设计理念**：完全复刻网页版的角色调用方式，灵活自由
+
+**工作流程**:
+```
+CharacterLibraryNode (多选初筛)
+  ↓ selectedCharacters 数组
+  ↓ 通过节点连接传递
+VideoGenerateNode (接收候选角色列表)
+  ↓ 显示候选角色卡片
+  ↓ 用户点击角色卡片
+  ↓ 在光标位置插入 @username
+```
+
+**CharacterLibraryNode - 初筛功能**:
+- **多选模式切换**: 提供"传送到视频节点"和"批量删除"两种模式
+- **传送到视频节点模式**:
+  - 点击角色卡片进行多选（绿色边框 + ✓ 标识）
+  - 再次点击取消选择
+  - 通过节点连接传递选中的角色数组
+- **批量删除模式**:
+  - 原有的批量删除功能
+  - hover 显示删除按钮
+- **搜索和筛选**: 支持按用户名/别名搜索，支持筛选（全部/收藏/最近）
+
+**VideoGenerateNode - 手动插入功能**:
+- **候选角色显示**:
+  - 显示从 CharacterLibraryNode 接收的候选角色列表
+  - 每个角色显示：头像 + 别名/用户名
+  - hover 高亮效果
+- **点击插入**:
+  - 点击角色卡片，在光标位置插入 `@username `
+  - 自动移动光标到插入内容之后
+  - 可多次插入，插入到不同位置
+- **提示词编辑**:
+  - 用户完全自由编辑提示词
+  - 可以手动输入/修改/删除 `@username` 引用
+  - 不做任何自动组装
+- **空状态提示**:
+  - 未连接角色库节点时：显示提示信息
+  - 连接但未选择角色时：显示提示信息
 
 **角色引用格式**:
 - 格式：`@username`（不带花括号）
 - 示例：`@user1 一边吃饭，一边和 @user2 聊天`
-- 位置：自动在提示词开头插入所有角色引用
-- 顺序：按【当前使用角色】列表顺序排列
+- 位置：用户完全控制插入位置，系统不做任何自动插入
 
-**提示词组装逻辑**:
+**数据传递格式**:
 ```javascript
-// MVP: 自动插入模式（单角色或固定多角色）
-function assemblePrompt(userPrompt, allCharacters) {
-  const roleRefs = allCharacters
-    .map(c => `@${c.username}`)
-    .join(' ');
-  return `${roleRefs} ${userPrompt}`.trim();
-}
+// CharacterLibraryNode 传递
+data.connectedCharacters = [
+  {
+    id: "ch_xxx",
+    username: "de3602969.sunnykitty",
+    alias: "阳光小猫",
+    profilePictureUrl: "https://...",
+    permalink: "https://...",
+  },
+  // ... 更多角色
+]
 
-// 示例：
-// allCharacters = [@user1, @user2]
-// userPrompt = "在花园里玩耍"
-// 输出: "@user1 @user2 在花园里玩耍"
+// VideoGenerateNode 接收
+const [connectedCharacters, setConnectedCharacters] = useState([]);
 ```
 
-**数据流**:
+**光标插入实现**:
+```javascript
+const insertCharacterAtCursor = (username) => {
+  const promptElement = promptInputRef.current;
+  if (!promptElement) return;
+
+  // 获取光标位置
+  const start = promptElement.selectionStart;
+  const end = promptElement.selectionEnd;
+  const text = manualPrompt;
+  const refText = `@${username} `;
+
+  // 在光标位置插入
+  const newText = text.substring(0, start) + refText + text.substring(end);
+  setManualPrompt(newText);
+
+  // 移动光标到插入内容之后
+  setTimeout(() => {
+    promptElement.setSelectionRange(start + refText.length, start + refText.length);
+    promptElement.focus();
+  }, 0);
+};
 ```
-CharacterLibraryNode (单选)
-  ↓ character (对象)
-VideoGenerateNode
-  ↓ 接收并显示到【已连接角色】
-  ↓ 用户手动添加更多角色（可选）
-  ↓ 【当前使用角色】列表
-  ↓ 自动组装到提示词开头
-```
+
+**关键优势**:
+- ✅ 角色库节点做初筛，避免视频生成节点角色过多
+- ✅ 用户完全控制角色引用的位置和数量
+- ✅ 完全复刻网页版的灵活交互方式
+- ✅ 支持任意复杂的多角色场景（`@user1 和 @user2 在一起，@user3 在旁边观看`）
 
 ### 角色结果节点 ⭐ 新增
 

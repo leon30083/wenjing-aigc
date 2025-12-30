@@ -1428,59 +1428,232 @@ const payload = {
 };
 ```
 
-### 角色引用实现 ⭐ 新增
+### 角色引用实现 ⭐ 更新
 
-**VideoGenerateNode - MVP 角色引用（自动插入模式）**:
+**设计理念**：完全复刻网页版的角色调用方式，灵活自由
+
+**CharacterLibraryNode - 多选初筛**:
 ```javascript
 import { useState, useEffect } from 'react';
-import { Handle, Position } from 'reactflow';
+import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
+
+function CharacterLibraryNode({ data }) {
+  const nodeId = useNodeId();
+  const { setNodes, getNodes, getEdges } = useReactFlow();
+
+  // 模式切换：transfer（传送到视频节点） | manage（批量删除）
+  const [selectionMode, setSelectionMode] = useState('transfer');
+  const [selectedCharacters, setSelectedCharacters] = useState(new Set());
+  const [charactersList, setCharactersList] = useState([]);
+
+  // 传递选中的角色到视频节点
+  useEffect(() => {
+    data.selectedCharacters = Array.from(selectedCharacters);
+
+    if (selectedCharacters.size > 0 && nodeId) {
+      const edges = getEdges();
+      const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+      // 获取选中的角色完整对象
+      const characterObjects = charactersList.filter(c =>
+        selectedCharacters.has(c.id)
+      );
+
+      setNodes((nds) =>
+        nds.map((node) => {
+          const isConnected = outgoingEdges.some(e => e.target === node.id);
+          if (isConnected) {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                connectedCharacters: characterObjects
+              }
+            };
+          }
+          return node;
+        })
+      );
+    }
+  }, [selectedCharacters, data, nodeId, getEdges, getNodes, setNodes]);
+
+  // 切换角色选择状态
+  const toggleCharacterSelection = (characterId) => {
+    const newSelected = new Set(selectedCharacters);
+    if (newSelected.has(characterId)) {
+      newSelected.delete(characterId);
+    } else {
+      newSelected.add(characterId);
+    }
+    setSelectedCharacters(newSelected);
+  };
+
+  // 根据模式决定点击行为
+  const handleCharacterClick = (char) => {
+    if (selectionMode === 'transfer') {
+      // 多选模式：切换选中状态
+      toggleCharacterSelection(char.id);
+    } else {
+      // 管理模式：不处理，等待双击编辑
+    }
+  };
+
+  // 渲染角色卡片
+  return (
+    <div style={{ padding: '10px' }}>
+      {/* 模式切换按钮 */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+        <button
+          onClick={() => setSelectionMode('transfer')}
+          style={{
+            flex: 1,
+            padding: '4px',
+            fontSize: '10px',
+            backgroundColor: selectionMode === 'transfer' ? '#10b981' : '#e5e7eb',
+            color: selectionMode === 'transfer' ? 'white' : '#374151',
+            border: 'none',
+            borderRadius: '3px',
+            cursor: 'pointer',
+          }}
+        >
+          📤 传送到视频节点
+        </button>
+        <button
+          onClick={() => setSelectionMode('manage')}
+          style={{
+            flex: 1,
+            padding: '4px',
+            fontSize: '10px',
+            backgroundColor: selectionMode === 'manage' ? '#f59e0b' : '#e5e7eb',
+            color: selectionMode === 'manage' ? 'white' : '#374151',
+            border: 'none',
+            borderRadius: '3px',
+            cursor: 'pointer',
+          }}
+        >
+          🗑️ 批量删除
+        </button>
+      </div>
+
+      {/* 角色网格 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+        {charactersList.map((char) => (
+          <div
+            key={char.id}
+            onClick={() => handleCharacterClick(char)}
+            onDoubleClick={() => selectionMode === 'manage' && openEditDialog(char)}
+            style={{
+              padding: '6px',
+              backgroundColor: selectionMode === 'transfer' && selectedCharacters.has(char.id)
+                ? '#d1fae5'
+                : 'white',
+              borderRadius: '4px',
+              border: selectionMode === 'transfer' && selectedCharacters.has(char.id)
+                ? '2px solid #10b981'
+                : '1px solid #a5f3fc',
+              cursor: 'pointer',
+              position: 'relative',
+            }}
+          >
+            {/* 选中标识 */}
+            {selectionMode === 'transfer' && selectedCharacters.has(char.id) && (
+              <div style={{
+                position: 'absolute',
+                top: '2px',
+                left: '2px',
+                width: '16px',
+                height: '16px',
+                borderRadius: '50%',
+                backgroundColor: '#10b981',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '10px',
+                fontWeight: 'bold',
+              }}>
+                ✓
+              </div>
+            )}
+
+            {/* 角色内容 */}
+            <img src={char.profilePictureUrl} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+            <div style={{ fontSize: '10px', fontWeight: 'bold', marginTop: '4px' }}>
+              {char.alias || char.username}
+            </div>
+            {char.alias && (
+              <div style={{ fontSize: '8px', color: '#6b7280' }}>
+                @{char.username}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+**VideoGenerateNode - 点击插入角色**:
+```javascript
+import { useState, useEffect, useRef } from 'react';
+import { Handle, Position, useNodeId } from 'reactflow';
 
 function VideoGenerateNode({ data }) {
-  // 状态管理
-  const [connectedCharacter, setConnectedCharacter] = useState(null);
-  const [userPrompt, setUserPrompt] = useState('');
+  const nodeId = useNodeId();
+  const promptInputRef = useRef(null);
 
-  // 计算所有角色（MVP: 只有连接的角色）
-  const allCharacters = connectedCharacter ? [connectedCharacter] : [];
+  // 状态管理
+  const [connectedCharacters, setConnectedCharacters] = useState([]);
+  const [manualPrompt, setManualPrompt] = useState('');
+  const [status, setStatus] = useState('idle');
 
   // 从连接的节点获取角色数据
   useEffect(() => {
-    if (data.connectedCharacter) {
-      setConnectedCharacter(data.connectedCharacter);
+    if (data.connectedCharacters) {
+      setConnectedCharacters(data.connectedCharacters);
     }
-  }, [data.connectedCharacter]);
+  }, [data.connectedCharacters]);
 
-  // 组装最终提示词（自动插入角色引用）
-  const assembleFinalPrompt = () => {
-    if (allCharacters.length === 0) {
-      return userPrompt;
-    }
+  // 在光标位置插入角色引用
+  const insertCharacterAtCursor = (username) => {
+    const promptElement = promptInputRef.current;
+    if (!promptElement) return;
 
-    // 在提示词开头插入所有角色引用
-    const roleRefs = allCharacters
-      .map(c => `@${c.username}`)
-      .join(' ');
+    // 获取光标位置
+    const start = promptElement.selectionStart;
+    const end = promptElement.selectionEnd;
+    const text = manualPrompt;
+    const refText = `@${username} `;
 
-    return `${roleRefs} ${userPrompt}`.trim();
+    // 在光标位置插入
+    const newText = text.substring(0, start) + refText + text.substring(end);
+    setManualPrompt(newText);
+
+    // 移动光标到插入内容之后
+    setTimeout(() => {
+      promptElement.setSelectionRange(start + refText.length, start + refText.length);
+      promptElement.focus();
+    }, 0);
   };
-
-  const finalPrompt = assembleFinalPrompt();
 
   // 生成视频
   const handleGenerate = async () => {
-    if (!finalPrompt) {
-      alert('请输入提示词或连接角色库节点');
+    if (!manualPrompt.trim()) {
+      setError('请输入提示词');
       return;
     }
 
-    // 调用 API
+    setStatus('generating');
+
+    // 直接使用 manualPrompt，不做任何自动组装
     const response = await fetch(`${API_BASE}/api/video/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         platform: 'juxin',
         model: 'sora-2',
-        prompt: finalPrompt,
+        prompt: manualPrompt,
         duration: 10,
         aspect_ratio: '16:9',
         watermark: false,
@@ -1489,170 +1662,202 @@ function VideoGenerateNode({ data }) {
 
     const result = await response.json();
     if (result.success) {
-      // 派发事件，通知 TaskResultNode
       const taskId = result.data.id || result.data.task_id;
+      setTaskId(taskId);
+      setStatus('success');
+
+      // 派发事件
       window.dispatchEvent(new CustomEvent('video-task-created', {
-        detail: { sourceNodeId: data.id, taskId }
+        detail: { sourceNodeId: nodeId, taskId }
       }));
+    } else {
+      setStatus('error');
+      setError(result.error || '生成失败');
     }
   };
 
   return (
-    <div style={{ padding: '10px', border: '2px solid #10b981', borderRadius: '8px' }}>
+    <div style={{ padding: '10px 15px', border: '2px solid #10b981', borderRadius: '8px' }}>
       {/* 输入端口 */}
-      <Handle type="target" position={Position.Left} id="prompt" />
-      <Handle type="target" position={Position.Left} id="character" />
-      <Handle type="target" position={Position.Left} id="images" />
+      <Handle type="target" position={Position.Left} id="prompt-input" />
+      <Handle type="target" position={Position.Left} id="character-input" />
+      <Handle type="target" position={Position.Left} id="images-input" />
 
-      {/* 已连接角色显示 */}
+      {/* 候选角色显示 */}
       <div style={{ marginBottom: '8px' }}>
-        <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#059669' }}>
-          🔗 已连接角色
+        <div style={{
+          fontSize: '11px',
+          fontWeight: 'bold',
+          color: '#059669',
+          marginBottom: '4px',
+        }}>
+          📊 候选角色 (点击插入到光标位置)
         </div>
-        {connectedCharacter ? (
-          <div style={{
-            padding: '6px',
-            backgroundColor: '#d1fae5',
-            borderRadius: '4px',
-            border: '1px solid #6ee7b7'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <img
-                src={connectedCharacter.profilePictureUrl}
-                alt=""
-                style={{ width: '24px', height: '24px', borderRadius: '50%' }}
-              />
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#047857' }}>
-                  {connectedCharacter.alias || connectedCharacter.username}
-                </div>
-                <div style={{ fontSize: '9px', color: '#065f46' }}>
-                  @{connectedCharacter.username}
-                </div>
+
+        {connectedCharacters.length > 0 ? (
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {connectedCharacters.map((char) => (
+              <div
+                key={char.id}
+                onClick={() => insertCharacterAtCursor(char.username)}
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#ecfdf5',
+                  borderRadius: '4px',
+                  border: '1px solid #6ee7b7',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'background 0.2s',
+                }}
+                title="点击插入到光标位置"
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#d1fae5'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ecfdf5'}
+              >
+                <img
+                  src={char.profilePictureUrl}
+                  alt=""
+                  style={{ width: '20px', height: '20px', borderRadius: '50%' }}
+                />
+                <span style={{ fontSize: '10px', color: '#047857' }}>
+                  {char.alias || char.username}
+                </span>
               </div>
-            </div>
+            ))}
           </div>
         ) : (
           <div style={{
-            padding: '8px',
+            padding: '6px',
             backgroundColor: '#fef3c7',
             borderRadius: '4px',
             fontSize: '10px',
             color: '#92400e',
             textAlign: 'center'
           }}>
-            ⚠️ 未连接角色
+            💡 提示：连接角色库节点并选择角色后，点击角色卡片插入
           </div>
         )}
       </div>
 
-      {/* 提示词输入 */}
+      {/* 提示词输入框 */}
       <textarea
-        value={userPrompt}
-        onChange={(e) => setUserPrompt(e.target.value)}
-        placeholder="输入提示词..."
+        ref={promptInputRef}
+        value={manualPrompt}
+        onChange={(e) => setManualPrompt(e.target.value)}
+        placeholder="输入提示词，点击上方角色卡片插入 @username 引用..."
+        disabled={status === 'generating'}
         style={{
           width: '100%',
-          minHeight: '60px',
-          padding: '6px',
+          minHeight: '80px',
+          padding: '6px 8px',
           borderRadius: '4px',
           border: '1px solid #6ee7b7',
-          fontSize: '11px'
+          fontSize: '11px',
+          fontFamily: 'monospace',
+          marginBottom: '8px',
+          resize: 'vertical',
         }}
       />
 
-      {/* 提示词预览 */}
-      {finalPrompt && (
+      {/* 最终提示词预览 */}
+      {manualPrompt && (
         <div style={{
-          marginTop: '8px',
-          padding: '6px',
+          padding: '6px 8px',
           backgroundColor: '#f0fdf4',
           borderRadius: '4px',
+          marginBottom: '8px',
           fontSize: '10px',
           color: '#166534',
-          fontStyle: 'italic'
+          fontStyle: 'italic',
+          border: '1px dashed #6ee7b7',
         }}>
-          预览: {finalPrompt}
+          📤 最终提示词: {manualPrompt}
         </div>
       )}
 
       {/* 生成按钮 */}
       <button
         onClick={handleGenerate}
+        disabled={status === 'generating'}
         style={{
-          marginTop: '8px',
           width: '100%',
-          padding: '6px',
-          backgroundColor: '#10b981',
+          padding: '8px',
+          backgroundColor: status === 'generating' ? '#9ca3af' : '#10b981',
           color: 'white',
           border: 'none',
           borderRadius: '4px',
-          cursor: 'pointer'
+          cursor: status === 'generating' ? 'not-allowed' : 'pointer',
+          fontSize: '12px',
+          fontWeight: 'bold',
         }}
       >
-        生成视频
+        {status === 'generating' ? '生成中...' : '生成视频'}
       </button>
 
       {/* 输出端口 */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="video"
-        style={{ background: '#10b981', width: 10, height: 10 }}
-      />
+      <Handle type="source" position={Position.Right} id="video-output" />
     </div>
   );
 }
 ```
 
-**角色引用组装函数**:
+**数据传递格式**:
+```javascript
+// CharacterLibraryNode 传递
+data.connectedCharacters = [
+  {
+    id: "ch_xxx",
+    username: "de3602969.sunnykitty",
+    alias: "阳光小猫",
+    profilePictureUrl: "https://...",
+    permalink: "https://...",
+  },
+  // ... 更多角色
+]
+
+// VideoGenerateNode 接收
+useEffect(() => {
+  if (data.connectedCharacters) {
+    setConnectedCharacters(data.connectedCharacters);
+  }
+}, [data.connectedCharacters]);
+```
+
+**光标插入实现**:
 ```javascript
 /**
- * 组装带角色引用的提示词
- * @param {string} userPrompt - 用户输入的提示词
- * @param {Array} allCharacters - 所有角色对象数组
- * @returns {string} 组装后的完整提示词
+ * 在光标位置插入角色引用
+ * @param {string} username - 角色用户名
  */
-function assemblePromptWithCharacters(userPrompt, allCharacters) {
-  // 如果没有角色，直接返回用户输入
-  if (!allCharacters || allCharacters.length === 0) {
-    return userPrompt;
-  }
+const insertCharacterAtCursor = (username) => {
+  const promptElement = promptInputRef.current;
+  if (!promptElement) return;
 
-  // 提取所有角色引用
-  const roleRefs = allCharacters
-    .map(c => `@${c.username}`)
-    .join(' ');
+  // 获取光标位置
+  const start = promptElement.selectionStart;
+  const end = promptElement.selectionEnd;
+  const text = manualPrompt;
+  const refText = `@${username} `;
 
-  // 在开头插入角色引用，后面跟用户输入
-  const finalPrompt = `${roleRefs} ${userPrompt}`.trim();
+  // 在光标位置插入
+  const newText = text.substring(0, start) + refText + text.substring(end);
+  setManualPrompt(newText);
 
-  return finalPrompt;
-}
-
-// 使用示例
-const userPrompt = "在花园里玩耍";
-const characters = [
-  { username: "user1", alias: "阳光小猫" },
-  { username: "user2", alias: "装载机" }
-];
-
-const result = assemblePromptWithCharacters(userPrompt, characters);
-// 输出: "@user1 @user2 在花园里玩耍"
+  // 移动光标到插入内容之后
+  setTimeout(() => {
+    promptElement.setSelectionRange(start + refText.length, start + refText.length);
+    promptElement.focus();
+  }, 0);
+};
 ```
 
-**角色对象结构**:
-```javascript
-// CharacterLibraryNode 输出的角色对象
-{
-  id: "ch_69536e7ce60481919c4e9a2a3cf4c6d5",
-  username: "de3602969.sunnykitty",
-  alias: "小小猫",
-  permalink: "https://sora.chatgpt.com/profile/de3602969.sunnykitty",
-  profilePictureUrl: "https://...",
-  source: "connected" | "manual"  // 数据来源标识
-}
-```
+**关键要点**:
+1. ✅ 角色库节点做初筛，多选传递
+2. ✅ 视频生成节点显示候选角色列表
+3. ✅ 点击角色卡片在光标位置插入
+4. ✅ 用户完全自由编辑提示词
+5. ✅ 不做任何自动组装
 
 
 ```javascript
