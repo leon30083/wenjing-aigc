@@ -1,5 +1,6 @@
 import { Handle, Position, useNodeId } from 'reactflow';
 import React, { useState } from 'react';
+import { useNodeResize } from '../../hooks/useNodeResize';
 
 const API_BASE = 'http://localhost:9000';
 
@@ -14,6 +15,13 @@ function CharacterCreateNode({ data }) {
   const [status, setStatus] = useState('idle'); // idle, creating, success, error
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+
+  const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
+    data,
+    280, // minWidth
+    350, // minHeight
+    { width: 300, height: 380 } // initialSize
+  );
 
   const handleCreate = async () => {
     // Validation
@@ -101,7 +109,7 @@ function CharacterCreateNode({ data }) {
       borderColor: '#ec4899',
       borderStyle: 'solid',
       backgroundColor: '#fdf2f8',
-      minWidth: '280px',
+      ...resizeStyles,
     }}>
       {/* Input Handles */}
       <Handle
@@ -130,8 +138,9 @@ function CharacterCreateNode({ data }) {
       </div>
 
       {/* Platform Selector */}
-      <div style={{ marginBottom: '8px' }}>
+      <div className="nodrag" style={{ marginBottom: '8px' }}>
         <select
+          className="nodrag"
           value={platform}
           onChange={(e) => setPlatform(e.target.value)}
           disabled={status === 'creating'}
@@ -152,12 +161,13 @@ function CharacterCreateNode({ data }) {
       </div>
 
       {/* Input Type Toggle */}
-      <div style={{
+      <div className="nodrag" style={{
         display: 'flex',
         gap: '8px',
         marginBottom: '8px',
       }}>
         <button
+          className="nodrag"
           onClick={() => setInputType('url')}
           style={{
             flex: 1,
@@ -174,6 +184,7 @@ function CharacterCreateNode({ data }) {
           视频URL
         </button>
         <button
+          className="nodrag"
           onClick={() => setInputType('task')}
           style={{
             flex: 1,
@@ -194,6 +205,7 @@ function CharacterCreateNode({ data }) {
       {/* Video URL / Task ID Input */}
       {inputType === 'url' ? (
         <input
+          className="nodrag"
           type="text"
           value={videoUrl}
           onChange={(e) => setVideoUrl(e.target.value)}
@@ -210,6 +222,7 @@ function CharacterCreateNode({ data }) {
         />
       ) : (
         <input
+          className="nodrag"
           type="text"
           value={taskId}
           onChange={(e) => setTaskId(e.target.value)}
@@ -227,7 +240,7 @@ function CharacterCreateNode({ data }) {
       )}
 
       {/* Timestamps (Required) */}
-      <div style={{ marginBottom: '6px' }}>
+      <div className="nodrag" style={{ marginBottom: '6px' }}>
         <label style={{
           fontSize: '10px',
           color: '#be185d',
@@ -236,6 +249,7 @@ function CharacterCreateNode({ data }) {
           时间戳 * (1-3秒)
         </label>
         <input
+          className="nodrag"
           type="text"
           value={timestamps}
           onChange={(e) => setTimestamps(e.target.value)}
@@ -252,7 +266,7 @@ function CharacterCreateNode({ data }) {
       </div>
 
       {/* Alias (Optional) */}
-      <div style={{ marginBottom: '8px' }}>
+      <div className="nodrag" style={{ marginBottom: '8px' }}>
         <label style={{
           fontSize: '10px',
           color: '#9d174d',
@@ -260,6 +274,7 @@ function CharacterCreateNode({ data }) {
           别名 (可选)
         </label>
         <input
+          className="nodrag"
           type="text"
           value={alias}
           onChange={(e) => setAlias(e.target.value)}
@@ -277,6 +292,7 @@ function CharacterCreateNode({ data }) {
 
       {/* Create Button */}
       <button
+        className="nodrag"
         onClick={handleCreate}
         disabled={status === 'creating'}
         style={{
@@ -343,6 +359,16 @@ function CharacterCreateNode({ data }) {
         <span>← URL/ID</span>
         <span>角色 →</span>
       </div>
+
+      {/* Resize Handle (ComfyUI style) */}
+      <div
+        className="nodrag"
+        onMouseDown={handleResizeMouseDown}
+        style={getResizeHandleStyles('#ec4899')}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
+        title="拖动调整节点大小"
+      />
     </div>
   );
 }

@@ -1,12 +1,15 @@
-import { Handle, Position } from 'reactflow';
-import React, { useState } from 'react';
+import { Handle, Position, useNodeId } from 'reactflow';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNodeResize } from '../../hooks/useNodeResize';
 
 const API_BASE = 'http://localhost:9000';
 
 function StoryboardNode({ data }) {
+  const nodeId = useNodeId();
+
   const [config, setConfig] = useState({
     model: 'Sora-2',
-    duration: '10s',
+    duration: 10,
     aspect: '16:9',
     watermark: false,
   });
@@ -16,8 +19,18 @@ function StoryboardNode({ data }) {
   ]);
 
   const [status, setStatus] = useState('idle'); // idle, generating, success, error
-  const [progress, setProgress] = useState({ total: 0, completed: 0, failed: 0 });
-  const [results, setResults] = useState([]);
+
+  // ⭐ Phase 1: 角色引用相关状态
+  const connectedCharacters = data.connectedCharacters || [];
+  const sceneRefs = useRef([]);
+  const lastFocusedSceneIndex = useRef(null);
+
+  const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
+    data,
+    340, // minWidth
+    400, // minHeight
+    { width: 360, height: 420 } // initialSize
+  );
 
   // Add a new shot
   const addShot = () => {
@@ -44,7 +57,39 @@ function StoryboardNode({ data }) {
     ));
   };
 
-  // Generate storyboard
+  // ⭐ Phase 1: 场景输入框获取焦点时记录索引
+  const handleSceneFocus = (index) => {
+    lastFocusedSceneIndex.current = index;
+  };
+
+  // ⭐ Phase 1: 在焦点场景插入角色引用
+  const insertCharacterToFocusedScene = (username, alias) => {
+    const targetIndex = lastFocusedSceneIndex.current;
+    if (targetIndex === null) {
+      alert('请先点击一个场景输入框');
+      return;
+    }
+
+    const sceneInput = sceneRefs.current[targetIndex];
+    if (!sceneInput) return;
+
+    const start = sceneInput.selectionStart;
+    const end = sceneInput.selectionEnd;
+    const text = shots[targetIndex].scene;
+    const refText = `@${alias} `;
+
+    // 更新场景描述
+    const newScene = text.substring(0, start) + refText + text.substring(end);
+    updateShot(shots[targetIndex].id, 'scene', newScene);
+
+    // 移动光标
+    setTimeout(() => {
+      sceneInput.setSelectionRange(start + refText.length, start + refText.length);
+      sceneInput.focus();
+    }, 0);
+  };
+
+  // ⭐ Phase 2: 修正 API 调用逻辑（移除循环，调用一次）
   const handleGenerate = async () => {
     // Validation
     const validShots = shots.filter(s => s.scene.trim());
@@ -54,70 +99,65 @@ function StoryboardNode({ data }) {
     }
 
     setStatus('generating');
-    setProgress({ total: validShots.length, completed: 0, failed: 0 });
-    setResults([]);
 
     try {
-      // Collect all images from shots
-      const allImages = shots
-        .filter(s => s.image.trim())
-        .map(s => s.image.trim());
+      // ✅ 收集所有图片
+      const allImages = [];
 
-      for (let i = 0; i < validShots.length; i++) {
-        const shot = validShots[i];
-
-        try {
-          const payload = {
-            platform: 'juxin',
-            model: config.model,
-            prompt: shot.scene,
-            duration: `${shot.duration}s`,
-            aspect_ratio: config.aspect,
-            watermark: config.watermark,
-            storyboard_mode: true,
-            shot_index: i,
-            total_shots: validShots.length,
-          };
-
-          // Add images from all shots (not just current shot)
-          if (allImages.length > 0) {
-            payload.images = allImages;
-          }
-
-          const response = await fetch(`${API_BASE}/video/create`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-
-          const result = await response.json();
-
-          if (result.success && result.data) {
-            setResults(prev => [...prev, {
-              shotId: shot.id,
-              scene: shot.scene,
-              taskId: result.data.id || result.data.task_id,
-              status: 'queued',
-            }]);
-            setProgress(prev => ({ ...prev, completed: prev.completed + 1 }));
-          } else {
-            setProgress(prev => ({ ...prev, failed: prev.failed + 1 }));
-          }
-        } catch (err) {
-          console.error(`Failed to generate shot ${i}:`, err);
-          setProgress(prev => ({ ...prev, failed: prev.failed + 1 }));
-        }
+      // 全局图片（从 ReferenceImageNode 连接）
+      if (data.connectedImages && data.connectedImages.length > 0) {
+        allImages.push(...data.connectedImages);
       }
 
-      setStatus('success');
+      // 每个镜头的图片
+      validShots.forEach(shot => {
+        if (shot.image && shot.image.trim()) {
+          allImages.push(shot.image.trim());
+        }
+      });
 
-      // Notify parent
-      if (data.onStoryboardGenerated) {
-        data.onStoryboardGenerated(results);
+      // ✅ 调用后端故事板 API
+      const response = await fetch(`${API_BASE}/api/video/storyboard`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: 'juxin',
+          model: config.model.toLowerCase(),
+          shots: validShots.map(s => ({
+            duration: s.duration,
+            scene: s.scene,
+            image: s.image,
+          })),
+          images: allImages,
+          aspect_ratio: config.aspect,
+          watermark: config.watermark,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const taskId = result.data.id || result.data.task_id;
+
+        setStatus('success');
+
+        // ✅ 派发事件到 TaskResultNode
+        window.dispatchEvent(new CustomEvent('video-task-created', {
+          detail: { sourceNodeId: nodeId, taskId }
+        }));
+
+        // Notify parent (for backward compatibility)
+        if (data.onStoryboardGenerated) {
+          data.onStoryboardGenerated([{ taskId, scene: '故事板视频' }]);
+        }
+      } else {
+        setStatus('error');
+        alert(result.error || '生成失败');
       }
     } catch (err) {
       setStatus('error');
       console.error('Storyboard generation error:', err);
+      alert(`网络错误: ${err.message}`);
     }
   };
 
@@ -129,22 +169,27 @@ function StoryboardNode({ data }) {
       borderColor: '#6366f1',
       borderStyle: 'solid',
       backgroundColor: '#eef2ff',
-      minWidth: '320px',
-      maxWidth: '360px',
+      ...resizeStyles,
     }}>
       {/* Input Handles */}
       <Handle
         type="target"
         position={Position.Left}
-        id="prompt-input"
-        style={{ background: '#6366f1', width: 10, height: 10 }}
+        id="character-input"
+        style={{ background: '#f59e0b', width: 10, height: 10, top: '35%' }}
+      />
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="images-input"
+        style={{ background: '#8b5cf6', width: 10, height: 10, top: '65%' }}
       />
 
       {/* Output Handle */}
       <Handle
         type="source"
         position={Position.Right}
-        id="videos-output"
+        id="video-output"
         style={{ background: '#6366f1', width: 10, height: 10 }}
       />
 
@@ -158,6 +203,78 @@ function StoryboardNode({ data }) {
         🎞️ {data.label || '故事板'}
       </div>
 
+      {/* ⭐ Phase 1: 候选角色显示 */}
+      <div className="nodrag" style={{ marginBottom: '8px' }}>
+        <div style={{
+          fontSize: '11px',
+          fontWeight: 'bold',
+          color: '#4338ca',
+          marginBottom: '4px',
+        }}>
+          📊 候选角色 (点击插入到焦点场景)
+        </div>
+
+        {connectedCharacters.length > 0 ? (
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {connectedCharacters.map((char) => (
+              <div
+                key={char.id}
+                className="nodrag"
+                onClick={() => insertCharacterToFocusedScene(char.username, char.alias || char.username)}
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#e0e7ff',
+                  borderRadius: '4px',
+                  border: '1px solid #a5b4fc',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'background 0.2s',
+                }}
+                title="点击插入到焦点场景"
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#c7d2fe'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#e0e7ff'}
+              >
+                <img
+                  src={char.profilePictureUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"%3E%3Cpath d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/%3E%3C/svg%3E'}
+                  alt=""
+                  style={{ width: '20px', height: '20px', borderRadius: '50%' }}
+                />
+                <span style={{ fontSize: '10px', color: '#4338ca' }}>
+                  {char.alias || char.username}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            padding: '6px',
+            backgroundColor: '#fef3c7',
+            borderRadius: '4px',
+            fontSize: '10px',
+            color: '#92400e',
+            textAlign: 'center'
+          }}>
+            💡 提示：连接角色库节点并选择角色后，点击角色卡片插入到焦点场景
+          </div>
+        )}
+      </div>
+
+      {/* Connected Images Display */}
+      {data.connectedImages && data.connectedImages.length > 0 && (
+        <div style={{
+          padding: '6px',
+          backgroundColor: '#f3e8ff',
+          borderRadius: '4px',
+          marginBottom: '8px',
+          fontSize: '10px',
+          color: '#6b21a8',
+        }}>
+          <span>🖼️ {data.connectedImages.length} 张参考图</span>
+        </div>
+      )}
+
       {/* Global Config */}
       <div style={{
         padding: '6px',
@@ -166,8 +283,9 @@ function StoryboardNode({ data }) {
         marginBottom: '8px',
         fontSize: '10px',
       }}>
-        <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
+        <div className="nodrag" style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
           <select
+            className="nodrag"
             value={config.model}
             onChange={(e) => setConfig({ ...config, model: e.target.value })}
             disabled={status === 'generating'}
@@ -181,7 +299,9 @@ function StoryboardNode({ data }) {
           >
             <option value="Sora-2">Sora-2</option>
           </select>
+          {/* ⭐ Phase 3: 移除 1:1 比例选项（Sora2 不支持） */}
           <select
+            className="nodrag"
             value={config.aspect}
             onChange={(e) => setConfig({ ...config, aspect: e.target.value })}
             disabled={status === 'generating'}
@@ -195,12 +315,12 @@ function StoryboardNode({ data }) {
           >
             <option value="16:9">16:9</option>
             <option value="9:16">9:16</option>
-            <option value="1:1">1:1</option>
           </select>
         </div>
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+        <div className="nodrag" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
           <label style={{ fontSize: '10px', color: '#4338ca' }}>水印:</label>
           <input
+            className="nodrag"
             type="checkbox"
             checked={config.watermark}
             onChange={(e) => setConfig({ ...config, watermark: e.target.checked })}
@@ -210,7 +330,7 @@ function StoryboardNode({ data }) {
       </div>
 
       {/* Shots List */}
-      <div style={{
+      <div className="nodrag" style={{
         maxHeight: '200px',
         overflowY: 'auto',
         marginBottom: '8px',
@@ -242,6 +362,7 @@ function StoryboardNode({ data }) {
               </span>
               {shots.length > 1 && (
                 <button
+                  className="nodrag"
                   onClick={() => removeShot(shot.id)}
                   disabled={status === 'generating'}
                   style={{
@@ -259,11 +380,14 @@ function StoryboardNode({ data }) {
               )}
             </div>
 
-            {/* Scene Input */}
+            {/* ⭐ Phase 1: Scene Input with focus tracking */}
             <input
+              className="nodrag"
+              ref={(el) => sceneRefs.current[index] = el}
               type="text"
               value={shot.scene}
               onChange={(e) => updateShot(shot.id, 'scene', e.target.value)}
+              onFocus={() => handleSceneFocus(index)}
               placeholder="场景描述..."
               disabled={status === 'generating'}
               style={{
@@ -279,9 +403,10 @@ function StoryboardNode({ data }) {
             {/* Duration & Image */}
             <div style={{ display: 'flex', gap: '4px' }}>
               <input
+                className="nodrag"
                 type="number"
                 value={shot.duration}
-                onChange={(e) => updateShot(shot.id, 'duration', parseFloat(e.target.value))}
+                onChange={(e) => updateShot(shot.id, 'duration', Number(e.target.value))}
                 min="5"
                 max="30"
                 disabled={status === 'generating'}
@@ -294,6 +419,7 @@ function StoryboardNode({ data }) {
                 }}
               />
               <input
+                className="nodrag"
                 type="text"
                 value={shot.image}
                 onChange={(e) => updateShot(shot.id, 'image', e.target.value)}
@@ -314,6 +440,7 @@ function StoryboardNode({ data }) {
 
       {/* Add Shot Button */}
       <button
+        className="nodrag"
         onClick={addShot}
         disabled={status === 'generating'}
         style={{
@@ -331,8 +458,9 @@ function StoryboardNode({ data }) {
         + 添加镜头
       </button>
 
-      {/* Generate Button */}
+      {/* ⭐ Phase 3: 修改按钮文本和状态 */}
       <button
+        className="nodrag"
         onClick={handleGenerate}
         disabled={status === 'generating'}
         style={{
@@ -342,6 +470,8 @@ function StoryboardNode({ data }) {
             ? '#9ca3af'
             : status === 'success'
             ? '#059669'
+            : status === 'error'
+            ? '#dc2626'
             : '#6366f1',
           color: 'white',
           border: 'none',
@@ -351,21 +481,11 @@ function StoryboardNode({ data }) {
           fontWeight: 'bold',
         }}
       >
-        {status === 'idle' && '批量生成'}
-        {status === 'generating' && `生成中... (${progress.completed}/${progress.total})`}
-        {status === 'success' && `✓ 完成 (${progress.completed}个成功)`}
+        {status === 'idle' && '生成故事板视频'}
+        {status === 'generating' && '生成中...'}
+        {status === 'success' && '✓ 已提交'}
+        {status === 'error' && '✗ 失败'}
       </button>
-
-      {/* Progress */}
-      {status === 'generating' && (
-        <div style={{
-          marginTop: '6px',
-          fontSize: '10px',
-          color: '#4338ca',
-        }}>
-          进度: {progress.completed} 完成 / {progress.failed} 失败 / {progress.total} 总计
-        </div>
-      )}
 
       {/* Labels */}
       <div style={{
@@ -375,9 +495,19 @@ function StoryboardNode({ data }) {
         display: 'flex',
         justifyContent: 'space-between',
       }}>
-        <span>← 提示词/图片</span>
-        <span>视频数组 →</span>
+        <span>↑ 角色 / 图片</span>
+        <span>视频 →</span>
       </div>
+
+      {/* Resize Handle (ComfyUI style) */}
+      <div
+        className="nodrag"
+        onMouseDown={handleResizeMouseDown}
+        style={getResizeHandleStyles('#6366f1')}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
+        title="拖动调整节点大小"
+      />
     </div>
   );
 }

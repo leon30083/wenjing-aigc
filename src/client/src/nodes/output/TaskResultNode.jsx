@@ -1,5 +1,6 @@
 import { Handle, Position } from 'reactflow';
 import React, { useState, useEffect, useRef } from 'react';
+import { useNodeResize } from '../../hooks/useNodeResize';
 
 const API_BASE = 'http://localhost:9000';
 
@@ -11,6 +12,13 @@ function TaskResultNode({ data }) {
   const [error, setError] = useState(null);
   const [polling, setPolling] = useState(false);
   const [copySuccess, setCopySuccess] = useState(null); // 'taskId' | 'videoUrl' | null
+
+  const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
+    data,
+    300, // minWidth
+    280, // minHeight
+    { width: 320, height: 300 } // initialSize
+  );
 
   // Update ref when taskId changes
   useEffect(() => {
@@ -168,8 +176,7 @@ function TaskResultNode({ data }) {
       borderColor: '#0ea5e9',
       borderStyle: 'solid',
       backgroundColor: '#e0f2fe',
-      minWidth: '280px',
-      maxWidth: '320px',
+      ...resizeStyles,
     }}>
       {/* Input Handle */}
       <Handle
@@ -192,6 +199,7 @@ function TaskResultNode({ data }) {
         <span>📺 {data.label || '任务结果'}</span>
         {taskId && (
           <button
+            className="nodrag"
             onClick={refreshStatus}
             disabled={polling}
             style={{
@@ -223,6 +231,7 @@ function TaskResultNode({ data }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontWeight: 'bold' }}>任务ID:</span>
             <button
+              className="nodrag"
               onClick={() => copyToClipboard(taskId, 'taskId')}
               disabled={copySuccess === 'taskId'}
               style={{
@@ -332,6 +341,7 @@ function TaskResultNode({ data }) {
           </a>
           <div style={{ display: 'flex', gap: '4px' }}>
             <button
+              className="nodrag"
               onClick={() => copyToClipboard(videoUrl, 'videoUrl')}
               disabled={copySuccess === 'videoUrl'}
               style={{
@@ -348,6 +358,7 @@ function TaskResultNode({ data }) {
               {copySuccess === 'videoUrl' ? '✓ 已复制链接' : '🔗 复制链接'}
             </button>
             <button
+              className="nodrag"
               onClick={refreshStatus}
               disabled={polling}
               style={{
@@ -370,6 +381,7 @@ function TaskResultNode({ data }) {
       {/* Manual Refresh Button (when no video URL but has taskId) */}
       {taskId && !videoUrl && (
         <button
+          className="nodrag"
           onClick={refreshStatus}
           disabled={polling}
           style={{
@@ -400,6 +412,16 @@ function TaskResultNode({ data }) {
           ← 任务ID
         </div>
       )}
+
+      {/* Resize Handle (ComfyUI style) */}
+      <div
+        className="nodrag"
+        onMouseDown={handleResizeMouseDown}
+        style={getResizeHandleStyles('#0ea5e9')}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
+        title="拖动调整节点大小"
+      />
     </div>
   );
 }

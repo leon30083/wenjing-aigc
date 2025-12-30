@@ -1,11 +1,19 @@
 import { Handle, Position } from 'reactflow';
 import { useState, useEffect } from 'react';
+import { useNodeResize } from '../../hooks/useNodeResize';
 
 const API_BASE = 'http://localhost:9000';
 
 function CharacterResultNode({ data }) {
   const [character, setCharacter] = useState(data.character || null);
   const [copySuccess, setCopySuccess] = useState(null);
+
+  const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
+    data,
+    300, // minWidth
+    150, // minHeight
+    { width: 320, height: 180 } // initialSize
+  );
 
   // Copy to clipboard function
   const copyToClipboard = async (text, type) => {
@@ -57,8 +65,7 @@ function CharacterResultNode({ data }) {
         borderColor: '#a855f7',
         borderStyle: 'solid',
         backgroundColor: '#faf5ff',
-        minWidth: '280px',
-        minHeight: '120px',
+        ...resizeStyles,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -87,7 +94,7 @@ function CharacterResultNode({ data }) {
       borderColor: '#a855f7',
       borderStyle: 'solid',
       backgroundColor: '#faf5ff',
-      minWidth: '280px',
+      ...resizeStyles,
     }}>
       {/* Input Handle */}
       <Handle
@@ -120,6 +127,7 @@ function CharacterResultNode({ data }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
             <span style={{ fontWeight: 'bold', color: '#581c87' }}>角色 ID:</span>
             <button
+              className="nodrag"
               onClick={() => copyToClipboard(character.id, 'id')}
               style={{
                 padding: '2px 6px',
@@ -144,6 +152,7 @@ function CharacterResultNode({ data }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
             <span style={{ fontWeight: 'bold', color: '#581c87' }}>用户名:</span>
             <button
+              className="nodrag"
               onClick={() => copyToClipboard(`@${character.username}`, 'username')}
               style={{
                 padding: '2px 6px',
@@ -213,6 +222,16 @@ function CharacterResultNode({ data }) {
       }}>
         ← 角色
       </div>
+
+      {/* Resize Handle (ComfyUI style) */}
+      <div
+        className="nodrag"
+        onMouseDown={handleResizeMouseDown}
+        style={getResizeHandleStyles('#a855f7')}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
+        title="拖动调整节点大小"
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
 import React, { useState, useEffect } from 'react';
+import { useNodeResize } from '../../hooks/useNodeResize';
 
 const API_BASE = 'http://localhost:9000';
 
@@ -11,6 +12,13 @@ function CharacterLibraryNode({ data }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [recentCharacters, setRecentCharacters] = useState([]);
+
+  const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
+    data,
+    300, // minWidth
+    400, // minHeight
+    { width: 320, height: 420 } // initialSize
+  );
 
   // 状态管理
   // selectionMode: 'transfer' = 传送到视频节点（多选）, 'manage' = 角色编辑
@@ -322,8 +330,7 @@ function CharacterLibraryNode({ data }) {
       borderColor: '#06b6d4',
       borderStyle: 'solid',
       backgroundColor: '#ecfeff',
-      minWidth: '280px',
-      maxWidth: '320px',
+      ...resizeStyles,
     }}>
       {/* Output Handle */}
       <Handle
@@ -345,6 +352,7 @@ function CharacterLibraryNode({ data }) {
       }}>
         <span>📊 {data.label || '角色库'}</span>
         <button
+          className="nodrag"
           onClick={loadCharacters}
           disabled={loading}
           style={{
@@ -363,6 +371,7 @@ function CharacterLibraryNode({ data }) {
 
       {/* Search Input */}
       <input
+        className="nodrag"
         type="text"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
@@ -379,6 +388,7 @@ function CharacterLibraryNode({ data }) {
 
       {/* Filter Dropdown */}
       <select
+        className="nodrag"
         value={filterType}
         onChange={(e) => setFilterType(e.target.value)}
         style={{
@@ -399,8 +409,9 @@ function CharacterLibraryNode({ data }) {
       </select>
 
       {/* Mode Toggle Buttons */}
-      <div style={{ marginBottom: '8px', display: 'flex', gap: '4px' }}>
+      <div className="nodrag" style={{ marginBottom: '8px', display: 'flex', gap: '4px' }}>
         <button
+          className="nodrag"
           onClick={() => {
             setSelectionMode('transfer');
             setBatchMode(false);
@@ -420,6 +431,7 @@ function CharacterLibraryNode({ data }) {
           📤 传送到视频节点
         </button>
         <button
+          className="nodrag"
           onClick={() => {
             setSelectionMode('manage');
             setSelectedCharacters(new Set());
@@ -441,8 +453,9 @@ function CharacterLibraryNode({ data }) {
 
       {/* Manage Mode: Batch Toggle */}
       {selectionMode === 'manage' && (
-        <div style={{ marginBottom: '8px', display: 'flex', gap: '4px' }}>
+        <div className="nodrag" style={{ marginBottom: '8px', display: 'flex', gap: '4px' }}>
           <button
+            className="nodrag"
             onClick={toggleBatchMode}
             style={{
               flex: 1,
@@ -460,6 +473,7 @@ function CharacterLibraryNode({ data }) {
           {batchMode && (
             <>
               <button
+                className="nodrag"
                 onClick={toggleSelectAll}
                 style={{
                   flex: 1,
@@ -475,6 +489,7 @@ function CharacterLibraryNode({ data }) {
                 {selectedCharacters.size === filteredCharacters.length ? '取消全选' : '全选'}
               </button>
               <button
+                className="nodrag"
                 onClick={deleteSelected}
                 style={{
                   flex: 1,
@@ -495,7 +510,7 @@ function CharacterLibraryNode({ data }) {
       )}
 
       {/* Character Grid */}
-      <div style={{
+      <div className="nodrag" style={{
         maxHeight: '180px',
         overflowY: 'auto',
         display: 'grid',
@@ -559,6 +574,7 @@ function CharacterLibraryNode({ data }) {
               {/* Delete button (hover) - only in manage mode without batch */}
               {selectionMode === 'manage' && !batchMode && (
                 <button
+                  className="nodrag"
                   onClick={(e) => {
                     e.stopPropagation();
                     confirmDelete(char);
@@ -672,6 +688,7 @@ function CharacterLibraryNode({ data }) {
               </div>
             </div>
             <input
+              className="nodrag"
               type="text"
               value={editAlias}
               onChange={(e) => setEditAlias(e.target.value)}
@@ -689,6 +706,7 @@ function CharacterLibraryNode({ data }) {
             />
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button
+                className="nodrag"
                 onClick={closeEditDialog}
                 style={{
                   padding: '6px 12px',
@@ -703,6 +721,7 @@ function CharacterLibraryNode({ data }) {
                 取消
               </button>
               <button
+                className="nodrag"
                 onClick={saveAlias}
                 style={{
                   padding: '6px 12px',
@@ -756,6 +775,7 @@ function CharacterLibraryNode({ data }) {
             </div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button
+                className="nodrag"
                 onClick={() => {
                   setShowConfirmDialog(false);
                   setCharacterToDelete(null);
@@ -773,6 +793,7 @@ function CharacterLibraryNode({ data }) {
                 取消
               </button>
               <button
+                className="nodrag"
                 onClick={executeDelete}
                 style={{
                   padding: '6px 12px',
@@ -790,6 +811,16 @@ function CharacterLibraryNode({ data }) {
           </div>
         </div>
       )}
+
+      {/* Resize Handle (ComfyUI style) */}
+      <div
+        className="nodrag"
+        onMouseDown={handleResizeMouseDown}
+        style={getResizeHandleStyles('#06b6d4')}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
+        title="拖动调整节点大小"
+      />
     </div>
   );
 }

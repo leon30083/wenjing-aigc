@@ -1,7 +1,15 @@
 import { Handle, Position } from 'reactflow';
 import React from 'react';
+import { useNodeResize } from '../../hooks/useNodeResize';
 
 function TextNode({ data }) {
+  const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
+    data,
+    200, // minWidth
+    120, // minHeight
+    { width: 220, height: 120 } // initialSize
+  );
+
   return (
     <div style={{
       padding: '10px 15px',
@@ -10,7 +18,7 @@ function TextNode({ data }) {
       borderColor: '#3b82f6',
       borderStyle: 'solid',
       backgroundColor: '#eff6ff',
-      minWidth: '200px',
+      ...resizeStyles,
     }}>
       {/* Output Handle */}
       <Handle
@@ -34,6 +42,7 @@ function TextNode({ data }) {
       <textarea
         id="text-node-input"
         name="text-input"
+        className="nodrag"
         value={data.value || ''}
         placeholder="输入提示词..."
         style={{
@@ -62,6 +71,16 @@ function TextNode({ data }) {
       }}>
         提示词 →
       </div>
+
+      {/* Resize Handle (ComfyUI style) */}
+      <div
+        className="nodrag"
+        onMouseDown={handleResizeMouseDown}
+        style={getResizeHandleStyles('#3b82f6')}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
+        title="拖动调整节点大小"
+      />
     </div>
   );
 }

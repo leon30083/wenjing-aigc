@@ -1,9 +1,17 @@
 import { Handle, Position } from 'reactflow';
 import React, { useState } from 'react';
+import { useNodeResize } from '../../hooks/useNodeResize';
 
 function ReferenceImageNode({ data }) {
   const [images, setImages] = useState(data.images || []);
   const [inputValue, setInputValue] = useState('');
+
+  const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
+    data,
+    240, // minWidth
+    180, // minHeight
+    { width: 260, height: 200 } // initialSize
+  );
 
   const addImage = () => {
     if (inputValue.trim() && !images.includes(inputValue.trim())) {
@@ -32,7 +40,7 @@ function ReferenceImageNode({ data }) {
       borderColor: '#8b5cf6',
       borderStyle: 'solid',
       backgroundColor: '#f5f3ff',
-      minWidth: '240px',
+      ...resizeStyles,
     }}>
       {/* Output Handle */}
       <Handle
@@ -53,8 +61,9 @@ function ReferenceImageNode({ data }) {
       </div>
 
       {/* Input for Image URL */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+      <div className="nodrag" style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
         <input
+          className="nodrag"
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
@@ -69,6 +78,7 @@ function ReferenceImageNode({ data }) {
           }}
         />
         <button
+          className="nodrag"
           onClick={addImage}
           style={{
             padding: '6px 12px',
@@ -86,7 +96,7 @@ function ReferenceImageNode({ data }) {
       </div>
 
       {/* Image List */}
-      <div style={{ maxHeight: '120px', overflowY: 'auto' }}>
+      <div className="nodrag" style={{ maxHeight: '120px', overflowY: 'auto' }}>
         {images.length === 0 ? (
           <div style={{
             fontSize: '11px',
@@ -138,6 +148,7 @@ function ReferenceImageNode({ data }) {
               </div>
               {/* Remove Button */}
               <button
+                className="nodrag"
                 onClick={() => removeImage(index)}
                 style={{
                   padding: '2px 6px',
@@ -177,6 +188,16 @@ function ReferenceImageNode({ data }) {
       }}>
         图片数组 →
       </div>
+
+      {/* Resize Handle (ComfyUI style) */}
+      <div
+        className="nodrag"
+        onMouseDown={handleResizeMouseDown}
+        style={getResizeHandleStyles('#8b5cf6')}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
+        title="拖动调整节点大小"
+      />
     </div>
   );
 }

@@ -2090,5 +2090,287 @@ updateByUsername(username, updates) {
 
 ---
 
-**最后更新**: 2025-12-29
+## 17. 故事板节点修复 ⭐ 新增
+
+**文档版本**: v1.0
+**创建日期**: 2025-12-30
+**状态**: 已完成
+
+### 17.1 问题概述
+
+#### 17.1.1 核心问题
+
+**根本性理解错误**: 故事板被错误理解为"批量生成多个独立视频"
+
+- **错误**: 每个镜头调用一次 API，返回 N 个 taskId
+- **正确**: 调用一次 API，返回单个 taskId（单个视频任务，多时间段描述）
+
+#### 17.1.2 发现过程
+
+1. 用户要求分析故事板功能并规划实现
+2. 阅读 API 文档发现故事板本质：
+   - 贞贞平台文档明确说明：`POST /v2/videos/generations` 使用故事板格式提示词
+   - 格式：`Shot N:\nduration: Xsec\nScene: Y\n\n`
+3. 检查后端实现（sora2-client.js）发现已正确实现
+4. 检查前端实现（StoryboardNode.jsx）发现理解错误
+
+### 17.2 故事板 API 格式
+
+#### 17.2.1 贞贞平台 API 文档
+
+```yaml
+openapi: 3.0.1
+paths:
+  /v2/videos/generations:
+    post:
+      summary: Sora2故事板视频
+      description: |
+        提示词按照以下格式传即可自动启用故事板
+
+        Shot 1:
+        duration: 7.5sec
+        Scene: 飞机起飞
+
+        Shot 2:
+        duration: 7.5sec
+        Scene: 飞机降落
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                prompt:
+                  type: string
+                  x-apifox-mock: |
+                    Shot 1:
+                    duration: 7.5sec
+                    Scene: 飞机起飞
+
+                    Shot 2:
+                    duration: 7.5sec
+                    Scene: 飞机降落
+                model:
+                  type: string
+                  enum: [sora-2, sora-2-pro]
+                aspect_ratio:
+                  type: string
+                  enum: ['16:9', '9:16']
+```
+
+**关键要点**:
+1. 单个 API 调用（`POST /v2/videos/generations`）
+2. 提示词使用故事板格式
+3. 返回单个任务 ID（`task_id` 或 `id`）
+
+### 17.3 修复方案
+
+#### 17.3.1 Phase 1: 角色引用集成
+
+**目标**: 添加角色引用功能，仿照 VideoGenerateNode
+
+**状态管理**:
+```javascript
+const connectedCharacters = data.connectedCharacters || [];
+const sceneRefs = useRef([]);  // 存储每个场景输入框的 ref
+const lastFocusedSceneIndex = useRef(null);  // 记录最后焦点的场景索引
+```
+
+**焦点管理**:
+```javascript
+// 场景输入框获取焦点时记录索引
+const handleSceneFocus = (index) => {
+  lastFocusedSceneIndex.current = index;
+};
+
+// 在焦点场景插入角色引用
+const insertCharacterToFocusedScene = (username, alias) => {
+  const targetIndex = lastFocusedSceneIndex.current;
+  if (targetIndex === null) {
+    alert('请先点击一个场景输入框');
+    return;
+  }
+
+  const sceneInput = sceneRefs.current[targetIndex];
+  if (!sceneInput) return;
+
+  const start = sceneInput.selectionStart;
+  const end = sceneInput.selectionEnd;
+  const text = shots[targetIndex].scene;
+  const refText = `@${alias} `;
+
+  // 更新场景描述
+  const newScene = text.substring(0, start) + refText + text.substring(end);
+  updateShot(shots[targetIndex].id, 'scene', newScene);
+
+  // 移动光标
+  setTimeout(() => {
+    sceneInput.setSelectionRange(start + refText.length, start + refText.length);
+    sceneInput.focus();
+  }, 0);
+};
+```
+
+**场景输入框绑定**:
+```jsx
+{shots.map((shot, index) => (
+  <input
+    ref={(el) => sceneRefs.current[index] = el}
+    type="text"
+    value={shot.scene}
+    onChange={(e) => updateShot(shot.id, 'scene', e.target.value)}
+    onFocus={() => handleSceneFocus(index)}
+    placeholder="场景描述..."
+  />
+))}
+```
+
+#### 17.3.2 Phase 2: 修正 API 调用逻辑
+
+**目标**: 移除循环调用，改为调用一次 `/api/video/storyboard`
+
+```javascript
+const handleGenerate = async () => {
+  // 验证
+  const validShots = shots.filter(s => s.scene.trim());
+  if (validShots.length === 0) {
+    alert('请至少填写一个分镜头场景');
+    return;
+  }
+
+  setStatus('generating');
+
+  try {
+    // 收集所有图片
+    const allImages = [];
+
+    // 全局图片（从 ReferenceImageNode 连接）
+    if (data.connectedImages && data.connectedImages.length > 0) {
+      allImages.push(...data.connectedImages);
+    }
+
+    // 每个镜头的图片
+    validShots.forEach(shot => {
+      if (shot.image && shot.image.trim()) {
+        allImages.push(shot.image.trim());
+      }
+    });
+
+    // 调用后端故事板 API
+    const response = await fetch(`${API_BASE}/api/video/storyboard`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform: 'juxin',
+        model: config.model.toLowerCase(),
+        shots: validShots.map(s => ({
+          duration: s.duration,
+          scene: s.scene,
+          image: s.image,
+        })),
+        images: allImages,
+        aspect_ratio: config.aspect,
+        watermark: config.watermark,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.success && result.data) {
+      const taskId = result.data.id || result.data.task_id;
+
+      setStatus('success');
+
+      // 派发事件到 TaskResultNode
+      window.dispatchEvent(new CustomEvent('video-task-created', {
+        detail: { sourceNodeId: nodeId, taskId }
+      }));
+    } else {
+      setStatus('error');
+      alert(result.error || '生成失败');
+    }
+  } catch (err) {
+    setStatus('error');
+    console.error('Storyboard generation error:', err);
+    alert(`网络错误: ${err.message}`);
+  }
+};
+```
+
+#### 17.3.3 Phase 3: UI 优化
+
+**目标**: 简化状态管理，移除错误的 UI 元素
+
+**移除内容**:
+1. 移除 `progress` 状态（total/completed/failed）
+2. 移除 "批量生成" 按钮文本
+3. 移除 1:1 比例选项（Sora2 不支持）
+4. 修正 duration 为数字类型（5, 10, 15, 25）
+
+**简化状态**:
+```javascript
+// 删除
+const [progress, setProgress] = useState({ total: 0, completed: 0, failed: 0 });
+const [results, setResults] = useState([]);
+
+// 保留
+const [status, setStatus] = useState('idle'); // idle, generating, success, error
+```
+
+**按钮文本修改**:
+```jsx
+// 删除
+{status === 'idle' && '批量生成'}
+{status === 'generating' && `生成中... (${progress.completed}/${progress.total})`}
+{status === 'success' && `✓ 完成 (${progress.completed}个成功)`}
+
+// 修改为
+{status === 'idle' && '生成故事板视频'}
+{status === 'generating' && '生成中...'}
+{status === 'success' && '✓ 已提交'}
+{status === 'error' && '✗ 失败'}
+```
+
+### 17.4 测试验证
+
+#### 17.4.1 测试清单
+
+1. ✅ 角色插入功能（点击插入到焦点场景）
+2. ✅ 故事板格式拼接（Shot 1: duration X sec Scene: Y）
+3. ✅ API 调用（单次请求，单个 taskId）
+4. ✅ TaskResultNode 轮询（接收 taskId 并查询）
+5. ✅ 参考图片收集（全局 + 镜头图片）
+
+#### 17.4.2 测试步骤
+
+```
+1. 创建故事板节点，连接角色库节点
+2. 添加 3 个镜头，每个镜头填写场景描述
+3. 点击角色卡片，验证插入到焦点场景
+4. 点击"生成故事板视频"按钮
+5. 检查 Network 面板，确认只调用一次 API
+6. 检查请求 payload，确认故事板格式正确
+7. 连接 TaskResultNode，验证轮询正常
+```
+
+### 17.5 关键要点总结
+
+| 项目 | 当前实现（错误） | 正确实现 |
+|------|----------------|---------|
+| **API 调用次数** | 循环 N 次（每个 shot 一次） | 1 次（拼接故事板格式） |
+| **提示词格式** | 直接用 `shot.scene` | 拼接: `Shot 1:\nduration: Xsec\nScene: Y\n\n...` |
+| **返回结果** | N 个 taskId 数组 | 1 个 taskId |
+| **状态跟踪** | progress.total/completed/failed | 简单的 idle/generating/success |
+| **角色引用** | 无支持 | 点击插入到焦点场景 |
+| **图片收集** | 手动合并到每个请求 | 统一收集，传给后端拼接 |
+
+### 17.6 参考文档
+
+- **贞贞平台 API**: `用户输入文件夹/贞贞工坊/Sora2故事板视频.md`
+- **后端实现**: `src/server/sora2-client.js`（第318-370行）
+- **前端实现**: `src/client/src/nodes/process/StoryboardNode.jsx`
+- **项目规范**: `.claude/rules/base.md`, `.claude/rules/code.md`
+
+---
+
+**最后更新**: 2025-12-30
 **维护者**: WinJin AIGC Team

@@ -1,9 +1,17 @@
 import { Handle, Position } from 'reactflow';
 import React, { useState } from 'react';
+import { useNodeResize } from '../../hooks/useNodeResize';
 
 function VideoNode({ data }) {
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState('idle'); // idle, processing, success, error
+
+  const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
+    data,
+    240, // minWidth
+    180, // minHeight
+    { width: 260, height: 200 } // initialSize
+  );
 
   const handleGenerate = () => {
     if (!prompt.trim()) {
@@ -26,7 +34,7 @@ function VideoNode({ data }) {
       borderColor: '#10b981',
       borderStyle: 'solid',
       backgroundColor: '#ecfdf5',
-      minWidth: '220px',
+      ...resizeStyles,
     }}>
       {/* Input Handle */}
       <Handle
@@ -71,6 +79,7 @@ function VideoNode({ data }) {
 
       {/* Generate Button */}
       <button
+        className="nodrag"
         onClick={handleGenerate}
         disabled={status === 'processing'}
         style={{
@@ -106,6 +115,16 @@ function VideoNode({ data }) {
         <span>← 提示词</span>
         <span>视频 →</span>
       </div>
+
+      {/* Resize Handle (ComfyUI style) */}
+      <div
+        className="nodrag"
+        onMouseDown={handleResizeMouseDown}
+        style={getResizeHandleStyles('#10b981')}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
+        title="拖动调整节点大小"
+      />
     </div>
   );
 }

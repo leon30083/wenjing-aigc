@@ -2852,6 +2852,58 @@ async createStoryboardVideo(options) {
 4. 收集所有镜头的参考图片并合并到 `images` 数组
 5. 返回单个 taskId，轮询获取最终视频
 
+**前端角色引用实现**（StoryboardNode.jsx）:
+```javascript
+// ⭐ 角色引用相关状态
+const connectedCharacters = data.connectedCharacters || [];
+const sceneRefs = useRef([]);
+const lastFocusedSceneIndex = useRef(null);
+
+// ⭐ 场景输入框获取焦点时记录索引
+const handleSceneFocus = (index) => {
+  lastFocusedSceneIndex.current = index;
+};
+
+// ⭐ 在焦点场景插入角色引用
+const insertCharacterToFocusedScene = (username, alias) => {
+  const targetIndex = lastFocusedSceneIndex.current;
+  if (targetIndex === null) {
+    alert('请先点击一个场景输入框');
+    return;
+  }
+
+  const sceneInput = sceneRefs.current[targetIndex];
+  if (!sceneInput) return;
+
+  const start = sceneInput.selectionStart;
+  const end = sceneInput.selectionEnd;
+  const text = shots[targetIndex].scene;
+  const refText = `@${alias} `;
+
+  // 更新场景描述
+  const newScene = text.substring(0, start) + refText + text.substring(end);
+  updateShot(shots[targetIndex].id, 'scene', newScene);
+
+  // 移动光标
+  setTimeout(() => {
+    sceneInput.setSelectionRange(start + refText.length, start + refText.length);
+    sceneInput.focus();
+  }, 0);
+};
+
+// ⭐ 场景输入框绑定
+{shots.map((shot, index) => (
+  <input
+    ref={(el) => sceneRefs.current[index] = el}
+    type="text"
+    value={shot.scene}
+    onChange={(e) => updateShot(shot.id, 'scene', e.target.value)}
+    onFocus={() => handleSceneFocus(index)}
+    placeholder="场景描述..."
+  />
+))}
+```
+
 ---
 
 ## 开发参考
