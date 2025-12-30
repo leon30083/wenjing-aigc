@@ -11,6 +11,7 @@ export function useWorkflowExecution() {
     completedNodes: [],
     failedNodes: [],
     results: {},
+    logs: [], // Add logs array
   });
 
   const [progress, setProgress] = useState({
@@ -18,6 +19,20 @@ export function useWorkflowExecution() {
     completed: 0,
     failed: 0,
   });
+
+  // Helper function to add logs
+  const addLog = useCallback((level, message, node = null) => {
+    const log = {
+      timestamp: new Date().toLocaleTimeString(),
+      level,
+      message,
+      node,
+    };
+    setExecutionState(prev => ({
+      ...prev,
+      logs: [...prev.logs, log],
+    }));
+  }, []);
 
   /**
    * Build adjacency list for topological sorting
@@ -149,6 +164,14 @@ export function useWorkflowExecution() {
         // Storyboard execution is handled within the node component
         return { taskIds: data.taskIds, results: data.results };
 
+      case 'taskResultNode':
+        // Task result node displays the video task result
+        return { taskId: inputData.videoTaskId || data.taskId };
+
+      case 'executionLogNode':
+        // Execution log node displays execution logs
+        return { logs: data.logs || [] };
+
       default:
         console.warn(`Unknown node type: ${type}`);
         return {};
@@ -167,12 +190,15 @@ export function useWorkflowExecution() {
         completedNodes: [],
         failedNodes: [],
         results: {},
+        logs: [],
       });
       setProgress({ total: nodes.length, completed: 0, failed: 0 });
 
+      addLog('info', '开始执行工作流');
+
       // Get execution order using topological sort
       const executionOrder = topologicalSort(nodes, edges);
-      console.log('[Workflow] Execution order:', executionOrder);
+      addLog('info', `执行顺序: ${executionOrder.join(' → ')}`);
 
       const results = {};
       const completedNodes = [];
@@ -183,7 +209,9 @@ export function useWorkflowExecution() {
         const node = nodes.find(n => n.id === nodeId);
         if (!node) continue;
 
-        setExecutionState(prev => ({ ...prev, currentNode: node.data.label || nodeId }));
+        const nodeLabel = node.data.label || nodeId;
+        setExecutionState(prev => ({ ...prev, currentNode: nodeLabel }));
+        addLog('info', `执行节点: ${nodeLabel}`, nodeLabel);
 
         // Get input data from connected source nodes
         const inputData = getNodeInputData(nodeId, node.type, edges, results);
@@ -199,9 +227,9 @@ export function useWorkflowExecution() {
             completed: prev.completed + 1,
           }));
 
-          console.log(`[Workflow] Node completed: ${node.data.label || nodeId}`, result);
+          addLog('success', `✓ 节点完成: ${nodeLabel}`, nodeLabel);
         } catch (error) {
-          console.error(`[Workflow] Node failed: ${node.data.label || nodeId}`, error);
+          addLog('error', `✗ 节点失败: ${nodeLabel} - ${error.message}`, nodeLabel);
           failedNodes.push(nodeId);
 
           setProgress(prev => ({
@@ -214,6 +242,11 @@ export function useWorkflowExecution() {
         }
       }
 
+      addLog('info', `工作流执行完成: ${completedNodes.length}/${nodes.length} 成功`);
+      if (failedNodes.length > 0) {
+        addLog('warn', `${failedNodes.length} 个节点执行失败`);
+      }
+
       setExecutionState({
         isRunning: false,
         currentNode: null,
@@ -224,7 +257,7 @@ export function useWorkflowExecution() {
 
       return { success: true, results, completedNodes, failedNodes };
     } catch (error) {
-      console.error('[Workflow] Execution error:', error);
+      addLog('error', `工作流执行错误: ${error.message}`);
       setExecutionState(prev => ({
         ...prev,
         isRunning: false,
@@ -233,7 +266,7 @@ export function useWorkflowExecution() {
 
       return { success: false, error: error.message };
     }
-  }, []);
+  }, [addLog]);
 
   /**
    * Reset execution state
@@ -245,6 +278,7 @@ export function useWorkflowExecution() {
       completedNodes: [],
       failedNodes: [],
       results: {},
+      logs: [],
     });
     setProgress({ total: 0, completed: 0, failed: 0 });
   }, []);

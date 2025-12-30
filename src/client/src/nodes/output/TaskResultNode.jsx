@@ -10,6 +10,39 @@ function TaskResultNode({ data }) {
   const [error, setError] = useState(null);
   const [polling, setPolling] = useState(false);
 
+  // Listen for taskId updates from connected video generation nodes
+  useEffect(() => {
+    console.log('[TaskResultNode] Node data:', { id: data.id, connectedSourceId: data.connectedSourceId });
+
+    // Check initial data.taskId
+    if (data.taskId && data.taskId !== taskId) {
+      setTaskId(data.taskId);
+      setTaskStatus('idle');
+      setVideoUrl(null);
+      setError(null);
+    }
+
+    // Listen for custom event when video is created
+    const handleVideoCreated = (event) => {
+      const { sourceNodeId, taskId: newTaskId } = event.detail;
+      console.log('[TaskResultNode] Event received:', { sourceNodeId, newTaskId, connectedSourceId: data.connectedSourceId });
+      // Check if this task result node is connected to the source node
+      if (data.connectedSourceId === sourceNodeId && newTaskId && newTaskId !== taskId) {
+        console.log('[TaskResultNode] Match! Setting taskId:', newTaskId);
+        setTaskId(newTaskId);
+        setTaskStatus('idle');
+        setVideoUrl(null);
+        setError(null);
+      }
+    };
+
+    window.addEventListener('video-task-created', handleVideoCreated);
+
+    return () => {
+      window.removeEventListener('video-task-created', handleVideoCreated);
+    };
+  }, [data.taskId, data.connectedSourceId, taskId]);
+
   // Poll task status when taskId is set
   useEffect(() => {
     if (!taskId || taskStatus === 'SUCCESS' || taskStatus === 'FAILURE') {

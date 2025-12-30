@@ -1,20 +1,23 @@
-import { Handle, Position } from 'reactflow';
+import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
 import React, { useState, useEffect } from 'react';
 
 const API_BASE = 'http://localhost:9000';
 
 function VideoGenerateNode({ data }) {
+  const nodeId = useNodeId();
+  const { setNodes } = useReactFlow();
+
   const [config, setConfig] = useState({
     model: 'Sora-2',
-    duration: '10s',
+    duration: '10', // Changed from '10s' to '10'
     aspect: '16:9',
     watermark: false,
   });
 
-  // Connected inputs (from connected nodes)
-  const [connectedPrompt, setConnectedPrompt] = useState('');
-  const [connectedCharacter, setConnectedCharacter] = useState(null);
-  const [connectedImages, setConnectedImages] = useState([]);
+  // Connected inputs (from connected nodes) - passed via data
+  const connectedPrompt = data.connectedPrompt || '';
+  const connectedCharacter = data.connectedCharacter || null;
+  const connectedImages = data.connectedImages || [];
 
   // Manual override inputs
   const [manualPrompt, setManualPrompt] = useState('');
@@ -38,7 +41,7 @@ function VideoGenerateNode({ data }) {
     try {
       const payload = {
         platform: 'juxin',
-        model: config.model,
+        model: config.model.toLowerCase(), // Convert to lowercase (Sora-2 -> sora-2)
         prompt: finalPrompt,
         duration: config.duration,
         aspect_ratio: config.aspect,
@@ -55,7 +58,7 @@ function VideoGenerateNode({ data }) {
         payload.images = connectedImages;
       }
 
-      const response = await fetch(`${API_BASE}/video/create`, {
+      const response = await fetch(`${API_BASE}/api/video/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -67,6 +70,21 @@ function VideoGenerateNode({ data }) {
         const id = result.data.id || result.data.task_id;
         setTaskId(id);
         setStatus('success');
+
+        // Update node data so taskId can be passed to connected nodes
+        setNodes((nodes) =>
+          nodes.map((node) =>
+            node.id === data.id
+              ? { ...node, data: { ...node.data, taskId: id } }
+              : node
+          )
+        );
+
+        // Dispatch custom event for connected nodes to listen
+        console.log('[VideoGenerateNode] Dispatching event:', { sourceNodeId: nodeId, taskId: id });
+        window.dispatchEvent(new CustomEvent('video-task-created', {
+          detail: { sourceNodeId: nodeId, taskId: id }
+        }));
 
         // Notify parent
         if (data.onVideoCreated) {

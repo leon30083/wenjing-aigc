@@ -1065,6 +1065,119 @@ app.put('/api/character/:username/favorite', (req, res) => {
 **问题**: 角色 API 端点使用 `username` 作为路径参数，但存储层使用 `id` 查找，导致更新失败
 **解决方案**: 添加 `updateByUsername` 方法，或在 API 中先通过 username 查找 id 再更新
 
+### 错误16: React Flow 节点间数据传递错误 ⭐ 新增
+```javascript
+// ❌ 错误：useEffect 依赖数组包含 nodes 导致无限循环
+useEffect(() => {
+  setNodes((nds) =>
+    nds.map((node) => {
+      // 更新节点数据...
+      return { ...node, data: newData };
+    })
+  );
+}, [edges, nodes, setNodes]); // ❌ nodes 在依赖中会导致无限循环
+
+// ✅ 正确：移除 nodes 依赖（函数式更新会自动获取最新值）
+useEffect(() => {
+  setNodes((nds) =>
+    nds.map((node) => {
+      // 更新节点数据...
+      return { ...node, data: newData };
+    })
+  );
+}, [edges, setNodes]); // ✅ 只依赖 edges 和 setNodes
+```
+
+```javascript
+// ❌ 错误：尝试从 data 对象获取节点 ID
+function VideoGenerateNode({ data }) {
+  const handleGenerate = async () => {
+    // 派发事件
+    window.dispatchEvent(new CustomEvent('video-task-created', {
+      detail: { sourceNodeId: data.id, taskId: id } // ❌ data.id 是 undefined
+    }));
+  };
+}
+// React Flow 的 data 只包含自定义数据，不包含节点的 id
+
+// ✅ 正确：使用 useNodeId() Hook 获取节点 ID
+import { useNodeId } from 'reactflow';
+
+function VideoGenerateNode({ data }) {
+  const nodeId = useNodeId(); // ✅ 获取当前节点的 ID
+
+  const handleGenerate = async () => {
+    window.dispatchEvent(new CustomEvent('video-task-created', {
+      detail: { sourceNodeId: nodeId, taskId: id } // ✅ 使用 nodeId
+    }));
+  };
+}
+```
+
+```javascript
+// ❌ 错误：TaskResultNode 尝试从 connectedSourceNode 获取 taskId
+function TaskResultNode({ data }) {
+  const [taskId, setTaskId] = useState(data.taskId || null);
+
+  useEffect(() => {
+    // 尝试从连接的源节点获取 taskId
+    const nodes = getNodes();
+    const edges = getEdges();
+    const incomingEdge = edges.find(e => e.target === data.id);
+    const sourceNode = nodes.find(n => n.id === incomingEdge.source);
+
+    if (sourceNode?.data?.taskId) {
+      setTaskId(sourceNode.data.taskId);
+    }
+  }, []);
+  // ❌ 问题：getNodes() 返回的节点数据可能不是最新的
+  // VideoGenerateNode 调用 setNodes() 更新后，getNodes() 可能返回旧数据
+}
+
+// ✅ 正确：使用事件系统监听 taskId 更新
+function VideoGenerateNode({ data }) {
+  const nodeId = useNodeId();
+
+  const handleGenerate = async () => {
+    // ... 创建视频成功后 ...
+    const id = result.data.id || result.data.task_id;
+
+    // 派发事件
+    window.dispatchEvent(new CustomEvent('video-task-created', {
+      detail: { sourceNodeId: nodeId, taskId: id }
+    }));
+  };
+}
+
+function TaskResultNode({ data }) {
+  const [taskId, setTaskId] = useState(data.taskId || null);
+
+  useEffect(() => {
+    // 监听事件
+    const handleVideoCreated = (event) => {
+      const { sourceNodeId, taskId: newTaskId } = event.detail;
+      // 检查是否连接到源节点
+      if (data.connectedSourceId === sourceNodeId && newTaskId) {
+        setTaskId(newTaskId);
+      }
+    };
+
+    window.addEventListener('video-task-created', handleVideoCreated);
+    return () => window.removeEventListener('video-task-created', handleVideoCreated);
+  }, [data.connectedSourceId]);
+}
+```
+
+**问题**:
+1. useEffect 依赖数组包含 nodes 会导致无限循环（setNodes 更新 nodes → 触发 useEffect → 再次 setNodes → ...）
+2. React Flow 的 data 对象不包含节点 id
+3. 使用 getNodes() 获取的数据可能是旧的，因为 setNodes() 是异步批处理更新
+
+**解决方案**:
+1. 从依赖数组移除 nodes，使用函数式更新自动获取最新值
+2. 使用 useNodeId() Hook 获取节点 ID
+3. 使用自定义事件系统在节点间传递数据
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：

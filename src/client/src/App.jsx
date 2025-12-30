@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -100,7 +100,24 @@ const initialNodes = [
 ];
 
 // Initial edges for testing
-const initialEdges = [];
+const initialEdges = [
+  // 文本节点 -> 视频生成节点
+  {
+    id: 'e1-6',
+    source: '1',
+    target: '6',
+    sourceHandle: 'text-output',
+    targetHandle: 'prompt-input',
+  },
+  // 视频生成节点 -> 任务结果节点
+  {
+    id: 'e6-8',
+    source: '6',
+    target: '8',
+    sourceHandle: 'video-output',
+    targetHandle: 'task-input',
+  },
+];
 
 // Node templates for adding new nodes
 const nodeTemplates = [
@@ -130,6 +147,63 @@ function App() {
     (params) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
   );
+
+  // Update node data when connections change or when execution state changes
+  useEffect(() => {
+    // For each node, check incoming connections and update data
+    setNodes((nds) =>
+      nds.map((node) => {
+        const incomingEdges = edges.filter((e) => e.target === node.id);
+        const newData = { ...node.data };
+
+        // Check for prompt input from text node
+        const promptEdge = incomingEdges.find((e) => e.targetHandle === 'prompt-input');
+        if (promptEdge) {
+          const sourceNode = nds.find((n) => n.id === promptEdge.source);
+          if (sourceNode?.type === 'textNode') {
+            newData.connectedPrompt = sourceNode.data.value || '';
+          }
+        }
+
+        // Check for character input
+        const characterEdge = incomingEdges.find((e) => e.targetHandle === 'character-input');
+        if (characterEdge) {
+          const sourceNode = nds.find((n) => n.id === characterEdge.source);
+          if (sourceNode?.data?.selectedCharacter) {
+            newData.connectedCharacter = sourceNode.data.selectedCharacter;
+          }
+        }
+
+        // Check for images input
+        const imagesEdge = incomingEdges.find((e) => e.targetHandle === 'images-input');
+        if (imagesEdge) {
+          const sourceNode = nds.find((n) => n.id === imagesEdge.source);
+          if (sourceNode?.data?.images) {
+            newData.connectedImages = sourceNode.data.images;
+          }
+        }
+
+        // Check for video input (for task result node)
+        const videoEdge = incomingEdges.find((e) => e.targetHandle === 'task-input');
+        if (videoEdge) {
+          const sourceNode = nds.find((n) => n.id === videoEdge.source);
+          if (sourceNode?.data?.taskId) {
+            newData.taskId = sourceNode.data.taskId;
+          }
+          // Store connected source ID for event listener
+          newData.connectedSourceId = videoEdge.source;
+          console.log('[App] TaskResultNode connectedSourceId:', node.id, '->', videoEdge.source);
+        }
+
+        // Pass execution logs to execution log node
+        if (node.type === 'executionLogNode') {
+          newData.logs = executionState.logs || [];
+        }
+
+        return { ...node, data: newData };
+      })
+    );
+  }, [edges, executionState.logs, setNodes]);
 
   // Add a new node
   const addNode = useCallback((nodeType, label, position) => {
