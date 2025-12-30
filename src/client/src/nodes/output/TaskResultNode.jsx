@@ -10,6 +10,7 @@ function TaskResultNode({ data }) {
   const [videoUrl, setVideoUrl] = useState(null);
   const [error, setError] = useState(null);
   const [polling, setPolling] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(null); // 'taskId' | 'videoUrl' | null
 
   // Update ref when taskId changes
   useEffect(() => {
@@ -117,6 +118,26 @@ function TaskResultNode({ data }) {
     }
   };
 
+  // Copy to clipboard function
+  const copyToClipboard = async (text, type) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopySuccess(type);
+      setTimeout(() => setCopySuccess(null), 2000); // Clear success message after 2 seconds
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopySuccess(type);
+      setTimeout(() => setCopySuccess(null), 2000);
+    }
+  };
+
   // Get status badge color
   const getStatusColor = (status) => {
     switch (status) {
@@ -199,7 +220,25 @@ function TaskResultNode({ data }) {
           color: '#0c4a6e',
           wordBreak: 'break-all',
         }}>
-          任务ID: {taskId}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontWeight: 'bold' }}>任务ID:</span>
+            <button
+              onClick={() => copyToClipboard(taskId, 'taskId')}
+              disabled={copySuccess === 'taskId'}
+              style={{
+                padding: '2px 6px',
+                fontSize: '9px',
+                backgroundColor: copySuccess === 'taskId' ? '#059669' : '#0ea5e9',
+                color: 'white',
+                border: 'none',
+                borderRadius: '3px',
+                cursor: 'pointer',
+              }}
+            >
+              {copySuccess === 'taskId' ? '✓ 已复制' : '📋 复制'}
+            </button>
+          </div>
+          <div style={{ fontSize: '10px', wordBreak: 'break-all' }}>{taskId}</div>
         </div>
       ) : (
         <div style={{
@@ -268,27 +307,86 @@ function TaskResultNode({ data }) {
         </div>
       )}
 
-      {/* Download Button */}
+      {/* Download Button and Copy Link */}
       {videoUrl && (
-        <a
-          href={videoUrl}
-          download
+        <>
+          <a
+            href={videoUrl}
+            download
+            style={{
+              display: 'block',
+              padding: '8px',
+              backgroundColor: '#0ea5e9',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              textAlign: 'center',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              textDecoration: 'none',
+              cursor: 'pointer',
+              marginBottom: '4px',
+            }}
+          >
+            ⬇️ 下载视频
+          </a>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button
+              onClick={() => copyToClipboard(videoUrl, 'videoUrl')}
+              disabled={copySuccess === 'videoUrl'}
+              style={{
+                flex: 1,
+                padding: '6px',
+                backgroundColor: copySuccess === 'videoUrl' ? '#059669' : '#8b5cf6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '11px',
+              }}
+            >
+              {copySuccess === 'videoUrl' ? '✓ 已复制链接' : '🔗 复制链接'}
+            </button>
+            <button
+              onClick={refreshStatus}
+              disabled={polling}
+              style={{
+                flex: 1,
+                padding: '6px',
+                backgroundColor: polling ? '#9ca3af' : '#f59e0b',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: polling ? 'not-allowed' : 'pointer',
+                fontSize: '11px',
+              }}
+            >
+              {polling ? '查询中...' : '🔄 手动查询'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Manual Refresh Button (when no video URL but has taskId) */}
+      {taskId && !videoUrl && (
+        <button
+          onClick={refreshStatus}
+          disabled={polling}
           style={{
-            display: 'block',
+            width: '100%',
             padding: '8px',
-            backgroundColor: '#0ea5e9',
+            backgroundColor: polling ? '#9ca3af' : '#f59e0b',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            textAlign: 'center',
+            cursor: polling ? 'not-allowed' : 'pointer',
             fontSize: '12px',
             fontWeight: 'bold',
-            textDecoration: 'none',
-            cursor: 'pointer',
+            marginBottom: '8px',
           }}
         >
-          ⬇️ 下载视频
-        </a>
+          {polling ? '查询中...' : '🔄 手动查询状态'}
+        </button>
       )}
 
       {/* Input Label */}

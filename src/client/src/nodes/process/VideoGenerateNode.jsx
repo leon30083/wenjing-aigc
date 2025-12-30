@@ -9,7 +9,7 @@ function VideoGenerateNode({ data }) {
 
   const [config, setConfig] = useState({
     model: 'Sora-2',
-    duration: '10', // Changed from '10s' to '10'
+    duration: 10, // Duration in seconds (10, 15, 25)
     aspect: '16:9',
     watermark: false,
   });
@@ -172,6 +172,25 @@ function VideoGenerateNode({ data }) {
             <option value="Sora-2">Sora-2</option>
           </select>
           <select
+            value={config.duration}
+            onChange={(e) => setConfig({ ...config, duration: Number(e.target.value) })}
+            disabled={status === 'generating'}
+            style={{
+              flex: 1,
+              padding: '4px',
+              borderRadius: '3px',
+              border: '1px solid #6ee7b7',
+              fontSize: '10px',
+            }}
+          >
+            <option value={5}>5秒</option>
+            <option value={10}>10秒</option>
+            <option value={15}>15秒</option>
+            <option value={25}>25秒</option>
+          </select>
+        </div>
+        <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
+          <select
             value={config.aspect}
             onChange={(e) => setConfig({ ...config, aspect: e.target.value })}
             disabled={status === 'generating'}
@@ -183,19 +202,18 @@ function VideoGenerateNode({ data }) {
               fontSize: '10px',
             }}
           >
-            <option value="16:9">16:9</option>
-            <option value="9:16">9:16</option>
-            <option value="1:1">1:1</option>
+            <option value="16:9">16:9 横屏</option>
+            <option value="9:16">9:16 竖屏</option>
           </select>
-        </div>
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          <label style={{ fontSize: '10px', color: '#065f46' }}>水印:</label>
-          <input
-            type="checkbox"
-            checked={config.watermark}
-            onChange={(e) => setConfig({ ...config, watermark: e.target.checked })}
-            disabled={status === 'generating'}
-          />
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <label style={{ fontSize: '10px', color: '#065f46', marginRight: '4px' }}>水印:</label>
+            <input
+              type="checkbox"
+              checked={config.watermark}
+              onChange={(e) => setConfig({ ...config, watermark: e.target.checked })}
+              disabled={status === 'generating'}
+            />
+          </div>
         </div>
       </div>
 

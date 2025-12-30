@@ -11,6 +11,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import './App.css';
 import { useWorkflowExecution } from './hooks/useWorkflowExecution';
+import { WorkflowStorage } from './utils/workflowStorage';
 
 // Import test nodes
 import TextNode from './nodes/input/TextNode';
@@ -156,6 +157,16 @@ function App() {
   // Context menu state
   const [contextMenu, setContextMenu] = useState(null);
   const [copiedNode, setCopiedNode] = useState(null);
+
+  // Workflow management state
+  const [currentWorkflowName, setCurrentWorkflowName] = useState(() =>
+    WorkflowStorage.getCurrentWorkflowName()
+  );
+  const [showWorkflowMenu, setShowWorkflowMenu] = useState(false);
+  const [showWorkflowList, setShowWorkflowList] = useState(false);
+  const [showSaveAsDialog, setShowSaveAsDialog] = useState(false);
+  const [saveAsName, setSaveAsName] = useState('');
+  const [saveAsDescription, setSaveAsDescription] = useState('');
 
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge(params, eds)),
@@ -303,6 +314,136 @@ function App() {
     console.log('[App] Workflow execution result:', result);
   };
 
+  // Workflow management handlers
+  const handleSaveWorkflow = () => {
+    if (currentWorkflowName) {
+      // 保存到当前工作流
+      const result = WorkflowStorage.saveWorkflow(
+        currentWorkflowName,
+        nodes,
+        edges
+      );
+      if (result.success) {
+        alert(`✅ 工作流 "${currentWorkflowName}" 已保存`);
+      } else {
+        alert(`❌ 保存失败: ${result.error}`);
+      }
+    } else {
+      // 没有当前工作流，弹出另存为对话框
+      setShowSaveAsDialog(true);
+    }
+    setShowWorkflowMenu(false);
+  };
+
+  const handleSaveAsWorkflow = () => {
+    setShowSaveAsDialog(true);
+    setShowWorkflowMenu(false);
+  };
+
+  const confirmSaveAs = () => {
+    const name = saveAsName.trim();
+    if (!name) {
+      alert('请输入工作流名称');
+      return;
+    }
+
+    const result = WorkflowStorage.saveWorkflow(
+      name,
+      nodes,
+      edges,
+      saveAsDescription
+    );
+
+    if (result.success) {
+      setCurrentWorkflowName(name);
+      setSaveAsName('');
+      setSaveAsDescription('');
+      setShowSaveAsDialog(false);
+      alert(`✅ 工作流 "${name}" 已保存`);
+    } else {
+      alert(`❌ 保存失败: ${result.error}`);
+    }
+  };
+
+  const handleNewWorkflow = () => {
+    if (nodes.length > 0 || edges.length > 0) {
+      if (!confirm('确定要新建工作流吗？当前未保存的更改将丢失。')) {
+        return;
+      }
+    }
+    setNodes([]);
+    setEdges([]);
+    setCurrentWorkflowName(null);
+    setNextNodeId(10);
+    setShowWorkflowMenu(false);
+  };
+
+  const handleLoadWorkflow = (name) => {
+    const result = WorkflowStorage.loadWorkflow(name);
+    if (result.success) {
+      const { nodes: savedNodes, edges: savedEdges } = result.data;
+      setNodes(savedNodes);
+      setEdges(savedEdges);
+      setCurrentWorkflowName(name);
+
+      // 更新 nextNodeId
+      if (savedNodes.length > 0) {
+        const maxId = Math.max(...savedNodes.map(n => parseInt(n.id) || 0));
+        setNextNodeId(maxId + 1);
+      } else {
+        setNextNodeId(10);
+      }
+
+      setShowWorkflowList(false);
+      setShowWorkflowMenu(false);
+    } else {
+      alert(`❌ 加载失败: ${result.error}`);
+    }
+  };
+
+  const handleDeleteWorkflow = (name) => {
+    if (!confirm(`确定要删除工作流 "${name}" 吗？此操作不可恢复。`)) {
+      return;
+    }
+
+    const result = WorkflowStorage.deleteWorkflow(name);
+    if (result.success) {
+      // 如果删除的是当前工作流，清除当前工作流名称
+      if (currentWorkflowName === name) {
+        setCurrentWorkflowName(null);
+      }
+      alert(`✅ 工作流 "${name}" 已删除`);
+    } else {
+      alert(`❌ 删除失败: ${result.error}`);
+    }
+  };
+
+  const handleExportWorkflow = (name) => {
+    const result = WorkflowStorage.exportWorkflow(name);
+    if (result.success) {
+      alert(`✅ 工作流 "${name}" 已导出`);
+    } else {
+      alert(`❌ 导出失败: ${result.error}`);
+    }
+  };
+
+  const handleImportWorkflow = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    WorkflowStorage.importWorkflow(file).then(result => {
+      if (result.success) {
+        alert(`✅ 工作流 "${result.data.name}" 已导入`);
+        handleLoadWorkflow(result.data.name);
+      } else {
+        alert(`❌ 导入失败: ${result.error}`);
+      }
+    });
+
+    // 重置 input
+    event.target.value = '';
+  };
+
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Toolbar */}
@@ -323,6 +464,156 @@ function App() {
         }}>
           ⚡ WinJin 工作流编辑器
         </h1>
+
+        {/* Current Workflow Name Display */}
+        {currentWorkflowName && (
+          <div style={{
+            padding: '4px 10px',
+            backgroundColor: '#3b82f6',
+            borderRadius: '4px',
+            fontSize: '12px',
+            color: 'white',
+            fontWeight: 'bold',
+          }}>
+            📁 {currentWorkflowName}
+          </div>
+        )}
+
+        {/* Workflow Menu Button */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowWorkflowMenu(!showWorkflowMenu)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#6366f1',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 'bold',
+            }}
+          >
+            📁 工作流
+          </button>
+
+          {/* Workflow Dropdown Menu */}
+          {showWorkflowMenu && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              marginTop: '4px',
+              backgroundColor: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: '4px',
+              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+              zIndex: 1001,
+              minWidth: '160px',
+            }}>
+              <div style={{ padding: '8px 0' }}>
+                <button
+                  onClick={handleSaveWorkflow}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 16px',
+                    backgroundColor: 'transparent',
+                    color: '#f8fafc',
+                    border: 'none',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#334155'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                >
+                  💾 保存工作流
+                </button>
+                <button
+                  onClick={handleSaveAsWorkflow}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 16px',
+                    backgroundColor: 'transparent',
+                    color: '#f8fafc',
+                    border: 'none',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#334155'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                >
+                  💾 另存为...
+                </button>
+                <button
+                  onClick={() => {
+                    setShowWorkflowList(true);
+                    setShowWorkflowMenu(false);
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 16px',
+                    backgroundColor: 'transparent',
+                    color: '#f8fafc',
+                    border: 'none',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#334155'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                >
+                  📂 打开工作流...
+                </button>
+                <button
+                  onClick={handleNewWorkflow}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 16px',
+                    backgroundColor: 'transparent',
+                    color: '#f8fafc',
+                    border: 'none',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#334155'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                >
+                  ➕ 新建工作流
+                </button>
+                <div style={{ padding: '4px 0', borderBottom: '1px solid #334155' }}></div>
+                <label
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 16px',
+                    color: '#f8fafc',
+                    border: 'none',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#334155'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                >
+                  📥 导入工作流...
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportWorkflow}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Add Node Button */}
         <div style={{ position: 'relative' }}>
@@ -595,6 +886,364 @@ function App() {
               ))}
             </>
           )}
+        </div>
+      )}
+
+      {/* Workflow List Dialog */}
+      {showWorkflowList && (
+        <div
+          onClick={() => setShowWorkflowList(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: '8px',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+              width: '600px',
+              maxHeight: '500px',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* Dialog Header */}
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid #334155',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <h2 style={{ margin: 0, fontSize: '18px', color: '#f8fafc' }}>
+                📂 工作流列表
+              </h2>
+              <button
+                onClick={() => setShowWorkflowList(false)}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  padding: '4px',
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Dialog Body */}
+            <div style={{
+              padding: '16px 20px',
+              overflowY: 'auto',
+              flex: 1,
+            }}>
+              {WorkflowStorage.getWorkflowList().length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '40px 20px',
+                  color: '#94a3b8',
+                }}>
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>📁</div>
+                  <div>暂无保存的工作流</div>
+                  <div style={{ fontSize: '12px', marginTop: '8px' }}>
+                    创建工作流后，点击"工作流"菜单中的"另存为"来保存
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {WorkflowStorage.getWorkflowList().map((workflow) => (
+                    <div
+                      key={workflow.name}
+                      style={{
+                        padding: '12px 16px',
+                        backgroundColor: workflow.name === currentWorkflowName ? '#1e40af' : '#334155',
+                        borderRadius: '6px',
+                        border: workflow.name === currentWorkflowName ? '2px solid #3b82f6' : '1px solid #475569',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{
+                          fontWeight: 'bold',
+                          color: '#f8fafc',
+                          fontSize: '14px',
+                          marginBottom: '4px',
+                        }}>
+                          {workflow.name}
+                          {workflow.name === currentWorkflowName && (
+                            <span style={{
+                              marginLeft: '8px',
+                              fontSize: '10px',
+                              backgroundColor: '#3b82f6',
+                              padding: '2px 6px',
+                              borderRadius: '3px',
+                            }}>
+                              当前
+                            </span>
+                          )}
+                        </div>
+                        <div style={{
+                          fontSize: '11px',
+                          color: '#94a3b8',
+                        }}>
+                          {workflow.nodeCount} 个节点 · {workflow.edgeCount} 条连线
+                          {workflow.description && ` · ${workflow.description}`}
+                        </div>
+                        <div style={{
+                          fontSize: '10px',
+                          color: '#64748b',
+                          marginTop: '4px',
+                        }}>
+                          更新于 {new Date(workflow.updatedAt).toLocaleString('zh-CN')}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          onClick={() => handleLoadWorkflow(workflow.name)}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                          }}
+                        >
+                          打开
+                        </button>
+                        <button
+                          onClick={() => handleExportWorkflow(workflow.name)}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#6366f1',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                          }}
+                        >
+                          导出
+                        </button>
+                        <button
+                          onClick={() => handleDeleteWorkflow(workflow.name)}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                          }}
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Dialog Footer */}
+            <div style={{
+              padding: '12px 20px',
+              borderTop: '1px solid #334155',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}>
+              <button
+                onClick={() => setShowWorkflowList(false)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#64748b',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                }}
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save As Dialog */}
+      {showSaveAsDialog && (
+        <div
+          onClick={() => setShowSaveAsDialog(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#1e293b',
+              border: '1px solid #334155',
+              borderRadius: '8px',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
+              width: '400px',
+            }}
+          >
+            {/* Dialog Header */}
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid #334155',
+            }}>
+              <h2 style={{ margin: 0, fontSize: '18px', color: '#f8fafc' }}>
+                💾 另存为工作流
+              </h2>
+            </div>
+
+            {/* Dialog Body */}
+            <div style={{
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '6px',
+                  fontSize: '13px',
+                  color: '#f8fafc',
+                  fontWeight: 'bold',
+                }}>
+                  工作流名称 <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={saveAsName}
+                  onChange={(e) => setSaveAsName(e.target.value)}
+                  placeholder="例如: 视频生成工作流"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      confirmSaveAs();
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    backgroundColor: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: '4px',
+                    color: '#f8fafc',
+                    fontSize: '14px',
+                    outline: 'none',
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                  onBlur={(e) => e.target.style.borderColor = '#334155'}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '6px',
+                  fontSize: '13px',
+                  color: '#f8fafc',
+                  fontWeight: 'bold',
+                }}>
+                  描述（可选）
+                </label>
+                <textarea
+                  value={saveAsDescription}
+                  onChange={(e) => setSaveAsDescription(e.target.value)}
+                  placeholder="简单描述这个工作流的用途..."
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    backgroundColor: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: '4px',
+                    color: '#f8fafc',
+                    fontSize: '14px',
+                    outline: 'none',
+                    resize: 'vertical',
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                  onBlur={(e) => e.target.style.borderColor = '#334155'}
+                />
+              </div>
+            </div>
+
+            {/* Dialog Footer */}
+            <div style={{
+              padding: '12px 20px',
+              borderTop: '1px solid #334155',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '8px',
+            }}>
+              <button
+                onClick={() => {
+                  setShowSaveAsDialog(false);
+                  setSaveAsName('');
+                  setSaveAsDescription('');
+                }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#64748b',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                }}
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmSaveAs}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                }}
+              >
+                保存
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
