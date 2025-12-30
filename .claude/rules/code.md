@@ -1634,6 +1634,265 @@ const ContextMenu = ({ node, onDelete }) => {
 **问题**: 用户期望右键删除只删除右键点击的那个节点，而不是所有选中的节点
 **解决方案**: 创建 `deleteNode` 函数，通过节点 ID 精确删除单个节点
 
+### 角色库管理功能 ⭐ 新增
+
+**删除单个角色**:
+```javascript
+// CharacterLibraryNode.jsx - 删除单个角色
+const deleteCharacter = async (characterId) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/character/${characterId}`, {
+      method: 'DELETE'
+    });
+    const result = await response.json();
+    if (result.success) {
+      await loadCharacters(); // 重新加载角色列表
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Failed to delete character:', error);
+    return false;
+  }
+};
+
+// 删除确认对话框
+const confirmDelete = (character) => {
+  setCharacterToDelete(character);
+  setShowConfirmDialog(true);
+};
+
+const executeDelete = async () => {
+  if (characterToDelete) {
+    const success = await deleteCharacter(characterToDelete.id);
+    if (success) {
+      alert('✅ 角色已删除');
+      setShowConfirmDialog(false);
+      setCharacterToDelete(null);
+    } else {
+      alert('❌ 删除失败');
+    }
+  }
+};
+```
+
+**批量删除角色**:
+```javascript
+// CharacterLibraryNode.jsx - 批量删除
+const deleteBatchCharacters = async (characterIds) => {
+  try {
+    // 并发调用删除 API
+    const promises = characterIds.map(id =>
+      fetch(`${API_BASE}/api/character/${id}`, { method: 'DELETE' })
+    );
+    await Promise.all(promises);
+    await loadCharacters(); // 重新加载角色列表
+    return true;
+  } catch (error) {
+    console.error('Failed to delete characters:', error);
+    return false;
+  }
+};
+
+const deleteSelected = async () => {
+  if (selectedCharacters.size === 0) {
+    alert('请先选择要删除的角色');
+    return;
+  }
+
+  if (!confirm(`确定要删除选中的 ${selectedCharacters.size} 个角色吗？`)) {
+    return;
+  }
+
+  const success = await deleteBatchCharacters(Array.from(selectedCharacters));
+  if (success) {
+    alert(`✅ 已删除 ${selectedCharacters.size} 个角色`);
+    setSelectedCharacters(new Set());
+    setBatchMode(false);
+  } else {
+    alert('❌ 删除失败');
+  }
+};
+```
+
+**编辑角色别名**:
+```javascript
+// CharacterLibraryNode.jsx - 编辑别名
+const updateAlias = async (characterId, newAlias) => {
+  try {
+    const response = await fetch(`${API_BASE}/api/character/${characterId}/alias`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alias: newAlias })
+    });
+    const result = await response.json();
+    if (result.success) {
+      await loadCharacters(); // 重新加载角色列表
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Failed to update alias:', error);
+    return false;
+  }
+};
+
+const saveAlias = async () => {
+  if (editingCharacter) {
+    const success = await updateAlias(editingCharacter.id, editAlias);
+    if (success) {
+      closeEditDialog();
+      alert('✅ 别名已更新');
+    } else {
+      alert('❌ 更新失败');
+    }
+  }
+};
+```
+
+**批量选择模式**:
+```javascript
+// CharacterLibraryNode.jsx - 批量选择状态管理
+const [batchMode, setBatchMode] = useState(false);
+const [selectedCharacters, setSelectedCharacters] = useState(new Set());
+
+// 切换批量模式
+const toggleBatchMode = () => {
+  setBatchMode(!batchMode);
+  setSelectedCharacters(new Set()); // 清空选择
+};
+
+// 切换角色选择
+const toggleCharacterSelection = (characterId) => {
+  const newSelected = new Set(selectedCharacters);
+  if (newSelected.has(characterId)) {
+    newSelected.delete(characterId);
+  } else {
+    newSelected.add(characterId);
+  }
+  setSelectedCharacters(newSelected);
+};
+
+// 全选/取消全选
+const toggleSelectAll = () => {
+  if (selectedCharacters.size === filteredCharacters.length) {
+    setSelectedCharacters(new Set()); // 取消全选
+  } else {
+    setSelectedCharacters(new Set(filteredCharacters.map(c => c.id))); // 全选
+  }
+};
+```
+
+**UI 实现细节**:
+```javascript
+// 批量模式按钮
+<button onClick={toggleBatchMode} style={{
+  flex: 1,
+  padding: '4px',
+  fontSize: '10px',
+  backgroundColor: batchMode ? '#f59e0b' : '#e5e7eb',
+  color: 'white',
+  border: 'none',
+  borderRadius: '3px',
+  cursor: 'pointer',
+}}>
+  {batchMode ? '✓ 批量模式' : '批量操作'}
+</button>
+
+// 角色卡片 - 点击行为
+<div
+  onClick={() => batchMode ? toggleCharacterSelection(char.id) : openEditDialog(char)}
+  style={{
+    padding: '6px',
+    backgroundColor: batchMode && selectedCharacters.has(char.id) ? '#fef3c7' : 'white',
+    borderRadius: '4px',
+    border: batchMode && selectedCharacters.has(char.id) ? '2px solid #f59e0b' : '1px solid #a5f3fc',
+    cursor: 'pointer',
+    position: 'relative',
+  }}
+>
+  {/* 批量模式 - 复选框 */}
+  {batchMode && (
+    <div style={{
+      position: 'absolute',
+      top: '4px',
+      right: '4px',
+      width: '14px',
+      height: '14px',
+      borderRadius: '2px',
+      border: '1px solid #d1d5db',
+      backgroundColor: selectedCharacters.has(char.id) ? '#f59e0b' : 'white',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '10px',
+      color: selectedCharacters.has(char.id) ? 'white' : '#9ca3af',
+    }}>
+      {selectedCharacters.has(char.id) ? '✓' : ''}
+    </div>
+  )}
+
+  {/* 非批量模式 - 删除按钮（hover 显示） */}
+  {!batchMode && (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        confirmDelete(char);
+      }}
+      style={{
+        position: 'absolute',
+        top: '2px',
+        right: '2px',
+        width: '16px',
+        height: '16px',
+        borderRadius: '50%',
+        backgroundColor: '#fee2e2',
+        color: '#dc2626',
+        border: 'none',
+        cursor: 'pointer',
+        fontSize: '10px',
+        opacity: '0',
+        transition: 'opacity 0.2s',
+      }}
+      title="删除角色"
+      onMouseEnter={(e) => e.target.style.opacity = '1'}
+      onMouseLeave={(e) => e.target.style.opacity = '0'}
+    >
+      ✕
+    </button>
+  )}
+
+  {/* 角色内容 */}
+  <img src={char.profilePictureUrl} alt={char.username} style={{...}} />
+  <div>{char.alias || char.username}</div>
+</div>
+```
+
+### 错误23: 删除操作未重新加载列表 ⭐ 新增
+```javascript
+// ❌ 错误：删除后不刷新列表
+async function deleteCharacter(characterId) {
+  const response = await fetch(`${API_BASE}/api/character/${characterId}`, {
+    method: 'DELETE'
+  });
+  alert('删除成功');
+  // ❌ 用户看不到删除效果
+}
+
+// ✅ 正确：删除后重新加载列表
+async function deleteCharacter(characterId) {
+  const response = await fetch(`${API_BASE}/api/character/${characterId}`, {
+    method: 'DELETE'
+  });
+  const result = await response.json();
+
+  if (result.success) {
+    alert('✅ 角色已删除');
+    await loadCharacters(); // ✅ 重新加载列表
+  }
+}
+```
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：

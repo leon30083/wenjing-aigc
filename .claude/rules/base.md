@@ -128,6 +128,25 @@ React + React Flow
   - `recent` - 显示最近使用的角色（localStorage，最多 20 个）
 - **防抖延迟**: 300ms（搜索输入）
 
+**删除角色** ⭐ 新增:
+- **端点**: `DELETE /api/character/:characterId`
+- **参数**: `characterId` - 角色 ID（路径参数）
+- **响应**: `{ success: true, data: { deleted: true } }`
+- **⚠️ 注意**: 前端应实现确认对话框，防止误操作
+
+**批量删除角色** ⭐ 新增:
+- **端点**: `DELETE /api/character/:characterId` (多次调用)
+- **实现**: 前端使用 `Promise.all()` 并发调用删除 API
+- **参数**: `characterIds` - 角色 ID 数组
+- **响应**: 所有删除请求都成功视为成功
+- **⚠️ 注意**: 前端应显示确认对话框，提示删除数量
+
+**更新角色别名** ⭐ 新增:
+- **端点**: `PUT /api/character/:characterId/alias`
+- **参数**: `characterId` - 角色 ID（路径参数），`alias` - 别名字符串（请求体）
+- **响应**: `{ success: true, data: { ...character, alias: string } }`
+- **验证**: `alias` 为必填参数，自动 trim 空格
+
 ### 参考图片功能 ⭐ 新增
 
 **文生视频 vs 图生视频**:
