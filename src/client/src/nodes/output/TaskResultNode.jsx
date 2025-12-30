@@ -1,21 +1,28 @@
 import { Handle, Position } from 'reactflow';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const API_BASE = 'http://localhost:9000';
 
 function TaskResultNode({ data }) {
   const [taskId, setTaskId] = useState(data.taskId || null);
+  const taskIdRef = useRef(taskId);
   const [taskStatus, setTaskStatus] = useState('idle');
   const [videoUrl, setVideoUrl] = useState(null);
   const [error, setError] = useState(null);
   const [polling, setPolling] = useState(false);
+
+  // Update ref when taskId changes
+  useEffect(() => {
+    taskIdRef.current = taskId;
+  }, [taskId]);
 
   // Listen for taskId updates from connected video generation nodes
   useEffect(() => {
     console.log('[TaskResultNode] Node data:', { id: data.id, connectedSourceId: data.connectedSourceId });
 
     // Check initial data.taskId
-    if (data.taskId && data.taskId !== taskId) {
+    if (data.taskId && data.taskId !== taskIdRef.current) {
+      console.log('[TaskResultNode] Initial taskId from data:', data.taskId);
       setTaskId(data.taskId);
       setTaskStatus('idle');
       setVideoUrl(null);
@@ -27,7 +34,7 @@ function TaskResultNode({ data }) {
       const { sourceNodeId, taskId: newTaskId } = event.detail;
       console.log('[TaskResultNode] Event received:', { sourceNodeId, newTaskId, connectedSourceId: data.connectedSourceId });
       // Check if this task result node is connected to the source node
-      if (data.connectedSourceId === sourceNodeId && newTaskId && newTaskId !== taskId) {
+      if (data.connectedSourceId === sourceNodeId && newTaskId && newTaskId !== taskIdRef.current) {
         console.log('[TaskResultNode] Match! Setting taskId:', newTaskId);
         setTaskId(newTaskId);
         setTaskStatus('idle');
@@ -41,11 +48,16 @@ function TaskResultNode({ data }) {
     return () => {
       window.removeEventListener('video-task-created', handleVideoCreated);
     };
-  }, [data.taskId, data.connectedSourceId, taskId]);
+  }, [data.taskId, data.connectedSourceId]); // Remove taskId from deps
 
   // Poll task status when taskId is set
   useEffect(() => {
-    if (!taskId || taskStatus === 'SUCCESS' || taskStatus === 'FAILURE') {
+    if (!taskId) {
+      return;
+    }
+
+    // Stop if task completed successfully with video URL or failed
+    if ((taskStatus === 'SUCCESS' && videoUrl) || taskStatus === 'FAILURE') {
       return;
     }
 
@@ -62,6 +74,7 @@ function TaskResultNode({ data }) {
             setVideoUrl(taskData.output);
             setPolling(false);
             clearInterval(pollInterval);
+            console.log('[TaskResultNode] Video URL set:', taskData.output);
           } else if (status === 'FAILURE') {
             setError(taskData?.fail_reason || '生成失败');
             setPolling(false);
@@ -69,7 +82,7 @@ function TaskResultNode({ data }) {
           }
         }
       } catch (err) {
-        console.error('Failed to poll task status:', err);
+        console.error('[TaskResultNode] Failed to poll task status:', err);
       }
     }, 5000); // Poll every 5 seconds
 
@@ -79,7 +92,7 @@ function TaskResultNode({ data }) {
       clearInterval(pollInterval);
       setPolling(false);
     };
-  }, [taskId, taskStatus]);
+  }, [taskId, taskStatus, videoUrl]);
 
   // Manual refresh
   const refreshStatus = async () => {
