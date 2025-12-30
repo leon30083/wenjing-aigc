@@ -183,6 +183,21 @@ function App() {
     [setEdges]
   );
 
+  // Stable onSizeChange callback for resizable nodes
+  const handleNodeSizeChange = useCallback((nodeId, width, height) => {
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              data: { ...n.data, width, height },
+              style: { ...n.style, width: `${width}px`, minHeight: `${height}px` },
+            }
+          : n
+      )
+    );
+  }, [setNodes]);
+
   // Update node data when connections change or when execution state changes
   useEffect(() => {
     // For each node, check incoming connections and update data
@@ -190,6 +205,9 @@ function App() {
       nds.map((node) => {
         const incomingEdges = edges.filter((e) => e.target === node.id);
         const newData = { ...node.data };
+
+        // Add onSizeChange callback for resizable nodes (use stable reference)
+        newData.onSizeChange = handleNodeSizeChange;
 
         // Check for prompt input from text node
         const promptEdge = incomingEdges.find((e) => e.targetHandle === 'prompt-input');
@@ -241,7 +259,7 @@ function App() {
         return { ...node, data: newData };
       })
     );
-  }, [edges, setNodes]);
+  }, [edges, setNodes, handleNodeSizeChange]);
 
   // Save workflow to localStorage whenever nodes or edges change
   useEffect(() => {

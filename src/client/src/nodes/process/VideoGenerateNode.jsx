@@ -2,10 +2,30 @@ import { Handle, Position, useNodeId } from 'reactflow';
 import React, { useState, useEffect, useRef } from 'react';
 
 const API_BASE = 'http://localhost:9000';
+const MIN_WIDTH = 260;
+const MIN_HEIGHT = 400;
+
+// Global tracking to prevent node drag during resize
+let isResizingNode = false;
 
 function VideoGenerateNode({ data }) {
   const nodeId = useNodeId();
   const promptInputRef = useRef(null);
+  const nodeRef = useRef(null);
+  const resizeHandleRef = useRef(null);
+  const onSizeChangeRef = useRef(data.onSizeChange);
+
+  // Update ref when data.onSizeChange changes
+  useEffect(() => {
+    onSizeChangeRef.current = data.onSizeChange;
+  }, [data.onSizeChange]);
+
+  // Node size state
+  const [nodeSize, setNodeSize] = useState(() => ({
+    width: data.width || 280,
+    height: data.height || MIN_HEIGHT,
+  }));
+  const [isResizing, setIsResizing] = useState(false);
 
   const [config, setConfig] = useState({
     model: 'Sora-2',
@@ -24,6 +44,52 @@ function VideoGenerateNode({ data }) {
   const [status, setStatus] = useState('idle'); // idle, generating, success, error
   const [taskId, setTaskId] = useState(null);
   const [error, setError] = useState(null);
+
+  // Update parent node data when size changes
+  useEffect(() => {
+    if (onSizeChangeRef.current) {
+      onSizeChangeRef.current(nodeId, nodeSize.width, nodeSize.height);
+    }
+  }, [nodeSize.width, nodeSize.height, nodeId]);
+
+  // Resize handling - use capture phase and prevent default
+  const handleResizeMouseDown = (e) => {
+    // Only left button
+    if (e.button !== 0) return;
+
+    // Prevent React Flow from capturing this event
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Set global flag
+    isResizingNode = true;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = nodeSize.width;
+    const startHeight = nodeSize.height;
+
+    const handleMouseMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+
+      const newWidth = Math.max(MIN_WIDTH, startWidth + deltaX);
+      const newHeight = Math.max(MIN_HEIGHT, startHeight + deltaY);
+
+      setNodeSize({ width: newWidth, height: newHeight });
+    };
+
+    const handleMouseUp = () => {
+      isResizingNode = false;
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    setIsResizing(true);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
 
   // ⭐ 创建用户名到别名的映射
   const usernameToAlias = React.useMemo(() => {
@@ -156,15 +222,20 @@ function VideoGenerateNode({ data }) {
   };
 
   return (
-    <div style={{
-      padding: '10px 15px',
-      borderRadius: '8px',
-      borderWidth: '2px',
-      borderColor: '#10b981',
-      borderStyle: 'solid',
-      backgroundColor: '#ecfdf5',
-      minWidth: '260px',
-    }}>
+    <div
+      ref={nodeRef}
+      style={{
+        padding: '10px 15px',
+        borderRadius: '8px',
+        borderWidth: '2px',
+        borderColor: '#10b981',
+        borderStyle: 'solid',
+        backgroundColor: '#ecfdf5',
+        width: `${nodeSize.width}px`,
+        minHeight: `${nodeSize.height}px`,
+        position: 'relative',
+        userSelect: isResizing ? 'none' : 'auto',
+      }}>
       {/* Input Handles */}
       <Handle
         type="target"
@@ -204,7 +275,7 @@ function VideoGenerateNode({ data }) {
       </div>
 
       {/* Global Config */}
-      <div style={{
+      <div className="nodrag" style={{
         padding: '6px',
         backgroundColor: '#d1fae5',
         borderRadius: '4px',
@@ -213,6 +284,7 @@ function VideoGenerateNode({ data }) {
       }}>
         <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
           <select
+            className="nodrag"
             value={config.model}
             onChange={(e) => setConfig({ ...config, model: e.target.value })}
             disabled={status === 'generating'}
@@ -227,6 +299,7 @@ function VideoGenerateNode({ data }) {
             <option value="Sora-2">Sora-2</option>
           </select>
           <select
+            className="nodrag"
             value={config.duration}
             onChange={(e) => setConfig({ ...config, duration: Number(e.target.value) })}
             disabled={status === 'generating'}
@@ -246,6 +319,7 @@ function VideoGenerateNode({ data }) {
         </div>
         <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
           <select
+            className="nodrag"
             value={config.aspect}
             onChange={(e) => setConfig({ ...config, aspect: e.target.value })}
             disabled={status === 'generating'}
@@ -263,6 +337,7 @@ function VideoGenerateNode({ data }) {
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <label style={{ fontSize: '10px', color: '#065f46', marginRight: '4px' }}>水印:</label>
             <input
+              className="nodrag"
               type="checkbox"
               checked={config.watermark}
               onChange={(e) => setConfig({ ...config, watermark: e.target.checked })}
@@ -273,7 +348,7 @@ function VideoGenerateNode({ data }) {
       </div>
 
       {/* ⭐ 候选角色显示 */}
-      <div style={{ marginBottom: '8px' }}>
+      <div className="nodrag" style={{ marginBottom: '8px' }}>
         <div style={{
           fontSize: '11px',
           fontWeight: 'bold',
@@ -288,6 +363,7 @@ function VideoGenerateNode({ data }) {
             {connectedCharacters.map((char) => (
               <div
                 key={char.id}
+                className="nodrag"
                 onClick={() => insertCharacterAtCursor(char.username, char.alias || char.username)}
                 style={{
                   padding: '4px 8px',
@@ -372,8 +448,9 @@ function VideoGenerateNode({ data }) {
           </div>
         </div>
       ) : (
-        <div>
+        <div className="nodrag">
           <textarea
+            className="nodrag"
             ref={promptInputRef}
             value={realToDisplay(manualPrompt)}
             onChange={(e) => {
@@ -426,6 +503,7 @@ function VideoGenerateNode({ data }) {
 
       {/* Generate Button */}
       <button
+        className="nodrag"
         onClick={handleGenerate}
         disabled={status === 'generating'}
         style={{
@@ -491,6 +569,28 @@ function VideoGenerateNode({ data }) {
         <div>↑ 图片</div>
         <div style={{ textAlign: 'right', marginTop: '2px' }}>视频 →</div>
       </div>
+
+      {/* Resize Handle (ComfyUI style) */}
+      <div
+        className="nodrag"
+        ref={resizeHandleRef}
+        onMouseDown={handleResizeMouseDown}
+        style={{
+          position: 'absolute',
+          right: '0',
+          bottom: '0',
+          width: '16px',
+          height: '16px',
+          cursor: 'nwse-resize',
+          background: 'linear-gradient(135deg, transparent 50%, #10b981 50%)',
+          borderRadius: '0 0 6px 0',
+          opacity: '0.6',
+          transition: 'opacity 0.2s',
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
+        title="拖动调整节点大小"
+      />
     </div>
   );
 }

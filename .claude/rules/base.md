@@ -472,6 +472,30 @@ const insertCharacterAtCursor = (username, alias) => {
 - **入口位置**: `main.jsx`
 - **Hook 依赖**: `useReactFlow` 必须在 Provider 内部使用
 
+**节点大小可调整** ⭐ 新增:
+- **ComfyUI 风格**: 节点右下角显示三角形缩放手柄
+- **拖动调整**: 鼠标拖动右下角调整节点大小
+- **最小尺寸**: 限制最小宽度和高度（如 260px x 400px）
+- **用户选择**: 节点内文本选择不触发节点拖动
+
+**节点内交互控制** ⭐ 新增:
+- **`nodrag` 类**: React Flow 官方方案，防止元素触发节点拖动
+- **应用位置**:
+  - `<textarea className="nodrag">` - 文本输入框
+  - `<select className="nodrag">` - 下拉选择框
+  - `<input className="nodrag">` - 复选框
+  - `<button className="nodrag">` - 按钮
+  - 缩放手柄: `<div className="nodrag" onMouseDown={handleResize}>`
+- **❌ 错误做法**: 使用 `e.stopPropagation()`（React Flow 使用捕获阶段，stopPropagation 无效）
+
+**无限循环防止** ⭐ 新增:
+- **问题**: useEffect 依赖 `data` 对象导致无限渲染
+- **原因**: `data` 对象在每次渲染时都是新引用
+- **解决方案**:
+  1. **节点内部**: 使用 `useRef` 存储回调，只更新 `data.onSizeChange`
+  2. **父组件**: 使用 `useCallback` 创建稳定回调函数
+- **关键点**: 移除 `data` 从 useEffect 依赖数组
+
 ## 轮询策略
 
 ### 后台自动轮询服务

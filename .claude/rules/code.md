@@ -2455,6 +2455,284 @@ const displayToReal = (text) => {
 **问题**: `\b` 单词边界只匹配 `[a-zA-Z0-9_]` 和非单词字符之间，无法处理中文
 **解决方案**: 使用 `(?=\s|$|@)` 正向肯定预查，匹配空白字符、字符串结尾或下一个引用
 
+### 错误25: 节点内交互元素触发拖动 ⭐ 新增
+```javascript
+// ❌ 错误：使用 stopPropagation 无法阻止 React Flow 拖动
+function VideoGenerateNode({ data }) {
+  const handleTextareaMouseDown = (e) => {
+    e.stopPropagation();  // ❌ React Flow 使用捕获阶段，此方法无效
+  };
+
+  return <textarea onMouseDown={handleTextareaMouseDown} />;
+}
+```
+
+```javascript
+// ✅ 正确：使用 React Flow 官方 nodrag 类
+function VideoGenerateNode({ data }) {
+  return (
+    <div>
+      {/* 所有交互元素添加 nodrag 类 */}
+      <textarea className="nodrag" />
+      <select className="nodrag">...</select>
+      <input className="nodrag" type="checkbox" />
+      <button className="nodrag">生成</button>
+      <div className="nodrag" onMouseDown={handleResize}>⤡</div>
+    </div>
+  );
+}
+```
+
+**问题**:
+1. React Flow 在捕获阶段监听事件，`stopPropagation()` 在冒泡阶段执行，无法阻止拖动
+2. 在 textarea 中选择文本时仍然会拖动节点
+
+**解决方案**:
+1. 使用 `className="nodrag"` 标记所有交互元素
+2. 这是 React Flow 官方推荐的方式
+
+### 错误26: useEffect 无限循环（data 依赖） ⭐ 新增
+```javascript
+// ❌ 错误：data 在依赖数组中导致无限循环
+function VideoGenerateNode({ data }) {
+  const [nodeSize, setNodeSize] = useState({ width: 280, height: 400 });
+
+  // data 对象在每次渲染时都是新引用
+  useEffect(() => {
+    if (data.onSizeChange) {
+      data.onSizeChange(nodeId, nodeSize.width, nodeSize.height);
+    }
+  }, [nodeSize.width, nodeSize.height, data]); // ❌ data 导致无限循环
+
+  return <div style={{ width: nodeSize.width }} />;
+}
+```
+
+```javascript
+// ✅ 正确：使用 useRef 存储回调，只监听 onSizeChange 变化
+function VideoGenerateNode({ data }) {
+  const nodeId = useNodeId();
+  const onSizeChangeRef = useRef(data.onSizeChange);
+  const [nodeSize, setNodeSize] = useState({ width: 280, height: 400 });
+
+  // 更新 ref（仅当 onSizeChange 变化时）
+  useEffect(() => {
+    onSizeChangeRef.current = data.onSizeChange;
+  }, [data.onSizeChange]);
+
+  // 使用 ref.current，移除 data 依赖
+  useEffect(() => {
+    if (onSizeChangeRef.current) {
+      onSizeChangeRef.current(nodeId, nodeSize.width, nodeSize.height);
+    }
+  }, [nodeSize.width, nodeSize.height, nodeId]); // ✅ 无 data 依赖
+
+  return <div style={{ width: nodeSize.width }} />;
+}
+```
+
+```javascript
+// ✅ 正确：父组件使用 useCallback 创建稳定回调
+function App() {
+  const [nodes, setNodes] = useState([]);
+  const [edges, setEdges] = useState([]);
+
+  // 使用 useCallback 创建稳定的回调函数
+  const handleNodeSizeChange = useCallback((nodeId, width, height) => {
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              data: { ...n.data, width, height },
+              style: { ...n.style, width: `${width}px`, minHeight: `${height}px` },
+            }
+          : n
+      )
+    );
+  }, [setNodes]);
+
+  // 传递稳定的回调
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          onSizeChange: handleNodeSizeChange, // ✅ 稳定引用
+        },
+      }))
+    );
+  }, [edges, setNodes, handleNodeSizeChange]);
+}
+```
+
+**问题**:
+1. `data` 对象在父组件每次渲染时都是新引用
+2. useEffect 依赖 `data` → 触发 → 更新节点 → `data` 变化 → 再次触发 → 无限循环
+3. 浏览器崩溃："Maximum update depth exceeded"
+
+**解决方案**:
+1. **节点内部**: 使用 `useRef` 存储 `onSizeChange`，只在回调函数变化时更新 ref
+2. **父组件**: 使用 `useCallback` 创建稳定的回调函数
+3. **移除依赖**: 从 useEffect 依赖数组移除 `data`
+
+### ComfyUI 风格节点调整实现 ⭐ 新增
+
+**VideoGenerateNode.jsx - 节点大小可调整**:
+```javascript
+import { Handle, Position, useNodeId } from 'reactflow';
+import React, { useState, useEffect, useRef } from 'react';
+
+const MIN_WIDTH = 260;
+const MIN_HEIGHT = 400;
+
+// 全局跟踪，防止调整大小时拖动节点
+let isResizingNode = false;
+
+function VideoGenerateNode({ data }) {
+  const nodeId = useNodeId();
+  const promptInputRef = useRef(null);
+  const nodeRef = useRef(null);
+  const resizeHandleRef = useRef(null);
+  const onSizeChangeRef = useRef(data.onSizeChange);
+
+  // 更新 ref（仅当 onSizeChange 变化时）
+  useEffect(() => {
+    onSizeChangeRef.current = data.onSizeChange;
+  }, [data.onSizeChange]);
+
+  // 节点大小状态
+  const [nodeSize, setNodeSize] = useState(() => ({
+    width: data.width || 280,
+    height: data.height || MIN_HEIGHT,
+  }));
+  const [isResizing, setIsResizing] = useState(false);
+
+  // 更新父节点数据（当大小变化时）
+  useEffect(() => {
+    if (onSizeChangeRef.current) {
+      onSizeChangeRef.current(nodeId, nodeSize.width, nodeSize.height);
+    }
+  }, [nodeSize.width, nodeSize.height, nodeId]); // 移除 data 依赖
+
+  // 调整大小处理 - 使用捕获阶段并阻止默认
+  const handleResizeMouseDown = (e) => {
+    if (e.button !== 0) return; // 仅左键
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    isResizingNode = true;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = nodeSize.width;
+    const startHeight = nodeSize.height;
+
+    const handleMouseMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+
+      const newWidth = Math.max(MIN_WIDTH, startWidth + deltaX);
+      const newHeight = Math.max(MIN_HEIGHT, startHeight + deltaY);
+
+      setNodeSize({ width: newWidth, height: newHeight });
+    };
+
+    const handleMouseUp = () => {
+      isResizingNode = false;
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    setIsResizing(true);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  return (
+    <div
+      ref={nodeRef}
+      style={{
+        padding: '10px 15px',
+        borderRadius: '8px',
+        borderWidth: '2px',
+        borderColor: '#10b981',
+        borderStyle: 'solid',
+        backgroundColor: '#ecfdf5',
+        width: `${nodeSize.width}px`,
+        minHeight: `${nodeSize.height}px`,
+        position: 'relative',
+        userSelect: isResizing ? 'none' : 'auto',
+      }}
+    >
+      {/* 输入框 - 添加 nodrag 类 */}
+      <textarea
+        className="nodrag"
+        ref={promptInputRef}
+        placeholder="输入提示词..."
+        style={{
+          width: '100%',
+          minHeight: '80px',
+          padding: '6px 8px',
+          borderRadius: '4px',
+          border: '1px solid #6ee7b7',
+          resize: 'vertical',
+        }}
+      />
+
+      {/* 按钮 - 添加 nodrag 类 */}
+      <button
+        className="nodrag"
+        onClick={handleGenerate}
+        style={{
+          width: '100%',
+          padding: '8px',
+          backgroundColor: '#10b981',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+        }}
+      >
+        生成视频
+      </button>
+
+      {/* ComfyUI 风格调整手柄 - 右下角三角形 */}
+      <div
+        className="nodrag"
+        ref={resizeHandleRef}
+        onMouseDown={handleResizeMouseDown}
+        style={{
+          position: 'absolute',
+          right: '0',
+          bottom: '0',
+          width: '16px',
+          height: '16px',
+          cursor: 'nwse-resize',
+          background: 'linear-gradient(135deg, transparent 50%, #10b981 50%)',
+          borderRadius: '0 0 6px 0',
+          opacity: '0.6',
+          transition: 'opacity 0.2s',
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
+        title="拖动调整节点大小"
+      />
+    </div>
+  );
+}
+```
+
+**关键要点**:
+1. **`nodrag` 类**: 所有交互元素必须添加此类
+2. **useRef 模式**: 存储回调函数避免无限循环
+3. **全局标志**: `isResizingNode` 防止调整大小时触发节点拖动
+4. **最小尺寸**: 限制节点不能小于指定尺寸
+5. **用户选择**: `userSelect: isResizing ? 'none' : 'auto'` 调整大小时禁用文本选择
+
 ---
 
 ## 开发参考
