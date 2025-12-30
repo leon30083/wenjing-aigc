@@ -11,7 +11,6 @@ export function useWorkflowExecution() {
     completedNodes: [],
     failedNodes: [],
     results: {},
-    logs: [], // Add logs array
   });
 
   const [progress, setProgress] = useState({
@@ -19,20 +18,6 @@ export function useWorkflowExecution() {
     completed: 0,
     failed: 0,
   });
-
-  // Helper function to add logs
-  const addLog = useCallback((level, message, node = null) => {
-    const log = {
-      timestamp: new Date().toLocaleTimeString(),
-      level,
-      message,
-      node,
-    };
-    setExecutionState(prev => ({
-      ...prev,
-      logs: [...prev.logs, log],
-    }));
-  }, []);
 
   /**
    * Build adjacency list for topological sorting
@@ -168,10 +153,6 @@ export function useWorkflowExecution() {
         // Task result node displays the video task result
         return { taskId: inputData.videoTaskId || data.taskId };
 
-      case 'executionLogNode':
-        // Execution log node displays execution logs
-        return { logs: data.logs || [] };
-
       default:
         console.warn(`Unknown node type: ${type}`);
         return {};
@@ -190,15 +171,14 @@ export function useWorkflowExecution() {
         completedNodes: [],
         failedNodes: [],
         results: {},
-        logs: [],
       });
       setProgress({ total: nodes.length, completed: 0, failed: 0 });
 
-      addLog('info', '开始执行工作流');
+      console.log('[Workflow] 开始执行工作流');
 
       // Get execution order using topological sort
       const executionOrder = topologicalSort(nodes, edges);
-      addLog('info', `执行顺序: ${executionOrder.join(' → ')}`);
+      console.log('[Workflow] 执行顺序:', executionOrder.join(' → '));
 
       const results = {};
       const completedNodes = [];
@@ -211,7 +191,7 @@ export function useWorkflowExecution() {
 
         const nodeLabel = node.data.label || nodeId;
         setExecutionState(prev => ({ ...prev, currentNode: nodeLabel }));
-        addLog('info', `执行节点: ${nodeLabel}`, nodeLabel);
+        console.log(`[Workflow] 执行节点: ${nodeLabel}`);
 
         // Get input data from connected source nodes
         const inputData = getNodeInputData(nodeId, node.type, edges, results);
@@ -227,9 +207,9 @@ export function useWorkflowExecution() {
             completed: prev.completed + 1,
           }));
 
-          addLog('success', `✓ 节点完成: ${nodeLabel}`, nodeLabel);
+          console.log(`[Workflow] ✓ 节点完成: ${nodeLabel}`);
         } catch (error) {
-          addLog('error', `✗ 节点失败: ${nodeLabel} - ${error.message}`, nodeLabel);
+          console.error(`[Workflow] ✗ 节点失败: ${nodeLabel} - ${error.message}`);
           failedNodes.push(nodeId);
 
           setProgress(prev => ({
@@ -242,9 +222,9 @@ export function useWorkflowExecution() {
         }
       }
 
-      addLog('info', `工作流执行完成: ${completedNodes.length}/${nodes.length} 成功`);
+      console.log(`[Workflow] 工作流执行完成: ${completedNodes.length}/${nodes.length} 成功`);
       if (failedNodes.length > 0) {
-        addLog('warn', `${failedNodes.length} 个节点执行失败`);
+        console.warn(`[Workflow] ${failedNodes.length} 个节点执行失败`);
       }
 
       setExecutionState({
@@ -257,7 +237,7 @@ export function useWorkflowExecution() {
 
       return { success: true, results, completedNodes, failedNodes };
     } catch (error) {
-      addLog('error', `工作流执行错误: ${error.message}`);
+      console.error('[Workflow] 工作流执行错误:', error.message);
       setExecutionState(prev => ({
         ...prev,
         isRunning: false,
@@ -266,7 +246,7 @@ export function useWorkflowExecution() {
 
       return { success: false, error: error.message };
     }
-  }, [addLog]);
+  }, []);
 
   /**
    * Reset execution state
@@ -278,7 +258,6 @@ export function useWorkflowExecution() {
       completedNodes: [],
       failedNodes: [],
       results: {},
-      logs: [],
     });
     setProgress({ total: 0, completed: 0, failed: 0 });
   }, []);

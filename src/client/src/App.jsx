@@ -21,7 +21,6 @@ import CharacterCreateNode from './nodes/process/CharacterCreateNode';
 import VideoGenerateNode from './nodes/process/VideoGenerateNode';
 import StoryboardNode from './nodes/process/StoryboardNode';
 import TaskResultNode from './nodes/output/TaskResultNode';
-import ExecutionLogNode from './nodes/output/ExecutionLogNode';
 
 // Node types configuration (moved outside component to avoid re-creation)
 const nodeTypes = {
@@ -33,7 +32,6 @@ const nodeTypes = {
   videoGenerateNode: VideoGenerateNode,
   storyboardNode: StoryboardNode,
   taskResultNode: TaskResultNode,
-  executionLogNode: ExecutionLogNode,
 };
 
 // Initial nodes for testing
@@ -91,12 +89,6 @@ const initialNodes = [
     position: { x: 650, y: 200 },
     data: { label: '任务结果' },
   },
-  {
-    id: '9',
-    type: 'executionLogNode',
-    position: { x: 650, y: 400 },
-    data: { label: '执行日志', logs: [] },
-  },
 ];
 
 // Initial edges for testing
@@ -129,15 +121,37 @@ const nodeTemplates = [
   { type: 'videoGenerateNode', label: '🎬 视频生成', category: 'process' },
   { type: 'storyboardNode', label: '🎞️ 故事板', category: 'process' },
   { type: 'taskResultNode', label: '📺 任务结果', category: 'output' },
-  { type: 'executionLogNode', label: '📋 执行日志', category: 'output' },
 ];
 
 function App() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  // Load saved workflow from localStorage or use empty arrays
+  const loadSavedWorkflow = () => {
+    try {
+      const saved = localStorage.getItem('workflow-nodes');
+      const savedEdges = localStorage.getItem('workflow-edges');
+      return {
+        nodes: saved ? JSON.parse(saved) : [],
+        edges: savedEdges ? JSON.parse(savedEdges) : []
+      };
+    } catch (error) {
+      console.error('Failed to load saved workflow:', error);
+      return { nodes: [], edges: [] };
+    }
+  };
+
+  const savedWorkflow = loadSavedWorkflow();
+  const [nodes, setNodes, onNodesChange] = useNodesState(savedWorkflow.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(savedWorkflow.edges);
   const { executionState, progress, executeWorkflow, resetExecution } = useWorkflowExecution();
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const [nextNodeId, setNextNodeId] = useState(10); // Start from 10 (initial nodes use 1-9)
+  const [nextNodeId, setNextNodeId] = useState(() => {
+    // Find the highest node ID from saved workflow
+    if (savedWorkflow.nodes.length > 0) {
+      const maxId = Math.max(...savedWorkflow.nodes.map(n => parseInt(n.id) || 0));
+      return maxId + 1;
+    }
+    return 10; // Start from 10 if no saved workflow
+  });
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState(null);
@@ -195,15 +209,20 @@ function App() {
           console.log('[App] TaskResultNode connectedSourceId:', node.id, '->', videoEdge.source);
         }
 
-        // Pass execution logs to execution log node
-        if (node.type === 'executionLogNode') {
-          newData.logs = executionState.logs || [];
-        }
-
         return { ...node, data: newData };
       })
     );
-  }, [edges, executionState.logs, setNodes]);
+  }, [edges, setNodes]);
+
+  // Save workflow to localStorage whenever nodes or edges change
+  useEffect(() => {
+    try {
+      localStorage.setItem('workflow-nodes', JSON.stringify(nodes));
+      localStorage.setItem('workflow-edges', JSON.stringify(edges));
+    } catch (error) {
+      console.error('Failed to save workflow:', error);
+    }
+  }, [nodes, edges]);
 
   // Add a new node
   const addNode = useCallback((nodeType, label, position) => {
