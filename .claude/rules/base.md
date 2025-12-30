@@ -239,6 +239,57 @@ React + React Flow
 }
 ```
 
+### 角色结果节点 ⭐ 新增
+
+**功能描述**：
+- 显示角色创建任务的详细结果
+- 通过事件系统从 CharacterCreateNode 接收角色数据
+- 提供复制到剪贴板功能（角色 ID、用户名）
+
+**数据格式**:
+```javascript
+{
+  id: "ch_69536e7ce60481919c4e9a2a3cf4c6d5",
+  username: "de3602969.sunnykitty",
+  permalink: "https://sora.chatgpt.com/profile/de3602969.sunnykitty",
+  profile_picture_url: "https://...",
+  alias: "可选别名"  // 如果设置过
+}
+```
+
+**事件系统**:
+- **事件名**: `character-created`
+- **事件数据**: `{ sourceNodeId, character }`
+- **验证逻辑**: 检查 `data.connectedSourceId === event.detail.sourceNodeId`
+
+**技术细节**:
+- **输入端口**: `character-input` (左侧)
+- **无输出端口**: 纯展示节点
+- **剪贴板 API**: 优先使用 `navigator.clipboard`，降级到 `execCommand`
+- **复制反馈**: 点击后显示 "✓ 已复制" 2 秒
+
+### React Flow 节点管理 ⭐ 新增
+
+**右键菜单功能**:
+- **节点菜单**: 复制节点、删除节点
+- **画布菜单**: 粘贴节点、添加所有节点类型
+- **点击外部**: 自动关闭菜单
+
+**节点删除**:
+- **上下文删除**: 删除右键点击的特定节点（使用 `deleteNode(node)`）
+- **工具栏删除**: 删除所有选中节点（使用 `deleteSelectedNodes()`）
+- **快捷键**: Delete 键删除选中节点
+
+**节点创建位置**:
+- **右键创建**: 使用 `screenToFlowPosition()` 转换坐标
+- **正确用法**: `const position = screenToFlowPosition({ x: clientX, y: clientY })`
+- **❌ 错误用法**: 使用 viewport 坐标或 `project()`（已废弃）
+
+**Provider 配置**:
+- **必须使用**: `ReactFlowProvider` 包裹应用
+- **入口位置**: `main.jsx`
+- **Hook 依赖**: `useReactFlow` 必须在 Provider 内部使用
+
 ## 轮询策略
 
 ### 后台自动轮询服务

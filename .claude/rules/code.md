@@ -1508,6 +1508,132 @@ const importWorkflow = async (file) => {
 **问题**: 导入的 JSON 文件可能格式不正确，缺少必需字段
 **解决方案**: 验证 name, nodes, edges 字段存在，并验证数据类型
 
+### 错误20: React Flow Provider 未配置 ⭐ 新增
+```javascript
+// ❌ 错误: 未使用 ReactFlowProvider 包裹应用
+// main.jsx
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <App />  // ❌ 缺少 Provider，会导致 useReactFlow Hook 失败
+  </StrictMode>,
+);
+```
+
+```javascript
+// ✅ 正确: 使用 ReactFlowProvider 包裹应用
+import { ReactFlowProvider } from 'reactflow';
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <ReactFlowProvider>
+      <App />  // ✅ useReactFlow 可以正常使用
+    </ReactFlowProvider>
+  </StrictMode>,
+);
+```
+
+**问题**: React Flow 的 `useReactFlow` Hook 必须在 Provider 内部使用，否则会报错
+**解决方案**: 在 `main.jsx` 中使用 `ReactFlowProvider` 包裹整个应用
+
+### 错误21: 节点变量重复声明 ⭐ 新增
+```javascript
+// ❌ 错误: 同一作用域内重复声明 characterEdge
+useEffect(() => {
+  setNodes((nds) =>
+    nds.map((node) => {
+      const incomingEdges = edges.filter((e) => e.target === node.id);
+
+      // 第一次声明
+      const characterEdge = incomingEdges.find((e) => e.targetHandle === 'character-input');
+      if (characterEdge) {
+        newData.connectedCharacter = sourceNode.data.selectedCharacter;
+      }
+
+      // ... 其他代码 ...
+
+      // 第二次声明 ❌ 导致编译错误 "Identifier 'characterEdge' has already been declared"
+      const characterEdge = incomingEdges.find((e) => e.targetHandle === 'character-input');
+      if (characterEdge) {
+        newData.connectedSourceId = characterEdge.source;
+      }
+
+      return { ...node, data: newData };
+    })
+  );
+}, [edges, setNodes]);
+```
+
+```javascript
+// ✅ 正确: 合并逻辑，只声明一次
+useEffect(() => {
+  setNodes((nds) =>
+    nds.map((node) => {
+      const incomingEdges = edges.filter((e) => e.target === node.id);
+
+      // 只声明一次，处理所有逻辑
+      const characterEdge = incomingEdges.find((e) => e.targetHandle === 'character-input');
+      if (characterEdge) {
+        const sourceNode = nds.find((n) => n.id === characterEdge.source);
+
+        // 视频生成节点: 获取角色
+        if (sourceNode?.data?.selectedCharacter) {
+          newData.connectedCharacter = sourceNode.data.selectedCharacter;
+        }
+
+        // 角色结果节点: 存储连接源 ID
+        if (node.type === 'characterResultNode') {
+          newData.connectedSourceId = characterEdge.source;
+        }
+      }
+
+      return { ...node, data: newData };
+    })
+  );
+}, [edges, setNodes]);
+```
+
+**问题**: 同一变量在同一作用域内重复声明会导致 Babel 编译错误
+**解决方案**: 合并相关逻辑，使用条件分支处理不同场景
+
+### 错误22: 右键删除节点逻辑错误 ⭐ 新增
+```javascript
+// ❌ 错误: 右键删除时删除了所有选中节点，而不是右键点击的节点
+const ContextMenu = ({ node, onDelete }) => {
+  const handleDelete = () => {
+    deleteSelectedNodes();  // ❌ 删除所有选中的节点
+    setContextMenu(null);
+  };
+
+  return (
+    <div>
+      <button onClick={handleDelete}>🗑️ 删除节点</button>
+    </div>
+  );
+};
+```
+
+```javascript
+// ✅ 正确: 删除右键点击的特定节点
+const deleteNode = useCallback((nodeToDelete) => {
+  setNodes((nds) => nds.filter((node) => node.id !== nodeToDelete.id));
+  setEdges((eds) => eds.filter((edge) =>
+    edge.source !== nodeToDelete.id && edge.target !== nodeToDelete.id
+  ));
+  setContextMenu(null);
+}, [setNodes, setEdges]);
+
+const ContextMenu = ({ node, onDelete }) => {
+  return (
+    <div>
+      <button onClick={() => deleteNode(contextMenu.node)}>🗑️ 删除节点</button>
+    </div>
+  );
+};
+```
+
+**问题**: 用户期望右键删除只删除右键点击的那个节点，而不是所有选中的节点
+**解决方案**: 创建 `deleteNode` 函数，通过节点 ID 精确删除单个节点
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：

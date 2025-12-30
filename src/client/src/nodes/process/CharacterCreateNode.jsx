@@ -1,9 +1,11 @@
-import { Handle, Position } from 'reactflow';
+import { Handle, Position, useNodeId } from 'reactflow';
 import React, { useState } from 'react';
 
 const API_BASE = 'http://localhost:9000';
 
 function CharacterCreateNode({ data }) {
+  const nodeId = useNodeId(); // Get current node ID
+  const [platform, setPlatform] = useState('zhenzhen'); // juxin or zhenzhen
   const [inputType, setInputType] = useState('url'); // 'url' or 'task'
   const [videoUrl, setVideoUrl] = useState('');
   const [taskId, setTaskId] = useState('');
@@ -46,7 +48,7 @@ function CharacterCreateNode({ data }) {
 
     try {
       const payload = {
-        platform: 'juxin', // 默认聚鑫平台
+        platform: platform, // 使用选定的平台
         timestamps: timestamps.trim(),
       };
 
@@ -60,7 +62,7 @@ function CharacterCreateNode({ data }) {
         payload.alias = alias.trim();
       }
 
-      const response = await fetch(`${API_BASE}/character/create`, {
+      const response = await fetch(`${API_BASE}/api/character/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -71,6 +73,11 @@ function CharacterCreateNode({ data }) {
       if (result.success && result.data) {
         setStatus('success');
         setResult(result.data);
+
+        // Dispatch event for connected nodes
+        window.dispatchEvent(new CustomEvent('character-created', {
+          detail: { sourceNodeId: nodeId, character: result.data }
+        }));
 
         // Notify parent
         if (data.onCharacterCreated) {
@@ -120,6 +127,28 @@ function CharacterCreateNode({ data }) {
         fontSize: '14px',
       }}>
         🎭 {data.label || '角色生成'}
+      </div>
+
+      {/* Platform Selector */}
+      <div style={{ marginBottom: '8px' }}>
+        <select
+          value={platform}
+          onChange={(e) => setPlatform(e.target.value)}
+          disabled={status === 'creating'}
+          style={{
+            width: '100%',
+            padding: '6px 8px',
+            borderRadius: '4px',
+            border: '1px solid #f9a8d4',
+            fontSize: '11px',
+            backgroundColor: '#fff',
+            color: '#be185d',
+            fontWeight: 'bold',
+          }}
+        >
+          <option value="zhenzhen">贞贞平台 (支持角色创建)</option>
+          <option value="juxin">聚鑫平台 (不支持)</option>
+        </select>
       </div>
 
       {/* Input Type Toggle */}

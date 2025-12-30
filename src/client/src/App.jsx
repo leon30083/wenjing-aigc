@@ -7,6 +7,7 @@ import ReactFlow, {
   useEdgesState,
   addEdge,
   BackgroundVariant,
+  useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import './App.css';
@@ -22,6 +23,7 @@ import CharacterCreateNode from './nodes/process/CharacterCreateNode';
 import VideoGenerateNode from './nodes/process/VideoGenerateNode';
 import StoryboardNode from './nodes/process/StoryboardNode';
 import TaskResultNode from './nodes/output/TaskResultNode';
+import CharacterResultNode from './nodes/output/CharacterResultNode';
 
 // Node types configuration (moved outside component to avoid re-creation)
 const nodeTypes = {
@@ -33,6 +35,7 @@ const nodeTypes = {
   videoGenerateNode: VideoGenerateNode,
   storyboardNode: StoryboardNode,
   taskResultNode: TaskResultNode,
+  characterResultNode: CharacterResultNode,
 };
 
 // Initial nodes for testing
@@ -90,6 +93,12 @@ const initialNodes = [
     position: { x: 650, y: 200 },
     data: { label: '任务结果' },
   },
+  {
+    id: '9',
+    type: 'characterResultNode',
+    position: { x: 650, y: 350 },
+    data: { label: '角色结果' },
+  },
 ];
 
 // Initial edges for testing
@@ -122,6 +131,7 @@ const nodeTemplates = [
   { type: 'videoGenerateNode', label: '🎬 视频生成', category: 'process' },
   { type: 'storyboardNode', label: '🎞️ 故事板', category: 'process' },
   { type: 'taskResultNode', label: '📺 任务结果', category: 'output' },
+  { type: 'characterResultNode', label: '📊 角色结果', category: 'output' },
 ];
 
 function App() {
@@ -168,6 +178,9 @@ function App() {
   const [saveAsName, setSaveAsName] = useState('');
   const [saveAsDescription, setSaveAsDescription] = useState('');
 
+  // Get React Flow instance for coordinate conversion
+  const { project } = useReactFlow();
+
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
@@ -190,12 +203,20 @@ function App() {
           }
         }
 
-        // Check for character input
+        // Check for character input (for video generate node)
         const characterEdge = incomingEdges.find((e) => e.targetHandle === 'character-input');
         if (characterEdge) {
           const sourceNode = nds.find((n) => n.id === characterEdge.source);
+
+          // For video generate node: get selected character
           if (sourceNode?.data?.selectedCharacter) {
             newData.connectedCharacter = sourceNode.data.selectedCharacter;
+          }
+
+          // For character result node: store connected source ID for event listener
+          if (node.type === 'characterResultNode') {
+            newData.connectedSourceId = characterEdge.source;
+            console.log('[App] CharacterResultNode connectedSourceId:', node.id, '->', characterEdge.source);
           }
         }
 
@@ -259,6 +280,13 @@ function App() {
     setContextMenu(null);
   }, [setNodes, setEdges]);
 
+  // Delete a specific node (from context menu)
+  const deleteNode = useCallback((nodeToDelete) => {
+    setNodes((nds) => nds.filter((node) => node.id !== nodeToDelete.id));
+    setEdges((eds) => eds.filter((edge) => edge.source !== nodeToDelete.id && edge.target !== nodeToDelete.id));
+    setContextMenu(null);
+  }, [setNodes, setEdges]);
+
   // Copy node
   const copyNode = useCallback((node) => {
     setCopiedNode({ type: node.type, data: { ...node.data } });
@@ -287,21 +315,15 @@ function App() {
   // Handle pane right-click
   const onPaneContextMenu = useCallback((event) => {
     event.preventDefault();
-    // Get the react-flow container to calculate position
-    const container = document.querySelector('.react-flow');
-    if (container) {
-      const rect = container.getBoundingClientRect();
-      setContextMenu({
-        x: event.clientX,
-        y: event.clientY,
-        type: 'pane',
-        position: {
-          x: event.clientX - rect.left,
-          y: event.clientY - rect.top
-        },
-      });
-    }
-  }, []);
+    // Convert screen coordinates to flow coordinates
+    const position = project({ x: event.clientX, y: event.clientY });
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      type: 'pane',
+      position,
+    });
+  }, [project]);
 
   // Close context menu
   const closeContextMenu = useCallback(() => {
@@ -817,7 +839,7 @@ function App() {
                 📋 复制节点
               </button>
               <button
-                onClick={deleteSelectedNodes}
+                onClick={() => deleteNode(contextMenu.node)}
                 style={{
                   display: 'block',
                   width: '100%',
