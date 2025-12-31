@@ -6,6 +6,7 @@ const API_BASE = 'http://localhost:9000';
 
 function StoryboardNode({ data }) {
   const nodeId = useNodeId();
+  const { getNodes, getEdges, setNodes } = useReactFlow(); // ⭐ 添加 setNodes 用于更新节点 data
 
   // ⭐ 接收外部 API 配置（来自 APISettingsNode）
   const externalApiConfig = data.apiConfig || null;
@@ -22,11 +23,11 @@ function StoryboardNode({ data }) {
   // 合并配置：外部配置优先，否则使用默认配置
   const apiConfig = externalApiConfig || defaultApiConfig;
 
-  const [shots, setShots] = useState([
-    { id: '1', scene: '', duration: 5, image: '' },
-  ]);
+  const [shots, setShots] = useState(
+    data.shots || [{ id: '1', scene: '', duration: 5, image: '' }] // ⭐ 从 data.shots 初始化（支持工作流恢复）
+  );
 
-  const [status, setStatus] = useState('idle'); // idle, generating, success, error
+  const [status, setStatus] = useState(data.taskId ? 'success' : 'idle'); // ⭐ 如果有 taskId 则设置为成功状态
 
   // ⭐ Phase 1: 角色引用相关状态
   const connectedCharacters = data.connectedCharacters || [];
@@ -168,6 +169,31 @@ function StoryboardNode({ data }) {
     }, 0);
   };
 
+  // ⭐ 关键修复：同步 shots 和 useGlobalImages 到 node.data（用于工作流快照保存）
+  useEffect(() => {
+    if (shots !== data.shots) {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, shots } }
+            : node
+        )
+      );
+    }
+  }, [shots, nodeId, setNodes, data.shots]);
+
+  useEffect(() => {
+    if (useGlobalImages !== data.useGlobalImages) {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, useGlobalImages } }
+            : node
+        )
+      );
+    }
+  }, [useGlobalImages, nodeId, setNodes, data.useGlobalImages]);
+
   // ⭐ Phase 2: 修正 API 调用逻辑（移除循环，调用一次）
   const handleGenerate = async () => {
     // Validation
@@ -201,6 +227,21 @@ function StoryboardNode({ data }) {
         duration: s.duration || 5, // 使用镜头自身的 duration，默认 5 秒
       }));
 
+      // ⭐ 关键修复：先同步 shots 和 useGlobalImages 到节点 data，确保工作流快照包含完整数据
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, shots, useGlobalImages } }
+            : node
+        )
+      );
+
+      // ⭐ 捕获工作流快照（保存节点和连线状态）
+      const workflowSnapshot = {
+        nodes: getNodes(),
+        edges: getEdges(),
+      };
+
       // ✅ 调用后端故事板 API
       const requestBody = {
         platform: apiConfig.platform,
@@ -209,6 +250,7 @@ function StoryboardNode({ data }) {
         images: allImages,
         aspect_ratio: apiConfig.aspect,
         watermark: apiConfig.watermark,
+        workflowSnapshot: workflowSnapshot, // ⭐ 添加工作流快照
       };
 
       // Add API key if provided
@@ -228,6 +270,17 @@ function StoryboardNode({ data }) {
         const taskId = result.data.id || result.data.task_id;
 
         setStatus('success');
+
+        // ⭐ 关键修复：保存 taskId 到节点 data，以便工作流快照包含 taskId
+        if (taskId) {
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === nodeId
+                ? { ...node, data: { ...node.data, taskId } }
+                : node
+            )
+          );
+        }
 
         // ✅ 派发事件到 TaskResultNode
         window.dispatchEvent(new CustomEvent('video-task-created', {

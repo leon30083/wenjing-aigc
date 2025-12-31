@@ -13,11 +13,13 @@ import 'reactflow/dist/style.css';
 import './App.css';
 import { useWorkflowExecution } from './hooks/useWorkflowExecution';
 import { WorkflowStorage } from './utils/workflowStorage';
+import HistoryPanel from './components/HistoryPanel';
 
 // Import test nodes
 import TextNode from './nodes/input/TextNode';
 import ReferenceImageNode from './nodes/input/ReferenceImageNode';
 import CharacterLibraryNode from './nodes/input/CharacterLibraryNode';
+import APISettingsNode from './nodes/input/APISettingsNode';
 import CharacterCreateNode from './nodes/process/CharacterCreateNode';
 import VideoGenerateNode from './nodes/process/VideoGenerateNode';
 import StoryboardNode from './nodes/process/StoryboardNode';
@@ -29,6 +31,7 @@ const nodeTypes = {
   textNode: TextNode,
   referenceImageNode: ReferenceImageNode,
   characterLibraryNode: CharacterLibraryNode,
+  apiSettingsNode: APISettingsNode,
   characterCreateNode: CharacterCreateNode,
   videoGenerateNode: VideoGenerateNode,
   storyboardNode: StoryboardNode,
@@ -53,9 +56,9 @@ const initialNodes = [
   },
   {
     id: '3',
-    type: 'characterSelectNode',
+    type: 'apiSettingsNode',
     position: { x: 50, y: 270 },
-    data: { label: '角色选择', selectedUsername: null },
+    data: { label: 'API 设置' },
   },
   {
     id: '4',
@@ -124,6 +127,7 @@ const nodeTemplates = [
   { type: 'textNode', label: '📝 文本节点', category: 'input' },
   { type: 'referenceImageNode', label: '🖼️ 参考图片', category: 'input' },
   { type: 'characterLibraryNode', label: '📊 角色库', category: 'input' },
+  { type: 'apiSettingsNode', label: '⚙️ API 设置', category: 'input' },
   { type: 'characterCreateNode', label: '🎭 角色生成', category: 'process' },
   { type: 'videoGenerateNode', label: '🎬 视频生成', category: 'process' },
   { type: 'storyboardNode', label: '🎞️ 故事板', category: 'process' },
@@ -174,6 +178,7 @@ function App() {
   const [showSaveAsDialog, setShowSaveAsDialog] = useState(false);
   const [saveAsName, setSaveAsName] = useState('');
   const [saveAsDescription, setSaveAsDescription] = useState('');
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
 
   // Get React Flow instance for coordinate conversion
   const { project } = useReactFlow();
@@ -435,6 +440,55 @@ function App() {
       setShowWorkflowMenu(false);
     } else {
       alert(`❌ 加载失败: ${result.error}`);
+    }
+  };
+
+  // Load workflow from history record
+  const handleLoadWorkflowFromHistory = (record) => {
+    const { workflowSnapshot } = record;
+
+    console.log('[handleLoadWorkflowFromHistory] Record:', record);
+    console.log('[handleLoadWorkflowFromHistory] WorkflowSnapshot:', workflowSnapshot);
+
+    if (!workflowSnapshot) {
+      alert('⚠️ 该历史记录没有工作流快照，无法恢复工作流。');
+      return;
+    }
+
+    const { nodes: savedNodes, edges: savedEdges } = workflowSnapshot;
+
+    console.log('[handleLoadWorkflowFromHistory] Saved nodes:', savedNodes);
+    console.log('[handleLoadWorkflowFromHistory] Saved edges:', savedEdges);
+
+    if (savedNodes && savedEdges) {
+      // 清理节点数据，移除可能导致问题的字段（如函数引用）
+      const cleanedNodes = savedNodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          // 移除可能包含函数的字段
+          onSizeChange: undefined,
+        }
+      }));
+
+      console.log('[handleLoadWorkflowFromHistory] Setting nodes:', cleanedNodes);
+      setNodes(cleanedNodes);
+      setEdges(savedEdges);
+
+      // 更新 nextNodeId
+      if (cleanedNodes.length > 0) {
+        const maxId = Math.max(...cleanedNodes.map(n => parseInt(n.id) || 0));
+        setNextNodeId(maxId + 1);
+      } else {
+        setNextNodeId(10);
+      }
+
+      // 清除当前工作流名称（从历史加载的不对应已保存的工作流）
+      setCurrentWorkflowName(null);
+
+      console.log('[App] Workflow loaded from history:', record.taskId);
+    } else {
+      alert('⚠️ 工作流快照格式错误，无法恢复工作流。');
     }
   };
 
@@ -793,11 +847,41 @@ function App() {
             ↺ 重置
           </button>
         )}
+
+        {/* History Panel Toggle Button */}
+        <button
+          onClick={() => setShowHistoryPanel(!showHistoryPanel)}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: showHistoryPanel ? '#f59e0b' : '#475569',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '13px',
+            fontWeight: 'bold',
+          }}
+          title="显示/隐藏历史记录面板"
+        >
+          {showHistoryPanel ? '📜 隐藏历史' : '📜 历史记录'}
+        </button>
       </div>
 
       {/* Canvas */}
-      <div style={{ flex: 1 }} onClick={closeContextMenu}>
-        <ReactFlow
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }} onClick={closeContextMenu}>
+        {/* History Panel (Left Side) */}
+        {showHistoryPanel && (
+          <div style={{
+            width: '320px',
+            flexShrink: 0,
+          }}>
+            <HistoryPanel onLoadWorkflow={handleLoadWorkflowFromHistory} />
+          </div>
+        )}
+
+        {/* ReactFlow Canvas */}
+        <div style={{ flex: 1, height: '100%' }}>
+          <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
@@ -813,6 +897,7 @@ function App() {
           <MiniMap />
           <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
         </ReactFlow>
+        </div>
       </div>
 
       {/* Context Menu */}

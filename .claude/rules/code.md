@@ -3711,6 +3711,178 @@ async createStoryboardVideo(options) {
 }
 ```
 
+### 错误33: 工作流快照持久化时机问题 ⭐ 新增 (2025-12-31)
+
+```javascript
+// ❌ 错误：useState 未同步到 node.data，导致工作流快照缺失参数
+function VideoGenerateNode({ data }) {
+  // useState 只在组件内部，不会自动同步到 node.data
+  const [manualPrompt, setManualPrompt] = useState('');  // ❌ 未从 data 初始化
+  const [taskId, setTaskId] = useState(null);
+
+  const handleGenerate = async () => {
+    // ... API 调用逻辑 ...
+
+    // ⚠️ 问题：getNodes() 返回的 node.data 不包含 useState 的最新值
+    const workflowSnapshot = {
+      nodes: getNodes(),  // manualPrompt 未同步，快照为空或旧值
+      edges: getEdges(),
+    };
+
+    // 保存到历史记录...
+  };
+}
+```
+
+**问题**:
+1. **工作流快照不完整**: 恢复工作流时只有节点，缺少参数（manualPrompt, shots 等）
+2. **useState vs node.data**: useState 是组件内部状态，不会自动同步到 React Flow 的 node.data
+3. **useEffect 时机**: useEffect 在渲染后执行，但 getNodes() 可能在 useEffect 之前调用
+
+**根本原因**:
+- React Flow 的 `getNodes()` 返回的是 `node.data` 对象
+- useState 的值只存在于组件内存中，不在 node.data 里
+- useEffect 虽然可以同步 useState 到 node.data，但执行时机晚于 getNodes()
+
+**解决方案**:
+1. **初始化**: 从 `data` 属性初始化 useState
+2. **useEffect 同步**: 当 useState 变化时同步到 node.data
+3. **关键修复**: 在 getNodes() 之前手动调用 setNodes() 同步数据
+
+**正确示例**:
+```javascript
+// ✅ 正确：完整的状态同步模式
+function VideoGenerateNode({ data }) {
+  const nodeId = useNodeId();
+  const { setNodes, getNodes, getEdges } = useReactFlow();
+
+  // 1. 从 data 初始化 useState（支持工作流恢复）
+  const [manualPrompt, setManualPrompt] = useState(data.manualPrompt || '');
+  const [status, setStatus] = useState(data.taskId ? 'success' : 'idle');
+  const [taskId, setTaskId] = useState(data.taskId || null);
+
+  // 2. useEffect: manualPrompt 变化时同步到 node.data
+  useEffect(() => {
+    if (manualPrompt !== data.manualPrompt) {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, manualPrompt } }
+            : node
+        )
+      );
+    }
+  }, [manualPrompt, nodeId, setNodes, data.manualPrompt]);
+
+  // 3. useEffect: taskId 变化时同步到 node.data
+  useEffect(() => {
+    if (taskId && data.taskId !== taskId) {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, taskId } }
+            : node
+        )
+      );
+    }
+  }, [taskId, nodeId, setNodes, data.taskId]);
+
+  const handleGenerate = async () => {
+    // ... 验证逻辑 ...
+
+    // ⭐ 关键修复：先同步 manualPrompt 到节点 data，确保工作流快照包含完整数据
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId
+          ? { ...node, data: { ...node.data, manualPrompt } }
+          : node
+      )
+    );
+
+    // ⭐ 捕获工作流快照（现在包含最新的 manualPrompt）
+    const workflowSnapshot = {
+      nodes: getNodes(),
+      edges: getEdges(),
+    };
+
+    // ... API 调用和保存到历史记录 ...
+  };
+}
+```
+
+**StoryboardNode 同样模式**:
+```javascript
+// ✅ StoryboardNode: 同样需要同步 shots 和 useGlobalImages
+function StoryboardNode({ data }) {
+  const nodeId = useNodeId();
+  const { setNodes, getNodes, getEdges } = useReactFlow();
+
+  // 1. 从 data 初始化
+  const [shots, setShots] = useState(
+    data.shots || [{ id: '1', scene: '', duration: 5, image: '' }]
+  );
+  const [useGlobalImages, setUseGlobalImages] = useState(data.useGlobalImages || false);
+
+  // 2. useEffect: 同步 shots 到 node.data
+  useEffect(() => {
+    if (shots !== data.shots) {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, shots } }
+            : node
+        )
+      );
+    }
+  }, [shots, nodeId, setNodes, data.shots]);
+
+  // 3. useEffect: 同步 useGlobalImages 到 node.data
+  useEffect(() => {
+    if (useGlobalImages !== data.useGlobalImages) {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, useGlobalImages } }
+            : node
+        )
+      );
+    }
+  }, [useGlobalImages, nodeId, setNodes, data.useGlobalImages]);
+
+  const handleGenerate = async () => {
+    // ... 验证逻辑 ...
+
+    // ⭐ 关键修复：先同步 shots 和 useGlobalImages 到节点 data
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId
+          ? { ...node, data: { ...node.data, shots, useGlobalImages } }
+          : node
+      )
+    );
+
+    // ⭐ 捕获工作流快照（现在包含完整数据）
+    const workflowSnapshot = {
+      nodes: getNodes(),
+      edges: getEdges(),
+    };
+
+    // ... API 调用和保存到历史记录 ...
+  };
+}
+```
+
+**关键点**:
+1. **初始化模式**: `useState(data.prop || defaultValue)` - 支持工作流恢复
+2. **useEffect 同步**: 当状态变化时，通过 setNodes() 同步到 node.data
+3. **手动同步**: 在 getNodes() 之前手动调用 setNodes() 确保数据是最新的
+4. **时机问题**: useEffect 在渲染后执行，getNodes() 可能在 useEffect 之前被调用
+5. **完整恢复**: 恢复工作流时，node.data 会被用作 useState 的初始值
+
+**相关文档**:
+- base.md: 工作流持久化方案（第242-275行）
+- SKILL.md: 错误模式 33
+
 ---
 
 ## 开发参考

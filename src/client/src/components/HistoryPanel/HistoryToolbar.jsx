@@ -2,15 +2,18 @@ import React from 'react';
 
 /**
  * HistoryToolbar - 历史记录工具栏组件
- * 提供筛选下拉菜单（状态、平台、类型）
+ * 提供筛选下拉菜单（状态、平台、类型、收藏）和清空全部按钮
  */
 function HistoryToolbar({
   statusFilter,
   platformFilter,
   typeFilter,
+  favoriteFilter,
   onStatusChange,
   onPlatformChange,
   onTypeChange,
+  onFavoriteChange,
+  onClearAll,
   counts = {}
 }) {
   // 状态选项
@@ -34,6 +37,12 @@ function HistoryToolbar({
     { value: 'text-to-video', label: '文生视频' },
     { value: 'image-to-video', label: '图生视频' },
     { value: 'storyboard', label: '故事板' },
+  ];
+
+  // 收藏选项
+  const favoriteOptions = [
+    { value: 'all', label: '全部记录' },
+    { value: 'favorites', label: '⭐ 我的收藏' },
   ];
 
   return (
@@ -111,6 +120,49 @@ function HistoryToolbar({
           </option>
         ))}
       </select>
+
+      {/* 收藏筛选 */}
+      <select
+        value={favoriteFilter}
+        onChange={(e) => onFavoriteChange(e.target.value)}
+        className="nodrag"
+        style={{
+          flex: 1,
+          padding: '6px 8px',
+          border: '1px solid #d1d5db',
+          borderRadius: '4px',
+          fontSize: '11px',
+          backgroundColor: '#ffffff',
+          cursor: 'pointer',
+          outline: 'none',
+        }}
+      >
+        {favoriteOptions.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+
+      {/* 清空全部按钮 */}
+      <button
+        onClick={onClearAll}
+        className="nodrag"
+        style={{
+          padding: '6px 12px',
+          backgroundColor: '#ef4444',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          fontSize: '11px',
+          fontWeight: 'bold',
+          whiteSpace: 'nowrap',
+        }}
+        title="清空所有历史记录"
+      >
+        🗑️ 清空全部
+      </button>
     </div>
   );
 }

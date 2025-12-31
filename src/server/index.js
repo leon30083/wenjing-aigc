@@ -62,8 +62,17 @@ app.get('/health', (req, res) => {
  */
 app.post('/api/video/create', async (req, res) => {
   try {
-    const { platform = 'juxin', prompt, model, ...options } = req.body;
-    const client = getClient(platform);
+    const { platform = 'juxin', prompt, model, apiKey, workflowSnapshot, ...options } = req.body;
+
+    // 如果请求提供了 apiKey，创建临时客户端实例
+    let client;
+    if (apiKey && apiKey.trim()) {
+      const { Sora2Client } = require('./sora2-client');
+      client = new Sora2Client({ platform, apiKey: apiKey.trim() });
+    } else {
+      client = getClient(platform);
+    }
+
     const result = await client.createVideo(req.body);
 
     // 保存到历史记录
@@ -77,6 +86,7 @@ app.post('/api/video/create', async (req, res) => {
           prompt,
           model,
           options,
+          workflowSnapshot: workflowSnapshot || null,
         });
       }
     }
@@ -93,7 +103,7 @@ app.post('/api/video/create', async (req, res) => {
  */
 app.post('/api/video/create-with-character', async (req, res) => {
   try {
-    const { platform = 'juxin', prompt, model, ...options } = req.body;
+    const { platform = 'juxin', prompt, model, apiKey, workflowSnapshot, ...options } = req.body;
     const client = getClient(platform);
     const result = await client.createVideoWithCharacter(req.body);
 
@@ -105,6 +115,7 @@ app.post('/api/video/create-with-character', async (req, res) => {
         prompt,
         model,
         options: { ...options, type: 'character' },
+        workflowSnapshot: workflowSnapshot || null,
       });
     }
 
@@ -120,9 +131,18 @@ app.post('/api/video/create-with-character', async (req, res) => {
  */
 app.post('/api/video/storyboard', async (req, res) => {
   try {
-    const { platform = 'juxin', shots, model, ...options } = req.body;
-    const client = getClient(platform);
-    const result = await client.createStoryboardVideo({ shots, ...options });
+    const { platform = 'juxin', shots, model, apiKey, workflowSnapshot, ...options } = req.body;
+
+    // 如果请求提供了 apiKey，创建临时客户端实例
+    let client;
+    if (apiKey && apiKey.trim()) {
+      const { Sora2Client } = require('./sora2-client');
+      client = new Sora2Client({ platform, apiKey: apiKey.trim() });
+    } else {
+      client = getClient(platform);
+    }
+
+    const result = await client.createStoryboardVideo({ shots, ...options, workflowSnapshot });
 
     // 保存到历史记录
     if (result.success && result.data && result.data.id) {
@@ -132,6 +152,7 @@ app.post('/api/video/storyboard', async (req, res) => {
         prompt: `Storyboard: ${shots.length} shots`,
         model,
         options: { ...options, type: 'storyboard', shots },
+        workflowSnapshot: workflowSnapshot || null,
       });
     }
 
@@ -609,6 +630,53 @@ app.delete('/api/history/:taskId', (req, res) => {
     const { taskId } = req.params;
     const deleted = historyStorage.deleteRecord(taskId);
     res.json({ success: true, data: { deleted } });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 设置收藏状态
+ * PUT /api/history/:taskId/favorite
+ */
+app.put('/api/history/:taskId/favorite', (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { favorite } = req.body;
+
+    if (typeof favorite !== 'boolean') {
+      return res.json({ success: false, error: 'favorite 必须是布尔值' });
+    }
+
+    // 先获取记录
+    const record = historyStorage.getRecord(taskId);
+    if (!record) {
+      return res.json({ success: false, error: '记录不存在' });
+    }
+
+    // 更新记录
+    const success = historyStorage.updateRecord(taskId, { favorite });
+    if (!success) {
+      return res.json({ success: false, error: '更新失败' });
+    }
+
+    // 返回更新后的记录
+    const updated = historyStorage.getRecord(taskId);
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 获取收藏列表
+ * GET /api/history/favorites
+ */
+app.get('/api/history/favorites', (req, res) => {
+  try {
+    const allRecords = historyStorage.getAllRecords();
+    const favorites = allRecords.filter(r => r.favorite === true);
+    res.json({ success: true, data: favorites });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }

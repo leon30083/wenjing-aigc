@@ -59,9 +59,13 @@ class HistoryStorage {
    * @param {string} record.prompt - 提示词
    * @param {string} record.model - 模型名称
    * @param {object} record.options - 其他选项
+   * @param {object} record.workflowSnapshot - 工作流快照（可选）
    * @returns {object} 添加的记录
    */
   addRecord(record) {
+    // 检测任务类型
+    const type = this._detectTaskType(record.options);
+
     const newRecord = {
       id: `history_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       taskId: record.taskId,
@@ -75,11 +79,43 @@ class HistoryStorage {
       result: null,
       downloadedPath: null,
       error: null,
+      // ⭐ 新增字段
+      workflowSnapshot: record.workflowSnapshot || null,
+      thumbnail: record.thumbnail || null,
+      tags: record.tags || [],
+      favorite: record.favorite || false,
+      viewedCount: 0,
+      lastViewedAt: null,
+      promptLower: (record.prompt || '').toLowerCase(),
+      type: type,
     };
 
     this.records.unshift(newRecord); // 最新的记录在前面
     this._save();
     return newRecord;
+  }
+
+  /**
+   * 检测任务类型
+   * @private
+   * @param {object} options - 任务选项
+   * @returns {string} 任务类型
+   */
+  _detectTaskType(options) {
+    if (!options) return 'text-to-video';
+
+    // 检查是否是故事板
+    if (options.shots && Array.isArray(options.shots) && options.shots.length > 0) {
+      return 'storyboard';
+    }
+
+    // 检查是否有参考图片
+    if (options.images && Array.isArray(options.images) && options.images.length > 0) {
+      return 'image-to-video';
+    }
+
+    // 默认为文生视频
+    return 'text-to-video';
   }
 
   /**

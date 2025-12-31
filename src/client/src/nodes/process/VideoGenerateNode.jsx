@@ -10,7 +10,7 @@ let isResizingNode = false;
 
 function VideoGenerateNode({ data }) {
   const nodeId = useNodeId();
-  const { setNodes, getEdges } = useReactFlow();
+  const { setNodes, getNodes, getEdges } = useReactFlow();
   const promptInputRef = useRef(null);
   const nodeRef = useRef(null);
   const resizeHandleRef = useRef(null);
@@ -52,10 +52,20 @@ function VideoGenerateNode({ data }) {
   const connectedImages = data.connectedImages || [];
 
   // Manual inputs
-  const [manualPrompt, setManualPrompt] = useState(''); // 存储真实ID（给API用）
-  const [status, setStatus] = useState('idle'); // idle, generating, success, error
-  const [taskId, setTaskId] = useState(null);
+  const [manualPrompt, setManualPrompt] = useState(data.manualPrompt || ''); // ⭐ 从 data.manualPrompt 初始化（支持工作流恢复）
+  const [status, setStatus] = useState(data.taskId ? 'success' : 'idle'); // ⭐ 如果有 taskId 则设置为成功状态
+  const [taskId, setTaskId] = useState(data.taskId || null); // ⭐ 从 data.taskId 初始化
   const [error, setError] = useState(null);
+
+  // ⭐ 关键修复：当 data.taskId 变化时（加载工作流），同步到内部状态
+  useEffect(() => {
+    if (data.taskId && data.taskId !== taskId) {
+      setTaskId(data.taskId);
+      if (data.taskId) {
+        setStatus('success'); // 已有 taskId 说明已完成
+      }
+    }
+  }, [data.taskId]);
 
   // Update parent node data when size changes
   useEffect(() => {
@@ -63,6 +73,32 @@ function VideoGenerateNode({ data }) {
       onSizeChangeRef.current(nodeId, nodeSize.width, nodeSize.height);
     }
   }, [nodeSize.width, nodeSize.height, nodeId]);
+
+  // ⭐ 关键修复：当 taskId 变化时，更新节点 data 以便保存到工作流快照
+  useEffect(() => {
+    if (taskId && data.taskId !== taskId) {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, taskId } }
+            : node
+        )
+      );
+    }
+  }, [taskId, nodeId, setNodes, data.taskId]);
+
+  // ⭐ 关键修复：当 manualPrompt 变化时，同步到 node.data（用于工作流快照保存）
+  useEffect(() => {
+    if (manualPrompt !== data.manualPrompt) {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, manualPrompt } }
+            : node
+        )
+      );
+    }
+  }, [manualPrompt, nodeId, setNodes, data.manualPrompt]);
 
   // Resize handling - use capture phase and prevent default
   const handleResizeMouseDown = (e) => {
@@ -184,6 +220,21 @@ function VideoGenerateNode({ data }) {
     setTaskId(null);
 
     try {
+      // ⭐ 关键修复：先同步 manualPrompt 到节点 data，确保工作流快照包含完整数据
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, manualPrompt } }
+            : node
+        )
+      );
+
+      // ⭐ 捕获工作流快照（保存节点和连线状态）
+      const workflowSnapshot = {
+        nodes: getNodes(),
+        edges: getEdges(),
+      };
+
       const payload = {
         platform: apiConfig.platform,
         model: apiConfig.model.toLowerCase(), // Convert to lowercase (Sora-2 -> sora-2)
@@ -191,6 +242,7 @@ function VideoGenerateNode({ data }) {
         duration: duration,
         aspect_ratio: apiConfig.aspect,
         watermark: apiConfig.watermark,
+        workflowSnapshot: workflowSnapshot, // ⭐ 添加工作流快照
       };
 
       // Add API key if provided
