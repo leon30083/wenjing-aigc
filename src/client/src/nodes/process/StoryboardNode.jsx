@@ -14,7 +14,8 @@ function StoryboardNode({ data }) {
   });
 
   // ⭐ 新增：总时长选项（用于自动均分）
-  const [totalDuration, setTotalDuration] = useState(15); // 5, 10, 15, 25
+  // 注意：API 只支持 10, 15, 25 秒（字符串类型）
+  const [totalDuration, setTotalDuration] = useState(15); // 10, 15, 25
 
   const [shots, setShots] = useState([
     { id: '1', scene: '', duration: 5, image: '' },
@@ -209,7 +210,7 @@ function StoryboardNode({ data }) {
           model: config.model.toLowerCase(),
           shots: shotsWithDuration,
           images: allImages,
-          duration: totalDuration, // ⭐ 传递总时长给后端
+          duration: String(totalDuration), // ⭐ 传递总时长（转换为字符串）
           aspect_ratio: config.aspect,
           watermark: config.watermark,
         }),
@@ -424,10 +425,9 @@ function StoryboardNode({ data }) {
             disabled={status === 'generating'}
             style={{ flex: 1, padding: '4px', fontSize: '11px', borderRadius: '3px', border: '1px solid #6ee7b7' }}
           >
-            <option value={5}>5 秒</option>
             <option value={10}>10 秒</option>
             <option value={15}>15 秒</option>
-            <option value={25}>25 秒</option>
+            <option value={25}>25 秒（仅 sora-2-pro）</option>
           </select>
           <div style={{ fontSize: '10px', color: '#047857', padding: '4px' }}>
             每镜头: {shotDuration} 秒
