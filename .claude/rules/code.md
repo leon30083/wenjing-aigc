@@ -3196,6 +3196,105 @@ const prompt3 = '美丽的花园，五颜六色的花朵盛开，绿树成荫，
 
 ---
 
+### 错误32: 历史记录卡片不显示视频结果 ⭐ 新增 (2025-12-31)
+
+```javascript
+// ❌ 错误：只检查 thumbnail 字段
+function HistoryCard({ record }) {
+  const { thumbnail } = record;
+
+  return (
+    <div>
+      {thumbnail ? (
+        <img src={thumbnail} alt="视频缩略图" />
+      ) : (
+        <div>🖼️</div>  // 总是显示占位符
+      )}
+    </div>
+  );
+}
+```
+
+**问题**:
+1. 历史记录卡片只显示占位符，不显示生成的视频
+2. 用户看不到视频结果和视频链接
+3. 工作流参数（模型、时长、比例等）未显示
+
+**根本原因**:
+- HistoryCard 组件只检查 `thumbnail` 字段
+- 未检查 `result.output`（视频 URL）
+- 未显示 `options` 和 `model` 等工作流参数
+
+**解决方案**:
+1. **优先级检查**: thumbnail → result.output → 占位符
+2. **视频悬停播放**: 鼠标悬停时播放，移开时暂停并重置
+3. **参数面板**: 显示模型、时长、比例、水印等参数
+4. **视频链接**: 可点击的视频 URL（不触发卡片点击）
+
+**正确示例**:
+```javascript
+// ✅ 正确：显示视频或缩略图
+function HistoryCard({ record }) {
+  const { thumbnail, result, model, options } = record;
+
+  return (
+    <div>
+      {/* 缩略图/视频区域 */}
+      <div style={{ width: '100%', height: '120px', backgroundColor: '#f3f4f6' }}>
+        {thumbnail ? (
+          <img src={thumbnail} alt="视频缩略图" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : result?.output ? (
+          <video
+            src={result.output}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            muted
+            onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+            onMouseLeave={(e) => {
+              e.currentTarget.pause();
+              e.currentTarget.currentTime = 0;
+            }}
+          />
+        ) : (
+          <div style={{ fontSize: '32px', color: '#9ca3af' }}>🖼️</div>
+        )}
+      </div>
+
+      {/* 工作流参数面板 */}
+      {(model || options) && (
+        <div style={{ padding: '6px 8px', backgroundColor: '#f8fafc', borderRadius: '4px' }}>
+          {model && <div><strong>模型:</strong> {model}</div>}
+          {options?.duration && <div><strong>时长:</strong> {options.duration}秒</div>}
+          {options?.aspect_ratio && <div><strong>比例:</strong> {options.aspect_ratio}</div>}
+          {options?.watermark !== undefined && <div><strong>水印:</strong> {options.watermark ? '开启' : '关闭'}</div>}
+          {result?.output && (
+            <div style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px dashed #cbd5e1' }}>
+              <strong>视频:</strong>
+              <a
+                href={result.output}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#3b82f6', textDecoration: 'none' }}
+                onClick={(e) => e.stopPropagation()}  // 不触发卡片点击
+              >
+                {result.output.length > 40 ? result.output.substring(0, 40) + '...' : result.output}
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+**关键点**:
+1. 视频悬停播放，移开时暂停并重置（提供更好的用户体验）
+2. 视频链接点击不触发卡片点击（使用 `stopPropagation`）
+3. 参数面板使用浅色背景（`#f8fafc`）区分
+4. 链接过长时自动截断（超过 40 字符显示省略号）
+
+---
+
 ### 参考图片节点协作实现 ⭐ 新增 (2025-12-30)
 
 **功能概述**: 参考图片节点与视频生成/故事板节点的协作，实现图片预览和自动合并

@@ -337,6 +337,63 @@ const taskId = result.data.id || result.data.task_id;
   - 角色引用描述角色在场景中的活动（@装载机 在火山附近搬运岩石）
   - 使用 `@username` 格式调用角色，不要硬编码角色名称
 
+### 错误24: 历史记录卡片不显示视频结果 ⭐ 2025-12-31
+- **现象**: 历史记录面板的卡片只显示占位符，不显示视频和工作流参数
+- **根本原因**: HistoryCard 组件只检查 `thumbnail` 字段，未检查 `result.output`（视频 URL）
+- **错误示例**:
+  ```javascript
+  // ❌ 错误：只检查 thumbnail
+  {thumbnail ? (
+    <img src={thumbnail} alt="视频缩略图" />
+  ) : (
+    <div>🖼️</div>  // 总是显示占位符
+  )}
+  ```
+- **正确做法**: 优先级检查 thumbnail → result.output → 占位符
+  ```javascript
+  // ✅ 正确：显示视频或缩略图
+  {thumbnail ? (
+    <img src={thumbnail} alt="视频缩略图" />
+  ) : result?.output ? (
+    <video
+      src={result.output}
+      muted
+      onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+      onMouseLeave={(e) => {
+        e.currentTarget.pause();
+        e.currentTarget.currentTime = 0;
+      }}
+    />
+  ) : (
+    <div>🖼️</div>
+  )}
+  ```
+- **工作流参数显示**: 添加模型、时长、比例、水印等参数面板
+  ```javascript
+  // ✅ 显示工作流参数
+  {(model || options) && (
+    <div style={{ backgroundColor: '#f8fafc', padding: '6px 8px' }}>
+      {model && <div><strong>模型:</strong> {model}</div>}
+      {options?.duration && <div><strong>时长:</strong> {options.duration}秒</div>}
+      {options?.aspect_ratio && <div><strong>比例:</strong> {options.aspect_ratio}</div>}
+      {options?.watermark !== undefined && <div><strong>水印:</strong> {options.watermark ? '开启' : '关闭'}</div>}
+      {result?.output && (
+        <div>
+          <strong>视频:</strong>
+          <a href={result.output} target="_blank" onClick={(e) => e.stopPropagation()}>
+            {result.output.length > 40 ? result.output.substring(0, 40) + '...' : result.output}
+          </a>
+        </div>
+      )}
+    </div>
+  )}
+  ```
+- **关键点**:
+  - 视频悬停播放，移开时暂停并重置
+  - 视频链接点击不触发卡片点击（stopPropagation）
+  - 参数面板使用浅色背景区分
+  - 链接过长时自动截断并显示省略号
+
 ---
 
 ## 项目结构
@@ -394,3 +451,4 @@ git push origin feature/workflow-management
 11. ✅ **Sora2 不支持 1:1 比例**: 只提供 16:9 和 9:16
 12. ✅ **图生视频提示词必须描述参考图**: 参考图片提供场景，提示词必须描述场景内容和角色活动
 13. ✅ **表单字段必须有 id/name 属性**: 满足浏览器可访问性要求
+14. ✅ **历史记录卡片显示视频**: 优先级检查 thumbnail → result.output → 占位符
