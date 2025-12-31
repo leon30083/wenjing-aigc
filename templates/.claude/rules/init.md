@@ -117,31 +117,39 @@ your-project/
 
 ## 📚 必须维护的文档
 
-### 1. .claude/rules/base.md
+### 1. .claude/skills/[project]-dev/SKILL.md ⭐ 优先
+**内容**: 项目特定开发规范、错误模式、开发提示
+**更新时机**:
+- ✅ **每次开发完成后必须更新**
+- ✅ 新增错误模式
+- ✅ API 规范变更
+**注意**: 这是 Claude Code AI 的核心文档，直接影响后续开发质量
+
+### 2. .claude/rules/base.md
 **内容**: 技术栈约束、API规范、平台差异
 **更新时机**:
 - ✅ 新增技术栈
 - ✅ API 端点变更
 - ✅ 发现平台差异
 
-### 2. .claude/rules/code.md
+### 3. .claude/rules/code.md
 **内容**: 代码规范、错误模式、最佳实践
 **更新时机**:
 - ✅ 发现新的错误模式
 - ✅ 总结最佳实践
 - ✅ API 实现示例
 
-### 3. .claude/rules/docs.md
+### 4. .claude/rules/docs.md
 **内容**: 文档更新规范（通用模板，无需修改）
 **使用方式**: 按照规范更新文档
 
-### 4. docs/HANDOVER.md
+### 5. docs/HANDOVER.md
 **内容**: 项目交接文档
 **更新时机**:
 - ✅ 每个功能完成
 - ✅ 版本号递增
 
-### 5. docs/BEST_PRACTICES.md
+### 6. docs/BEST_PRACTICES.md
 **内容**: 开发经验总结
 **更新时机**:
 - ✅ 解决重要问题
@@ -159,9 +167,11 @@ your-project/
    ↓
 3. 测试验证
    ↓
-4. ⭐ 更新文档（自动提醒）
+4. ⭐ 更新 SKILL.md（优先）
    ↓
-5. Git 提交
+5. ⭐ 更新其他文档
+   ↓
+6. Git 提交
 ```
 
 ### 问题解决流程
@@ -173,11 +183,30 @@ your-project/
    ↓
 3. 解决问题
    ↓
-4. ⭐ 更新错误模式库
+4. ⭐ 更新 SKILL.md（新增错误模式）
    ↓
-5. ⭐ 更新文档
+5. ⭐ 更新 references/troubleshooting.md
    ↓
-6. Git 提交
+6. ⭐ 更新其他文档
+   ↓
+7. Git 提交
+```
+
+### Skill 更新优先级
+
+**为什么 SKILL.md 优先？**
+- ✅ Claude Code AI 直接使用 SKILL.md
+- ✅ 包含项目特定的错误模式和规范
+- ✅ 影响后续开发质量
+- ✅ 避免重复犯错
+
+**更新顺序**:
+```
+1. SKILL.md                    # Claude Code 核心文档 ⭐ 第一优先
+2. base.md                     # 技术规范
+3. code.md                     # 代码实现
+4. docs/BEST_PRACTICES.md      # 开发经验
+5. docs/HANDOVER.md            # 交接文档
 ```
 
 ## 💡 最佳实践
@@ -191,6 +220,7 @@ your-project/
 
 2. **文档驱动**
    - 功能完成立即更新文档
+   - **优先更新 SKILL.md** ⭐
    - 文档要写清楚"为什么"
    - 代码示例要可直接运行
 
@@ -199,11 +229,17 @@ your-project/
    - 不完美也要先记录
    - 定期回顾和优化
 
+4. **Skill 同步** ⭐ 新增
+   - 每次开发后更新 SKILL.md
+   - 错误编号与 code.md 保持一致
+   - 同时更新 references/troubleshooting.md
+
 ### DON'T ❌
 
 1. **不要拖延文档更新**
    - 代码和文档同时提交
    - 不要"以后再补"
+   - **尤其不要忘记更新 SKILL.md** ⭐
 
 2. **不要忽视规则**
    - 遵循已建立的规范
@@ -213,6 +249,11 @@ your-project/
    - 先查文档再开发
    - 复用已有的错误模式
 
+4. **不要让文档过时** ⭐ 新增
+   - SKILL.md 必须与 code.md 同步
+   - 错误编号必须一致
+   - 每次开发后立即更新
+
 ## 🎯 模板定制建议
 
 根据项目类型定制：
@@ -220,6 +261,7 @@ your-project/
 ### API 服务项目
 ```bash
 必填规则:
+- SKILL.md: API 端点、错误模式、最佳实践 ⭐ 优先
 - base.md: API端点、数据格式、错误码
 - code.md: 错误处理、参数校验、响应格式
 ```
@@ -227,6 +269,7 @@ your-project/
 ### 前端项目
 ```bash
 必填规则:
+- SKILL.md: 组件规范、状态管理、路由问题 ⭐ 优先
 - base.md: 组件库、状态管理、路由
 - code.md: 组件规范、样式管理、性能优化
 ```
@@ -234,6 +277,7 @@ your-project/
 ### 全栈项目
 ```bash
 必填规则:
+- SKILL.md: 前后端联调、数据流、常见错误 ⭐ 优先
 - base.md: 前后端技术栈、通信协议
 - code.md: 前后端联调、数据流、错误处理
 ```

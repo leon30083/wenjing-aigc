@@ -43,6 +43,7 @@ templates/
 │   └── rules/
 │       ├── base-template.md    # 技术栈约束模板
 │       ├── code-template.md    # 代码规范模板
+│       ├── skill-template.md   # Skill 模板 ⭐ 新增
 │       ├── docs.md             # 文档更新规范（通用）
 │       └── init.md             # 初始化指南
 ├── docs/
@@ -61,7 +62,7 @@ templates/
 └────────┬────────┘
          ↓
 ┌─────────────────┐
-│  2. Claude Code │ ← 遵循 .claude/rules/ 中的规则
+│  2. Claude Code │ ← 遵循 SKILL.md 中的规则
 │     编写代码     │
 └────────┬────────┘
          ↓
@@ -70,11 +71,15 @@ templates/
 └────────┬────────┘
          ↓
 ┌─────────────────┐
-│  4. ⭐ 更新文档 │ ← Claude Code 自动提醒
+│  4. ⭐ 更新SKILL │ ← 优先更新 SKILL.md
 └────────┬────────┘
          ↓
 ┌─────────────────┐
-│  5. Git 提交     │
+│  5. ⭐ 更新文档  │ ← 更新其他文档
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│  6. Git 提交     │
 └─────────────────┘
 ```
 
@@ -86,7 +91,7 @@ templates/
 └────────┬────────┘
          ↓
 ┌─────────────────┐
-│  2. 查询规则库   │ ← .claude/rules/code.md 错误模式
+│  2. 查询规则库   │ ← SKILL.md 中的错误模式
 └────────┬────────┘
          ↓
 ┌─────────────────┐
@@ -94,11 +99,11 @@ templates/
 └────────┬────────┘
          ↓
 ┌─────────────────┐
-│  4. ⭐ 更新规则  │ ← 新增错误模式
+│  4. ⭐ 更新SKILL │ ← 新增错误模式（优先）
 └────────┬────────┘
          ↓
 ┌─────────────────┐
-│  5. ⭐ 更新文档  │
+│  5. ⭐ 更新文档  │ ← 更新其他文档
 └────────┬────────┘
          ↓
 ┌─────────────────┐
@@ -106,24 +111,48 @@ templates/
 └─────────────────┘
 ```
 
+### ⭐ Skill 优先更新原则
+
+**为什么 Skill 优先？**
+- ✅ Claude Code AI 直接使用 SKILL.md
+- ✅ 包含项目特定的错误模式和规范
+- ✅ 影响后续开发质量
+- ✅ 避免重复犯错
+
+**文档更新顺序**:
+```
+1. SKILL.md                    # Claude Code 核心文档 ⭐ 第一优先
+2. base.md                     # 技术规范（如需要）
+3. code.md                     # 代码实现
+4. docs/BEST_PRACTICES.md      # 开发经验（如需要）
+5. docs/HANDOVER.md            # 交接文档
+```
+
 ## 📖 核心理念
 
-### 1. Claude Code 规则驱动
+### 1. Claude Code Skill 驱动 ⭐ 核心
 
-**原则**: 把所有技术规范和经验教训写入规则文件，让 Claude Code 自动执行。
+**原则**: 把项目特定的开发规范和错误模式写入 Skill 文件，让 Claude Code 自动执行。
 
 **好处**:
 - ✅ 减少沟通成本
 - ✅ 避免重复错误
 - ✅ 保持代码一致性
 - ✅ 新人快速上手
+- ✅ **AI 开发质量直接提升**
 
 **实践**:
 ```
+.claude/skills/[project]-dev/
+├── SKILL.md                       # 项目特定规范、错误模式 ⭐ 核心
+└── references/
+    ├── UPDATE.md                  # Skill 更新流程
+    └── troubleshooting.md         # 故障排查指南
+
 .claude/rules/
-├── base.md     # 技术栈、API规范、平台差异
-├── code.md     # 代码示例、错误模式、最佳实践
-└── docs.md     # 文档更新规范
+├── base.md                        # 技术栈、API规范、平台差异
+├── code.md                        # 代码示例、错误模式、最佳实践
+└── docs.md                        # 文档更新规范
 ```
 
 ### 2. 文档自动同步
@@ -164,7 +193,45 @@ cp -r templates/.claude your-project/
 cp -r templates/docs your-project/
 ```
 
-### 步骤2: 修改 base.md
+### 步骤2: 创建 Skill ⭐ 新增
+
+**复制 Skill 模板**:
+```bash
+# 创建 skill 目录
+mkdir -p your-project/.claude/skills/[project]-dev/references
+
+# 复制 skill 模板
+cp templates/.claude/rules/skill-template.md your-project/.claude/skills/[project]-dev/SKILL.md
+
+# 自定义 SKILL.md
+# - 修改 name 和 description（YAML frontmatter）
+# - 填写项目概述
+# - 添加核心开发规范
+# - 初始化错误模式章节
+```
+
+**Skill 最小配置**:
+```markdown
+---
+name: [project-name]-dev
+description: [简短描述]
+---
+
+# [Project Name] 开发技能
+
+## 项目概述
+[项目描述]
+
+## 核心开发规范
+### 1. [技术领域1] 规范
+...
+
+## 已知错误模式
+### 错误1: [错误名称]
+...
+```
+
+### 步骤3: 修改 base.md
 
 **填写技术栈**:
 ```markdown
@@ -190,7 +257,7 @@ PORT=3000
 DATABASE_URL=postgresql://...
 ```
 
-### 步骤3: 修改 code.md
+### 步骤4: 修改 code.md
 
 **添加错误模式**:
 ```markdown
@@ -206,7 +273,7 @@ DATABASE_URL=postgresql://...
 [完整代码示例]
 ```
 
-### 步骤4: 初始化文档
+### 步骤5: 初始化文档
 
 ```bash
 # 复制模板
@@ -218,14 +285,14 @@ cp docs/BEST_PRACTICES-TEMPLATE.md docs/BEST_PRACTICES.md
 # 编辑 docs/BEST_PRACTICES.md
 ```
 
-### 步骤5: 验证配置
+### 步骤6: 验证配置
 
 启动 Claude Code 并验证：
 ```
 1. cd your-project
 2. claude-code .
-3. 提问："请列出项目的技术栈"
-4. 应该返回 base.md 中的内容
+3. 提问："请列出项目的核心开发规范"
+4. 应该返回 SKILL.md 中的内容
 ```
 
 ## 📋 检查清单
@@ -234,6 +301,7 @@ cp docs/BEST_PRACTICES-TEMPLATE.md docs/BEST_PRACTICES.md
 
 - [ ] 复制 `.claude/` 目录
 - [ ] 复制 `docs/` 目录
+- [ ] **创建并自定义 SKILL.md** ⭐ 优先
 - [ ] 自定义 `base.md`（技术栈）
 - [ ] 自定义 `code.md`（代码规范）
 - [ ] 初始化 `HANDOVER.md`（项目信息）
@@ -246,6 +314,7 @@ cp docs/BEST_PRACTICES-TEMPLATE.md docs/BEST_PRACTICES.md
 - [ ] 需求明确
 - [ ] 遵循规则编写代码
 - [ ] 测试验证通过
+- [ ] ⭐ **更新 SKILL.md**（新增错误模式/规范）⭐ 优先
 - [ ] ⭐ 更新 base.md（如有技术变更）
 - [ ] ⭐ 更新 code.md（新增错误模式/示例）
 - [ ] ⭐ 更新 HANDOVER.md（功能说明）
@@ -257,19 +326,48 @@ cp docs/BEST_PRACTICES-TEMPLATE.md docs/BEST_PRACTICES.md
 ### 必读文档
 
 1. **`.claude/rules/init.md`** - 初始化指南
-2. **`.claude/rules/docs.md`** - 文档更新规范
-3. **当前项目的实际规则** - 查看实战案例
+2. **`.claude/rules/skill-template.md`** - Skill 模板 ⭐ 新增
+3. **`.claude/rules/docs.md`** - 文档更新规范
+4. **当前项目的 SKILL.md** - 查看实战案例
 
 ### 实战案例
 
 参考 WinJin AIGC 项目：
 - 仓库: https://github.com/leon30083/wenjing-aigc.git
-- 查看完整的规则文件
-- 查看文档更新历史
+- 查看 `.claude/skills/winjin-dev/SKILL.md` - 完整的 Skill 示例
+- 查看 `.claude/skills/winjin-dev/references/troubleshooting.md` - 故障排查示例
+- 查看完整的规则文件和文档更新历史
 
 ## 🔧 故障排查
 
-### 问题1: Claude Code 不读取规则
+### 问题1: Claude Code 不读取 Skill ⭐ 新增
+
+**症状**:
+- Claude Code 不知道项目的特定规范
+- 重复犯相同的错误
+- 开发质量没有提升
+
+**检查**:
+1. `.claude/skills/[project]-dev/SKILL.md` 是否存在
+2. YAML frontmatter 格式是否正确
+3. `name` 和 `description` 是否填写
+
+**解决**:
+```bash
+# 检查 Skill 文件
+cat .claude/skills/[project]-dev/SKILL.md
+
+# 验证 YAML frontmatter
+---
+name: [project-name]-dev
+description: [描述]
+---
+
+# 测试 Skill
+# 在 Claude Code 中问："请列出项目的核心开发规范"
+```
+
+### 问题2: Claude Code 不读取规则
 
 **检查**:
 1. `.claude/` 目录是否在项目根目录
@@ -287,7 +385,7 @@ ls -la .claude/rules/
 # 重启 Claude Code
 ```
 
-### 问题2: 规则不生效
+### 问题3: 规则不生效
 
 **检查**:
 1. 规则文件开头是否有 `---` 分隔符
@@ -323,7 +421,13 @@ MIT License - 自由使用和修改
 
 ---
 
-**模板版本**: v1.0
-**最后更新**: 2025-12-29
+**模板版本**: v2.0 ⭐ 新增 Skill 范式
+**最后更新**: 2025-12-31
 **维护者**: Your Name
 **基于实战**: WinJin AIGC 项目经验
+
+**v2.0 更新内容**:
+- ✅ 新增 Skill 模板（skill-template.md）
+- ✅ 强调 Skill 优先更新原则
+- ✅ 更新文档更新流程，Skill 作为第一优先级
+- ✅ 添加 Skill 故障排查指南
