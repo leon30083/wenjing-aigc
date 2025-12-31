@@ -29,6 +29,22 @@ paths: *
 
 ## 必须更新的文档清单
 
+### 📄 .claude/skills/winjin-dev/SKILL.md ⭐ 重要
+**更新内容**：
+- 新增错误模式（"已知错误模式"章节）
+- 更新"开发提示"列表
+- 更新 references/troubleshooting.md（如有新问题）
+
+**更新位置**：
+- "已知错误模式（持续更新）"章节 - 添加新的错误编号
+- "开发提示"章节 - 添加新的最佳实践
+- references/troubleshooting.md - 添加新的故障排查条目
+
+**⚠️ 注意**：
+- **每次开发完成后必须更新**，与 code.md 保持同步
+- Skill 是 Claude Code 使用的核心文档，直接影响后续开发质量
+- 错误编号必须与 code.md 保持一致
+
 ### 📄 .claude/rules/base.md
 **更新内容**：
 - 新增功能的技术规范
@@ -79,22 +95,25 @@ paths: *
 ### Step 1: 识别更新内容
 ```
 功能类型判断：
-├─ 新功能开发 → 更新所有 4 个文档
-├─ Bug 修复 → 更新 code.md + 开发交接书.md
-├─ API 变更 → 更新 base.md + code.md + 开发交接书.md
-└─ 最佳实践 → 更新 code.md + Sora2_Character_Best_Practices.md
+├─ 新功能开发 → 更新所有 5 个文档（skill + base + code + Sora2_*.md + 开发交接书.md）
+├─ Bug 修复 → 更新 skill.md + code.md + 开发交接书.md
+├─ API 变更 → 更新 skill.md + base.md + code.md + 开发交接书.md
+└─ 最佳实践 → 更新 skill.md + code.md + Sora2_Character_Best_Practices.md
 ```
 
 ### Step 2: 按顺序更新文档
 ```
-1. base.md          # 技术规范
-2. code.md          # 代码实现
-3. Sora2_*.md       # 开发经验
-4. 开发交接书.md     # 交接文档
+1. .claude/skills/winjin-dev/SKILL.md    # Claude Code 核心文档 ⭐ 优先
+2. base.md                               # 技术规范
+3. code.md                               # 代码实现
+4. Sora2_*.md                            # 开发经验
+5. 开发交接书.md                          # 交接文档
 ```
 
 ### Step 3: 检查清单
 在完成更新后，检查以下项目：
+- [ ] **SKILL.md 已更新错误模式和开发提示** ⭐ 必需
+- [ ] SKILL.md 的 references/troubleshooting.md 已更新（如有新问题）
 - [ ] base.md 已更新技术规范
 - [ ] code.md 已更新代码示例和错误模式
 - [ ] Sora2_Character_Best_Practices.md 已更新功能说明
@@ -167,6 +186,56 @@ paths: *
 - **功能点3**: 描述
 ```
 
+### SKILL.md 新增错误模式模板 ⭐ 重要
+```markdown
+### 错误[N]: [错误名称] ⭐ YYYY-MM-DD
+- **现象**: [用户看到的症状]
+- **根本原因**: [问题的根本原因]
+- **错误尝试**:
+  - ❌ [错误做法1]
+  - ❌ [错误做法2]
+- **正确做法**: [正确的解决方案]
+- **关键点**:
+  - [关键点1]
+  - [关键点2]
+  - [关键点3]
+```
+
+**同时更新 references/troubleshooting.md**:
+```markdown
+### 问题 N: [问题标题]
+
+**症状**:
+- [症状1]
+- [症状2]
+
+**诊断**:
+- [诊断步骤1]
+- [诊断步骤2]
+
+**根本原因**:
+[详细说明根本原因]
+
+**解决方案**:
+```javascript
+// ❌ 错误示例
+[错误代码]
+
+// ✅ 正确示例
+[正确代码]
+```
+
+**关键点**:
+1. [关键点1]
+2. [关键点2]
+3. [关键点3]
+
+**相关错误**: 错误[N] - [错误名称]
+```
+
+**更新"开发提示"列表**:
+- 在 SKILL.md 的"开发提示"章节添加新的提示项
+
 ---
 
 ## 版本管理规则
@@ -199,16 +268,19 @@ paths: *
 Claude: ✅ 历史记录删除功能已完成！
 
 📋 建议更新以下文档：
-1. .claude/rules/base.md - 添加删除 API 规范
-2. .claude/rules/code.md - 添加删除函数示例
-3. Sora2_Character_Best_Practices.md - 添加使用说明
-4. 开发交接书.md - 更新版本到 v1.5，添加功能说明
+1. ⭐ .claude/skills/winjin-dev/SKILL.md - 添加错误模式，更新开发提示
+2. .claude/rules/base.md - 添加删除 API 规范
+3. .claude/rules/code.md - 添加删除函数示例和错误模式
+4. Sora2_Character_Best_Practices.md - 添加使用说明
+5. 开发交接书.md - 更新版本到 v1.5，添加功能说明
 
 是否现在更新这些文档？(yes/no)
 
 User: yes
 
 Claude: 正在更新文档...
+✅ SKILL.md 已更新（错误22）
+✅ references/troubleshooting.md 已更新（问题6）
 ✅ base.md 已更新
 ✅ code.md 已更新
 ✅ Sora2_Character_Best_Practices.md 已更新
@@ -226,6 +298,7 @@ Claude: 正在更新文档...
 
 ### 定期检查项
 每月或每次大版本发布时，检查：
+- [ ] **SKILL.md 错误编号与 code.md 保持一致** ⭐ 重要
 - [ ] 所有 API 端点在文档中都有说明
 - [ ] 所有错误模式都有示例
 - [ ] 版本号在所有文档中一致
@@ -237,10 +310,11 @@ Claude: 正在更新文档...
 ## 注意事项
 
 1. **及时更新**: 功能完成后立即更新文档，不要拖延
-2. **保持同步**: 4 个文档要保持内容一致，不能相互矛盾
-3. **详细记录**: 记录不仅包括"做什么"，还包括"为什么"
-4. **版本控制**: 每次更新都要提交到 Git，方便回溯
-5. **用户友好**: 文档要写得让新开发者也能看懂
+2. **保持同步**: 5 个文档要保持内容一致，不能相互矛盾
+3. **优先更新 skill**: SKILL.md 是 Claude Code 核心文档，必须优先更新 ⭐
+4. **详细记录**: 记录不仅包括"做什么"，还包括"为什么"
+5. **版本控制**: 每次更新都要提交到 Git，方便回溯
+6. **用户友好**: 文档要写得让新开发者也能看懂
 
 ---
 
