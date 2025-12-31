@@ -140,6 +140,8 @@ function CharacterCreateNode({ data }) {
       {/* Platform Selector */}
       <div className="nodrag" style={{ marginBottom: '8px' }}>
         <select
+          id="platform-select"
+          name="platform"
           className="nodrag"
           value={platform}
           onChange={(e) => setPlatform(e.target.value)}
@@ -205,6 +207,8 @@ function CharacterCreateNode({ data }) {
       {/* Video URL / Task ID Input */}
       {inputType === 'url' ? (
         <input
+          id="video-url-input"
+          name="videoUrl"
           className="nodrag"
           type="text"
           value={videoUrl}
@@ -222,6 +226,8 @@ function CharacterCreateNode({ data }) {
         />
       ) : (
         <input
+          id="task-id-input"
+          name="taskId"
           className="nodrag"
           type="text"
           value={taskId}
@@ -249,6 +255,8 @@ function CharacterCreateNode({ data }) {
           时间戳 * (1-3秒)
         </label>
         <input
+          id="timestamps-input"
+          name="timestamps"
           className="nodrag"
           type="text"
           value={timestamps}
@@ -274,6 +282,8 @@ function CharacterCreateNode({ data }) {
           别名 (可选)
         </label>
         <input
+          id="alias-input"
+          name="alias"
           className="nodrag"
           type="text"
           value={alias}

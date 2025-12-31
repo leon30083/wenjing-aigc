@@ -356,6 +356,8 @@ function VideoGenerateNode({ data }) {
           ⏱️ 时长
         </div>
         <select
+          id="video-duration"
+          name="duration"
           className="nodrag"
           value={duration}
           onChange={(e) => setDuration(Number(e.target.value))}

@@ -3027,6 +3027,175 @@ const containerStyle = {
 
 ---
 
+### 错误30: 图生视频提示词未描述参考图内容 ⭐ 新增 (2025-12-31)
+
+```javascript
+// ❌ 错误：提示词未描述参考图内容
+const prompt = '@装载机 在干活';
+const images = ['https://volcano-scene.jpg'];
+// 问题：生成的视频与火山场景无关
+
+// ❌ 错误：硬编码角色而非使用角色引用
+const prompt = '火山场景中，一辆黄色装载机在搬运岩石';
+// 问题：没有使用角色引用功能
+```
+
+**问题**:
+1. 使用参考图片生成视频时，提示词只描述角色活动，未描述参考图片的场景
+2. 用户期望生成的视频与参考图片有关联，但实际上没有关联
+
+**根本原因**:
+1. 对"参考图片 + 角色引用"组合使用模式理解不足
+2. 参考图片 = 场景背景（提供环境），角色引用 = 场景中的演员
+3. 提示词必须同时描述参考图片的场景内容和角色的活动
+
+**解决方案**:
+1. **先分析参考图片内容**: 使用图片分析工具识别场景元素
+2. **描述场景基础**: 主体、外观、环境、氛围
+3. **添加角色引用**: 使用 `@username` 格式
+4. **描述角色活动**: 角色在场景中的具体动作
+
+**正确示例**:
+```javascript
+// ✅ 正确：提示词同时描述参考场景和角色活动
+// 参考图片：卡通火山场景（火山口有熔岩流动，底部冒白烟，蓝天白云背景）
+const prompt = '卡通风格的火山场景，火山口有熔岩流动，底部冒白烟，蓝天白云背景。@装载机 在火山附近作业，正在搬运岩石，卡通插画风格';
+const images = ['https://volcano-scene.jpg'];
+
+// 提示词结构：
+// 1. 场景描述（来自参考图片）：卡通火山、熔岩、白烟、蓝天白云
+// 2. 角色引用：@装载机
+// 3. 活动描述：在火山附近作业，搬运岩石
+// 4. 风格说明：卡通插画风格
+```
+
+**提示词结构模板**:
+```javascript
+// 场景背景 + 角色引用 + 活动描述
+const prompt = `
+  [场景描述：主体、外观、环境、氛围]
+  @[角色用户名] [角色在场景中的活动]
+  [风格说明]
+`;
+
+// 示例1：火山场景
+const prompt1 = '卡通风格的火山场景，火山口有熔岩流动，底部冒白烟，蓝天白云背景。@装载机 在火山附近作业，正在搬运岩石，卡通插画风格';
+
+// 示例2：城市街道
+const prompt2 = '繁华的城市街道，高楼大厦林立，阳光明媚，车水马龙。@阳光小猫 在街道上散步，卡通插画风格';
+
+// 示例3：花园场景
+const prompt3 = '美丽的花园，五颜六色的花朵盛开，绿树成荫，阳光洒在草地上。@测试小猫 在花园里玩耍，追逐蝴蝶，卡通插画风格';
+```
+
+**关键点**:
+1. **参考图片提供场景**: 提供环境基础（如火山、街道、海滩）
+2. **提示词必须描述场景**: 让 AI 理解参考图片的内容（熔岩、蓝天、高楼）
+3. **角色引用描述活动**: 角色在场景中的具体动作（@装载机 在搬运岩石）
+4. **使用 @username 格式**: 调用角色引用，不要硬编码角色名称
+5. **风格一致性**: 确保提示词风格与参考图片一致（卡通、写实等）
+
+---
+
+### 错误31: 表单字段缺少 id/name 属性 ⭐ 新增 (2025-12-31)
+
+```javascript
+// ❌ 错误：表单字段缺少 id 和 name 属性
+<input
+  type="text"
+  value={videoUrl}
+  onChange={(e) => setVideoUrl(e.target.value)}
+  placeholder="视频 URL"
+/>
+
+// ❌ 错误：select 元素缺少 id 和 name
+<select
+  value={platform}
+  onChange={(e) => setPlatform(e.target.value)}
+>
+  <option value="juxin">聚鑫平台</option>
+  <option value="zhenzhen">贞贞平台</option>
+</select>
+```
+
+**问题**:
+1. 浏览器控制台显示警告："A form field element should have an id or name attribute"
+2. 表单字段无法被正确识别和访问
+3. 不符合 HTML 可访问性标准
+
+**根本原因**:
+- 表单字段缺少 `id` 或 `name` 属性，浏览器无法正确标识这些元素
+
+**解决方案**:
+1. **为所有 input 元素添加 id 和 name**
+2. **为所有 select 元素添加 id 和 name**
+3. **为所有 textarea 元素添加 id 和 name**
+4. **确保 id 值在同一文档中唯一**
+
+**正确示例**:
+```javascript
+// ✅ 正确：添加 id 和 name 属性
+<input
+  id="video-url-input"
+  name="videoUrl"
+  type="text"
+  value={videoUrl}
+  onChange={(e) => setVideoUrl(e.target.value)}
+  placeholder="视频 URL"
+/>
+
+// ✅ 正确：select 元素添加 id 和 name
+<select
+  id="platform-select"
+  name="platform"
+  value={platform}
+  onChange={(e) => setPlatform(e.target.value)}
+>
+  <option value="juxin">聚鑫平台</option>
+  <option value="zhenzhen">贞贞平台</option>
+</select>
+
+// ✅ 正确：textarea 元素添加 id 和 name
+<textarea
+  id="prompt-textarea"
+  name="prompt"
+  value={prompt}
+  onChange={(e) => setPrompt(e.target.value)}
+  placeholder="输入提示词..."
+/>
+
+// ✅ 正确：checkbox 元素添加 id 和 name
+<input
+  id="use-global-images"
+  name="useGlobalImages"
+  type="checkbox"
+  checked={useGlobalImages}
+  onChange={(e) => setUseGlobalImages(e.target.checked)}
+/>
+```
+
+**命名规范**:
+- `id`: 使用 kebab-case，描述元素用途，如 `video-url-input`, `platform-select`
+- `name`: 使用 camelCase，对应变量名，如 `videoUrl`, `platform`
+- 对于动态生成的元素（如故事板镜头），使用唯一标识：
+  ```javascript
+  <input
+    id={`scene-input-${shot.id}`}
+    name={`scene-${shot.id}`}
+    value={shot.scene}
+    onChange={(e) => updateShot(shot.id, 'scene', e.target.value)}
+  />
+  ```
+
+**调试清单**:
+- [ ] 所有 `<input>` 元素是否有 id 和 name 属性
+- [ ] 所有 `<select>` 元素是否有 id 和 name 属性
+- [ ] 所有 `<textarea>` 元素是否有 id 和 name 属性
+- [ ] id 值在同一文档中是否唯一
+- [ ] 命名是否符合规范（id 用 kebab-case，name 用 camelCase）
+
+---
+
 ### 参考图片节点协作实现 ⭐ 新增 (2025-12-30)
 
 **功能概述**: 参考图片节点与视频生成/故事板节点的协作，实现图片预览和自动合并

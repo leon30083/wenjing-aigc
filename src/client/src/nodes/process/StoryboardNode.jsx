@@ -390,6 +390,8 @@ function StoryboardNode({ data }) {
           {/* 复选框控制 */}
           <div className="nodrag" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
             <input
+              id="use-global-images"
+              name="useGlobalImages"
               className="nodrag"
               type="checkbox"
               checked={useGlobalImages}
@@ -531,6 +533,8 @@ function StoryboardNode({ data }) {
 
             {/* ⭐ 双显示功能：Scene Input 显示别名，内部存储真实ID */}
             <input
+              id={`scene-input-${shot.id}`}
+              name={`scene-${shot.id}`}
               className="nodrag"
               ref={(el) => sceneRefs.current[index] = el}
               type="text"
@@ -560,6 +564,8 @@ function StoryboardNode({ data }) {
                   ⏱️
                 </span>
                 <input
+                  id={`duration-input-${shot.id}`}
+                  name={`duration-${shot.id}`}
                   className="nodrag"
                   type="number"
                   min="1"

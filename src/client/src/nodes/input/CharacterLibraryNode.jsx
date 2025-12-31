@@ -371,6 +371,8 @@ function CharacterLibraryNode({ data }) {
 
       {/* Search Input */}
       <input
+        id="character-search"
+        name="searchQuery"
         className="nodrag"
         type="text"
         value={searchQuery}
@@ -388,6 +390,8 @@ function CharacterLibraryNode({ data }) {
 
       {/* Filter Dropdown */}
       <select
+        id="character-filter"
+        name="filterType"
         className="nodrag"
         value={filterType}
         onChange={(e) => setFilterType(e.target.value)}
@@ -688,6 +692,8 @@ function CharacterLibraryNode({ data }) {
               </div>
             </div>
             <input
+              id="edit-alias-input"
+              name="editAlias"
               className="nodrag"
               type="text"
               value={editAlias}

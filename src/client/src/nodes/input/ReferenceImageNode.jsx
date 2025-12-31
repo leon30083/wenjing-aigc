@@ -162,6 +162,8 @@ function ReferenceImageNode({ data }) {
       {/* Input for Image URL */}
       <div className="nodrag" style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
         <input
+          id="image-url-input"
+          name="imageUrl"
           className="nodrag"
           type="text"
           value={inputValue}

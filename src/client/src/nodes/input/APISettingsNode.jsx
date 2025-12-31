@@ -88,6 +88,8 @@ function APISettingsNode({ data }) {
           平台
         </div>
         <select
+          id="api-platform"
+          name="platform"
           className="nodrag"
           value={config.platform}
           onChange={(e) => setConfig({ ...config, platform: e.target.value })}
@@ -113,6 +115,8 @@ function APISettingsNode({ data }) {
           模型
         </div>
         <select
+          id="api-model"
+          name="model"
           className="nodrag"
           value={config.model}
           onChange={(e) => setConfig({ ...config, model: e.target.value })}
@@ -138,6 +142,8 @@ function APISettingsNode({ data }) {
           比例
         </div>
         <select
+          id="api-aspect"
+          name="aspect"
           className="nodrag"
           value={config.aspect}
           onChange={(e) => setConfig({ ...config, aspect: e.target.value })}
@@ -161,6 +167,8 @@ function APISettingsNode({ data }) {
       <div style={{ marginBottom: '10px' }}>
         <div className="nodrag" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <input
+            id="api-watermark"
+            name="watermark"
             className="nodrag"
             type="checkbox"
             checked={config.watermark}
@@ -179,6 +187,8 @@ function APISettingsNode({ data }) {
           🔑 API Key（可选）
         </div>
         <input
+          id="api-key"
+          name="apiKey"
           className="nodrag"
           type="password"
           value={config.apiKey}
