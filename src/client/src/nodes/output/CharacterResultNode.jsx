@@ -44,6 +44,12 @@ function CharacterResultNode({ data }) {
 
   // Listen for character creation events
   useEffect(() => {
+    // ⭐ 关键修复：只有当连接到源节点时才监听事件
+    // 如果 connectedSourceId 为 undefined，说明节点未连接任何源节点，不应该响应
+    if (!data.connectedSourceId) {
+      return;
+    }
+
     const handleCharacterCreated = (event) => {
       const { sourceNodeId, character: newCharacter } = event.detail;
       // Check if this node is connected to the character creation node

@@ -38,6 +38,13 @@ function TaskResultNode({ data }) {
       setError(null);
     }
 
+    // ⭐ 关键修复：只有当连接到源节点时才监听事件
+    // 如果 connectedSourceId 为 undefined，说明节点未连接任何源节点，不应该响应
+    if (!data.connectedSourceId) {
+      console.log('[TaskResultNode] No connected source, skipping event listener setup');
+      return;
+    }
+
     // Listen for custom event when video is created
     const handleVideoCreated = (event) => {
       const { sourceNodeId, taskId: newTaskId } = event.detail;
@@ -57,7 +64,7 @@ function TaskResultNode({ data }) {
     return () => {
       window.removeEventListener('video-task-created', handleVideoCreated);
     };
-  }, [data.taskId, data.connectedSourceId]); // Remove taskId from deps
+  }, [data.taskId, data.connectedSourceId]);
 
   // Poll task status when taskId is set
   useEffect(() => {
