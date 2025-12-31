@@ -1,4 +1,4 @@
-import { Handle, Position, useNodeId } from 'reactflow';
+import { Handle, Position, useNodeId, useReactFlow } from 'reactflow';
 import React, { useState, useEffect, useRef } from 'react';
 
 const API_BASE = 'http://localhost:9000';
@@ -10,6 +10,7 @@ let isResizingNode = false;
 
 function VideoGenerateNode({ data }) {
   const nodeId = useNodeId();
+  const { setNodes, getEdges } = useReactFlow();
   const promptInputRef = useRef(null);
   const nodeRef = useRef(null);
   const resizeHandleRef = useRef(null);
@@ -27,12 +28,23 @@ function VideoGenerateNode({ data }) {
   }));
   const [isResizing, setIsResizing] = useState(false);
 
-  const [config, setConfig] = useState({
-    model: 'Sora-2',
-    duration: 10, // Duration in seconds (5, 10, 15, 25)
+  // ⭐ 接收外部 API 配置（来自 APISettingsNode）
+  const externalApiConfig = data.apiConfig || null;
+  const apiConfigSourceLabel = data.apiConfigSourceLabel || null;
+
+  // 默认 API 配置（未连接时使用）
+  const defaultApiConfig = {
+    platform: 'juxin',
+    model: 'sora-2',
     aspect: '16:9',
     watermark: false,
-  });
+  };
+
+  // 合并配置：外部配置优先，否则使用默认配置
+  const apiConfig = externalApiConfig || defaultApiConfig;
+
+  // 节点自有配置：duration（视频生成特有）
+  const [duration, setDuration] = useState(10);
 
   // Connected inputs (from connected nodes) - passed via data
   const connectedPrompt = data.connectedPrompt || '';
@@ -173,13 +185,18 @@ function VideoGenerateNode({ data }) {
 
     try {
       const payload = {
-        platform: 'juxin',
-        model: config.model.toLowerCase(), // Convert to lowercase (Sora-2 -> sora-2)
+        platform: apiConfig.platform,
+        model: apiConfig.model.toLowerCase(), // Convert to lowercase (Sora-2 -> sora-2)
         prompt: finalPrompt, // ⭐ 直接使用提示词，不做任何自动组装
-        duration: config.duration,
-        aspect_ratio: config.aspect,
-        watermark: config.watermark,
+        duration: duration,
+        aspect_ratio: apiConfig.aspect,
+        watermark: apiConfig.watermark,
       };
+
+      // Add API key if provided
+      if (apiConfig.apiKey && apiConfig.apiKey.trim()) {
+        payload.apiKey = apiConfig.apiKey.trim();
+      }
 
       // Add images if connected
       if (connectedImages.length > 0) {
@@ -226,6 +243,8 @@ function VideoGenerateNode({ data }) {
       ref={nodeRef}
       style={{
         padding: '10px 15px',
+        paddingLeft: '85px',
+        paddingRight: '85px',
         borderRadius: '8px',
         borderWidth: '2px',
         borderColor: '#10b981',
@@ -240,21 +259,41 @@ function VideoGenerateNode({ data }) {
       <Handle
         type="target"
         position={Position.Left}
+        id="api-config"
+        style={{ background: '#3b82f6', width: 10, height: 10, top: '10%' }}
+      />
+      <Handle
+        type="target"
+        position={Position.Left}
         id="prompt-input"
-        style={{ background: '#10b981', width: 10, height: 10, top: '25%' }}
+        style={{ background: '#10b981', width: 10, height: 10, top: '30%' }}
       />
       <Handle
         type="target"
         position={Position.Left}
         id="character-input"
-        style={{ background: '#f59e0b', width: 10, height: 10, top: '45%' }}
+        style={{ background: '#f59e0b', width: 10, height: 10, top: '50%' }}
       />
       <Handle
         type="target"
         position={Position.Left}
         id="images-input"
-        style={{ background: '#8b5cf6', width: 10, height: 10, top: '65%' }}
+        style={{ background: '#8b5cf6', width: 10, height: 10, top: '70%' }}
       />
+
+      {/* Input Labels (separate from handles) */}
+      <div style={{ position: 'absolute', left: '18px', top: '10%', transform: 'translateY(-50%)', zIndex: 10 }}>
+        <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: 'bold', whiteSpace: 'nowrap' }}>API</span>
+      </div>
+      <div style={{ position: 'absolute', left: '18px', top: '30%', transform: 'translateY(-50%)', zIndex: 10 }}>
+        <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 'bold', whiteSpace: 'nowrap' }}>提示词</span>
+      </div>
+      <div style={{ position: 'absolute', left: '18px', top: '50%', transform: 'translateY(-50%)', zIndex: 10 }}>
+        <span style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 'bold', whiteSpace: 'nowrap' }}>角色</span>
+      </div>
+      <div style={{ position: 'absolute', left: '18px', top: '70%', transform: 'translateY(-50%)', zIndex: 10 }}>
+        <span style={{ fontSize: '10px', color: '#8b5cf6', fontWeight: 'bold', whiteSpace: 'nowrap' }}>图片</span>
+      </div>
 
       {/* Output Handle */}
       <Handle
@@ -263,6 +302,11 @@ function VideoGenerateNode({ data }) {
         id="video-output"
         style={{ background: '#10b981', width: 10, height: 10 }}
       />
+
+      {/* Output Label (separate from handle) */}
+      <div style={{ position: 'absolute', right: '18px', top: '50%', transform: 'translateY(-50%)', zIndex: 10 }}>
+        <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 'bold', whiteSpace: 'nowrap' }}>视频</span>
+      </div>
 
       {/* Node Header */}
       <div style={{
@@ -274,7 +318,33 @@ function VideoGenerateNode({ data }) {
         🎬 {data.label || '视频生成'}
       </div>
 
-      {/* Global Config */}
+      {/* API Config Display (read-only, from APISettingsNode) */}
+      <div className="nodrag" style={{
+        padding: '6px 8px',
+        backgroundColor: externalApiConfig ? '#dbeafe' : '#fef3c7',
+        borderRadius: '4px',
+        marginBottom: '8px',
+        fontSize: '10px',
+        color: externalApiConfig ? '#1e40af' : '#92400e',
+        fontWeight: 'bold',
+        border: externalApiConfig ? '1px solid #93c5fd' : '1px dashed #fcd34d',
+      }}>
+        {externalApiConfig
+          ? (
+            <div>
+              <div style={{ marginBottom: '4px', fontSize: '9px', color: '#3b82f6' }}>
+                📌 来自: {apiConfigSourceLabel || 'API 设置'}
+              </div>
+              <div>
+                ⚙️ {apiConfig.platform === 'juxin' ? '聚鑫' : '贞贞'} | {apiConfig.model.toUpperCase()} | {apiConfig.aspect} | {apiConfig.watermark ? '水印' : '无水印'}
+              </div>
+            </div>
+          )
+          : '💡 提示：连接 API 设置节点'
+        }
+      </div>
+
+      {/* Duration Config (node-specific) */}
       <div className="nodrag" style={{
         padding: '6px',
         backgroundColor: '#d1fae5',
@@ -282,69 +352,27 @@ function VideoGenerateNode({ data }) {
         marginBottom: '8px',
         fontSize: '10px',
       }}>
-        <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
-          <select
-            className="nodrag"
-            value={config.model}
-            onChange={(e) => setConfig({ ...config, model: e.target.value })}
-            disabled={status === 'generating'}
-            style={{
-              flex: 1,
-              padding: '4px',
-              borderRadius: '3px',
-              border: '1px solid #6ee7b7',
-              fontSize: '10px',
-            }}
-          >
-            <option value="Sora-2">Sora-2</option>
-          </select>
-          <select
-            className="nodrag"
-            value={config.duration}
-            onChange={(e) => setConfig({ ...config, duration: Number(e.target.value) })}
-            disabled={status === 'generating'}
-            style={{
-              flex: 1,
-              padding: '4px',
-              borderRadius: '3px',
-              border: '1px solid #6ee7b7',
-              fontSize: '10px',
-            }}
-          >
-            <option value={5}>5秒</option>
-            <option value={10}>10秒</option>
-            <option value={15}>15秒</option>
-            <option value={25}>25秒</option>
-          </select>
+        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#059669', marginBottom: '4px' }}>
+          ⏱️ 时长
         </div>
-        <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
-          <select
-            className="nodrag"
-            value={config.aspect}
-            onChange={(e) => setConfig({ ...config, aspect: e.target.value })}
-            disabled={status === 'generating'}
-            style={{
-              flex: 1,
-              padding: '4px',
-              borderRadius: '3px',
-              border: '1px solid #6ee7b7',
-              fontSize: '10px',
-            }}
-          >
-            <option value="16:9">16:9 横屏</option>
-            <option value="9:16">9:16 竖屏</option>
-          </select>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <label style={{ fontSize: '10px', color: '#065f46', marginRight: '4px' }}>水印:</label>
-            <input
-              className="nodrag"
-              type="checkbox"
-              checked={config.watermark}
-              onChange={(e) => setConfig({ ...config, watermark: e.target.checked })}
-              disabled={status === 'generating'}
-            />
-          </div>
-        </div>
+        <select
+          className="nodrag"
+          value={duration}
+          onChange={(e) => setDuration(Number(e.target.value))}
+          disabled={status === 'generating'}
+          style={{
+            width: '100%',
+            padding: '4px',
+            borderRadius: '3px',
+            border: '1px solid #6ee7b7',
+            fontSize: '11px',
+          }}
+        >
+          <option value={5}>5秒</option>
+          <option value={10}>10秒</option>
+          <option value={15}>15秒</option>
+          <option value={25}>25秒</option>
+        </select>
       </div>
 
       {/* ⭐ 候选角色显示 */}
@@ -591,18 +619,6 @@ function VideoGenerateNode({ data }) {
           任务ID: {taskId}
         </div>
       )}
-
-      {/* Input Labels */}
-      <div style={{
-        marginTop: '8px',
-        fontSize: '9px',
-        color: '#64748b',
-      }}>
-        <div>↑ 提示词</div>
-        <div>↑ 角色 (多选)</div>
-        <div>↑ 图片</div>
-        <div style={{ textAlign: 'right', marginTop: '2px' }}>视频 →</div>
-      </div>
 
       {/* Resize Handle (ComfyUI style) */}
       <div

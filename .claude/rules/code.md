@@ -2943,6 +2943,90 @@ const response = await fetch(`${API_BASE}/api/video/storyboard`, {
 
 ---
 
+### 错误29: React Flow Handle 与标签布局冲突 ⭐ 新增 (2025-12-31)
+
+```javascript
+// ❌ 错误：把 Handle 和标签放在同一个容器中，Handle 会覆盖标签文字
+<div style={{ position: 'absolute', left: '10px', display: 'flex', gap: '4px' }}>
+  <span>API</span>
+  <Handle type="target" position={Position.Left} id="api-config" />
+</div>
+
+// ❌ 错误：标签放到了节点外部
+<div style={{ position: 'absolute', left: '-35px' }}>
+  <span>API</span>
+  <Handle type="target" position={Position.Left} id="api-config" />
+</div>
+
+// ✅ 正确：Handle 和标签完全分离，各自独立定位
+<Handle
+  type="target"
+  position={Position.Left}
+  id="api-config"
+  style={{ background: '#3b82f6', width: 10, height: 10, top: '10%' }}
+/>
+<div style={{ position: 'absolute', left: '18px', top: '10%', transform: 'translateY(-50%)', zIndex: 10 }}>
+  <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: 'bold', whiteSpace: 'nowrap' }}>API</span>
+</div>
+```
+
+**问题**:
+1. React Flow 的 Handle 组件会被自动定位到节点边缘（`position: absolute, left: 0` 或 `right: 0`）
+2. Handle 不参与父容器的 flex/grid 布局
+3. 把 Handle 和标签放在同一容器会导致 Handle 覆盖标签文字
+
+**根本原因**:
+- 对 React Flow Handle 组件的定位机制理解不足
+- Handle 的 `position` 属性由 React Flow 管理，不受 CSS 布局影响
+
+**解决方案**:
+1. **Handle 独立声明**：不与标签放在同一个容器中
+2. **标签单独定位**：使用 `position: absolute` 单独定位标签
+3. **设置足够的间距**：标签距离边缘至少 18px（`left: 18px` / `right: 18px`）
+4. **增加节点 padding**：节点容器添加 `paddingLeft` 和 `paddingRight`（如 85px）为标签预留空间
+
+**实现模板**:
+```javascript
+// 节点容器样式
+const containerStyle = {
+  padding: '10px 15px',
+  paddingLeft: '85px',   // 为标签预留空间
+  paddingRight: '85px',
+  // ... 其他样式
+};
+
+// 输入端口（左侧）
+<Handle
+  type="target"
+  position={Position.Left}
+  id="input-id"
+  style={{ background: '#颜色', width: 10, height: 10, top: '10%' }}  // top 定位垂直位置
+/>
+<div style={{ position: 'absolute', left: '18px', top: '10%', transform: 'translateY(-50%)', zIndex: 10 }}>
+  <span style={{ fontSize: '10px', color: '#颜色', fontWeight: 'bold', whiteSpace: 'nowrap' }}>标签</span>
+</div>
+
+// 输出端口（右侧）
+<Handle
+  type="source"
+  position={Position.Right}
+  id="output-id"
+  style={{ background: '#颜色', width: 10, height: 10 }}
+/>
+<div style={{ position: 'absolute', right: '18px', top: '50%', transform: 'translateY(-50%)', zIndex: 10 }}>
+  <span style={{ fontSize: '10px', color: '#颜色', fontWeight: 'bold', whiteSpace: 'nowrap' }}>标签</span>
+</div>
+```
+
+**调试清单**:
+- [ ] Handle 和标签是否完全分离（不在同一容器）
+- [ ] 标签是否在节点内部显示（不在外部）
+- [ ] 标签距离边缘是否足够（至少 18px）
+- [ ] 节点是否有足够的 padding（至少 85px）
+- [ ] 标签文字是否完整显示，不被 Handle 覆盖
+
+---
+
 ### 参考图片节点协作实现 ⭐ 新增 (2025-12-30)
 
 **功能概述**: 参考图片节点与视频生成/故事板节点的协作，实现图片预览和自动合并

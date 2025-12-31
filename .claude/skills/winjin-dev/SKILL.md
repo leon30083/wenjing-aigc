@@ -278,6 +278,34 @@ const taskId = result.data.id || result.data.task_id;
 - **原因**: Sora2 API 不接受 1:1 比例参数
 - **解决**: 只提供 "16:9" 和 "9:16" 两个选项
 
+### 错误22: React Flow Handle 与标签布局冲突 ⭐ 2025-12-31
+- **现象**: 连接点（Handle）和标签文字重叠，导致文字显示不完整或被遮挡
+- **根本原因**: React Flow 的 Handle 组件会自动定位到节点边缘（`position: absolute, left: 0` 或 `right: 0`），不参与父容器的 CSS 布局（flex/grid）
+- **错误尝试**:
+  - ❌ 将 Handle 和标签放在同一个 flex 容器中
+  - ❌ 使用 `paddingLeft` 或 `minWidth` 调整
+  - ❌ 标签放在节点外部（`left: '-35px'`）
+- **正确做法**: 完全分离 Handle 和标签
+  ```javascript
+  {/* Handle - 独立声明，使用 React Flow 自动定位 */}
+  <Handle
+    type="target"
+    position={Position.Left}
+    id="api-config"
+    style={{ background: '#3b82f6', width: 10, height: 10, top: '10%' }}
+  />
+
+  {/* 标签 - 独立定位，使用 position: absolute */}
+  <div style={{ position: 'absolute', left: '18px', top: '10%', transform: 'translateY(-50%)', zIndex: 10 }}>
+    <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: 'bold', whiteSpace: 'nowrap' }}>API</span>
+  </div>
+  ```
+- **关键点**:
+  - Handle 组件使用 `top` 样式控制垂直位置
+  - 标签使用 `position: absolute` + `left/right` + `top` 精确定位
+  - 节点容器增加 `paddingLeft` 和 `paddingRight`（如 85px）为标签预留空间
+  - 标签使用 `zIndex: 10` 确保在节点内容之上
+
 ---
 
 ## 项目结构
@@ -325,10 +353,11 @@ git push origin feature/workflow-management
 1. ✅ **API 调用前检查路径**: 确保包含 `/api/` 前缀
 2. ✅ **角色创建优先使用 from_task**: 比 URL 更可靠
 3. ✅ **React Flow 节点使用 useNodeId()**: data 对象不包含 id
-4. ✅ **轮询间隔至少 30 秒**: 避免 429 错误
-5. ✅ **双平台兼容**: 同时支持聚鑫和贞贞的响应格式
-6. ✅ **每次开发后更新文档**: 遵循更新流程和检查清单
-7. ✅ **localStorage 数据必须验证**: 使用 try-catch 和默认值
-8. ✅ **导入文件验证格式**: 检查必需字段和数据类型
-9. ✅ **视频时长使用数字类型**: duration: 10 (非 "10")
-10. ✅ **Sora2 不支持 1:1 比例**: 只提供 16:9 和 9:16
+4. ✅ **React Flow Handle 标签布局**: Handle 和标签必须完全分离，独立定位
+5. ✅ **轮询间隔至少 30 秒**: 避免 429 错误
+6. ✅ **双平台兼容**: 同时支持聚鑫和贞贞的响应格式
+7. ✅ **每次开发后更新文档**: 遵循更新流程和检查清单
+8. ✅ **localStorage 数据必须验证**: 使用 try-catch 和默认值
+9. ✅ **导入文件验证格式**: 检查必需字段和数据类型
+10. ✅ **视频时长使用数字类型**: duration: 10 (非 "10")
+11. ✅ **Sora2 不支持 1:1 比例**: 只提供 16:9 和 9:16

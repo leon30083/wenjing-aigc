@@ -276,6 +276,24 @@ React + React Flow
 
 ### 视频生成节点参数 ⭐ 更新
 
+**API 配置节点拆分** ⭐ 新增 (2025-12-30):
+- **设计目标**: 将通用 API 配置提取到独立节点，避免重复配置
+- **APISettingsNode**: 输入节点（蓝色系），包含以下配置：
+  - `platform`: 聚鑫 / 贞贞
+  - `model`: sora-2 / sora-2-pro
+  - `aspect`: 16:9 / 9:16
+  - `watermark`: true / false
+- **数据传递**:
+  - APISettingsNode 通过 `useEffect` + `useReactFlow.setNodes()` 主动推送配置
+  - 输出端口: `api-config`
+  - 下游节点通过 `data.apiConfig` 接收配置
+- **节点特有配置**:
+  - VideoGenerateNode 保留 `duration` 配置（5, 10, 15, 25秒）
+  - StoryboardNode 每个镜头独立设置时长
+- **向后兼容**:
+  - 未连接 APISettingsNode 时使用默认配置
+  - 默认配置: `{ platform: 'juxin', model: 'sora-2', aspect: '16:9', watermark: false }`
+
 **时长参数**:
 - **有效值**: 5, 10, 15, 25（秒）
 - **类型**: `number`（非字符串）

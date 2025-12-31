@@ -138,7 +138,56 @@ function VideoGenerateNode({ data }) {
 
 ---
 
-### 问题 6: TaskResultNode 收不到 taskId
+### 问题 6: 节点 Handle 标签显示不完整
+
+**症状**:
+- 节点连接点（Handle）旁边的标签文字显示不完整
+- 标签文字被连接点图标遮挡
+- 标签文字显示到节点外部
+
+**诊断**:
+- 检查是否将 Handle 和标签放在同一个 flex 容器中
+- 检查标签是否使用了 `position: absolute` 定位
+- 检查节点容器是否预留了足够的 padding
+
+**根本原因**:
+React Flow 的 Handle 组件会自动定位到节点边缘（`position: absolute, left: 0` 或 `right: 0`），不参与父容器的 CSS 布局（flex/grid）。如果将 Handle 和标签放在同一个容器中，Handle 会覆盖标签。
+
+**解决方案**:
+```javascript
+// ❌ 错误：Handle 和标签在同一个容器中
+<div style={{ display: 'flex', alignItems: 'center' }}>
+  <Handle ... />
+  <span>API</span>
+</div>
+
+// ✅ 正确：Handle 和标签完全分离
+{/* Handle - 独立声明 */}
+<Handle
+  type="target"
+  position={Position.Left}
+  id="api-config"
+  style={{ background: '#3b82f6', width: 10, height: 10, top: '10%' }}
+/>
+
+{/* 标签 - 独立定位 */}
+<div style={{ position: 'absolute', left: '18px', top: '10%', transform: 'translateY(-50%)', zIndex: 10 }}>
+  <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: 'bold', whiteSpace: 'nowrap' }}>API</span>
+</div>
+```
+
+**关键点**:
+1. Handle 组件使用 `top` 样式控制垂直位置
+2. 标签使用 `position: absolute` + `left/right` + `top` 精确定位
+3. 节点容器增加 `paddingLeft` 和 `paddingRight`（如 85px）为标签预留空间
+4. 标签使用 `zIndex: 10` 确保在节点内容之上
+5. Handle 和标签必须完全分离，独立声明
+
+**相关错误**: 错误22 - React Flow Handle 与标签布局冲突
+
+---
+
+### 问题 7: TaskResultNode 收不到 taskId
 
 **症状**:
 - 视频生成成功，但 TaskResultNode 显示"未连接"
@@ -391,5 +440,5 @@ git diff .claude/rules/code.md
 
 ---
 
-**最后更新**: 2025-12-30
+**最后更新**: 2025-12-31
 **维护者**: WinJin AIGC 开发团队

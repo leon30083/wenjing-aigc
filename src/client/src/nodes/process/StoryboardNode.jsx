@@ -1,4 +1,4 @@
-import { Handle, Position, useNodeId } from 'reactflow';
+import { Handle, Position, useNodeId, useReactFlow } from 'reactflow';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNodeResize } from '../../hooks/useNodeResize';
 
@@ -7,11 +7,20 @@ const API_BASE = 'http://localhost:9000';
 function StoryboardNode({ data }) {
   const nodeId = useNodeId();
 
-  const [config, setConfig] = useState({
-    model: 'Sora-2',
+  // ⭐ 接收外部 API 配置（来自 APISettingsNode）
+  const externalApiConfig = data.apiConfig || null;
+  const apiConfigSourceLabel = data.apiConfigSourceLabel || null;
+
+  // 默认 API 配置（未连接时使用）
+  const defaultApiConfig = {
+    platform: 'juxin',
+    model: 'sora-2',
     aspect: '16:9',
     watermark: false,
-  });
+  };
+
+  // 合并配置：外部配置优先，否则使用默认配置
+  const apiConfig = externalApiConfig || defaultApiConfig;
 
   const [shots, setShots] = useState([
     { id: '1', scene: '', duration: 5, image: '' },
@@ -193,17 +202,24 @@ function StoryboardNode({ data }) {
       }));
 
       // ✅ 调用后端故事板 API
+      const requestBody = {
+        platform: apiConfig.platform,
+        model: apiConfig.model.toLowerCase(),
+        shots: shotsWithDuration,
+        images: allImages,
+        aspect_ratio: apiConfig.aspect,
+        watermark: apiConfig.watermark,
+      };
+
+      // Add API key if provided
+      if (apiConfig.apiKey && apiConfig.apiKey.trim()) {
+        requestBody.apiKey = apiConfig.apiKey.trim();
+      }
+
       const response = await fetch(`${API_BASE}/api/video/storyboard`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform: 'juxin',
-          model: config.model.toLowerCase(),
-          shots: shotsWithDuration,
-          images: allImages,
-          aspect_ratio: config.aspect,
-          watermark: config.watermark,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const result = await response.json();
@@ -236,6 +252,8 @@ function StoryboardNode({ data }) {
   return (
     <div style={{
       padding: '10px 15px',
+      paddingLeft: '85px',
+      paddingRight: '85px',
       borderRadius: '8px',
       borderWidth: '2px',
       borderColor: '#6366f1',
@@ -247,15 +265,32 @@ function StoryboardNode({ data }) {
       <Handle
         type="target"
         position={Position.Left}
+        id="api-config"
+        style={{ background: '#3b82f6', width: 10, height: 10, top: '10%' }}
+      />
+      <Handle
+        type="target"
+        position={Position.Left}
         id="character-input"
-        style={{ background: '#f59e0b', width: 10, height: 10, top: '35%' }}
+        style={{ background: '#f59e0b', width: 10, height: 10, top: '40%' }}
       />
       <Handle
         type="target"
         position={Position.Left}
         id="images-input"
-        style={{ background: '#8b5cf6', width: 10, height: 10, top: '65%' }}
+        style={{ background: '#8b5cf6', width: 10, height: 10, top: '70%' }}
       />
+
+      {/* Input Labels (separate from handles) */}
+      <div style={{ position: 'absolute', left: '18px', top: '10%', transform: 'translateY(-50%)', zIndex: 10 }}>
+        <span style={{ fontSize: '10px', color: '#3b82f6', fontWeight: 'bold', whiteSpace: 'nowrap' }}>API</span>
+      </div>
+      <div style={{ position: 'absolute', left: '18px', top: '40%', transform: 'translateY(-50%)', zIndex: 10 }}>
+        <span style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 'bold', whiteSpace: 'nowrap' }}>角色</span>
+      </div>
+      <div style={{ position: 'absolute', left: '18px', top: '70%', transform: 'translateY(-50%)', zIndex: 10 }}>
+        <span style={{ fontSize: '10px', color: '#8b5cf6', fontWeight: 'bold', whiteSpace: 'nowrap' }}>图片</span>
+      </div>
 
       {/* Output Handle */}
       <Handle
@@ -264,6 +299,11 @@ function StoryboardNode({ data }) {
         id="video-output"
         style={{ background: '#6366f1', width: 10, height: 10 }}
       />
+
+      {/* Output Label (separate from handle) */}
+      <div style={{ position: 'absolute', right: '18px', top: '50%', transform: 'translateY(-50%)', zIndex: 10 }}>
+        <span style={{ fontSize: '10px', color: '#6366f1', fontWeight: 'bold', whiteSpace: 'nowrap' }}>视频</span>
+      </div>
 
       {/* Node Header */}
       <div style={{
@@ -412,58 +452,30 @@ function StoryboardNode({ data }) {
         </div>
       )}
 
-      {/* Global Config */}
-      <div style={{
-        padding: '6px',
-        backgroundColor: '#e0e7ff',
+      {/* API Config Display (read-only, from APISettingsNode) */}
+      <div className="nodrag" style={{
+        padding: '6px 8px',
+        backgroundColor: externalApiConfig ? '#dbeafe' : '#fef3c7',
         borderRadius: '4px',
         marginBottom: '8px',
         fontSize: '10px',
+        color: externalApiConfig ? '#1e40af' : '#92400e',
+        fontWeight: 'bold',
+        border: externalApiConfig ? '1px solid #93c5fd' : '1px dashed #fcd34d',
       }}>
-        <div className="nodrag" style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
-          <select
-            className="nodrag"
-            value={config.model}
-            onChange={(e) => setConfig({ ...config, model: e.target.value })}
-            disabled={status === 'generating'}
-            style={{
-              flex: 1,
-              padding: '4px',
-              borderRadius: '3px',
-              border: '1px solid #a5b4fc',
-              fontSize: '10px',
-            }}
-          >
-            <option value="Sora-2">Sora-2</option>
-          </select>
-          {/* ⭐ Phase 3: 移除 1:1 比例选项（Sora2 不支持） */}
-          <select
-            className="nodrag"
-            value={config.aspect}
-            onChange={(e) => setConfig({ ...config, aspect: e.target.value })}
-            disabled={status === 'generating'}
-            style={{
-              flex: 1,
-              padding: '4px',
-              borderRadius: '3px',
-              border: '1px solid #a5b4fc',
-              fontSize: '10px',
-            }}
-          >
-            <option value="16:9">16:9</option>
-            <option value="9:16">9:16</option>
-          </select>
-        </div>
-        <div className="nodrag" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          <label style={{ fontSize: '10px', color: '#4338ca' }}>水印:</label>
-          <input
-            className="nodrag"
-            type="checkbox"
-            checked={config.watermark}
-            onChange={(e) => setConfig({ ...config, watermark: e.target.checked })}
-            disabled={status === 'generating'}
-          />
-        </div>
+        {externalApiConfig
+          ? (
+            <div>
+              <div style={{ marginBottom: '4px', fontSize: '9px', color: '#3b82f6' }}>
+                📌 来自: {apiConfigSourceLabel || 'API 设置'}
+              </div>
+              <div>
+                ⚙️ {apiConfig.platform === 'juxin' ? '聚鑫' : '贞贞'} | {apiConfig.model.toUpperCase()} | {apiConfig.aspect} | {apiConfig.watermark ? '水印' : '无水印'}
+              </div>
+            </div>
+          )
+          : '💡 提示：连接 API 设置节点'
+        }
       </div>
 
       {/* Shots List */}
@@ -688,6 +700,7 @@ function StoryboardNode({ data }) {
         justifyContent: 'space-between',
       }}>
         <span>↑ 角色 / 图片</span>
+        <span>↑ API 配置</span>
         <span>视频 →</span>
       </div>
 
