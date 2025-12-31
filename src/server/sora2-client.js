@@ -355,10 +355,9 @@ class Sora2Client {
         private: isPrivate,
       };
 
-      // ⭐ 如果提供了 duration，添加到请求体
-      if (duration) {
-        body.duration = duration;
-      }
+      // ⚠️ 注意：故事板模式不需要单独的 duration 参数
+      // 总时长由 prompt 中各镜头的 duration 之和决定
+      // 前端应计算每个镜头的时长，而不是发送总时长
 
       // 转换画面方向参数
       const orientationParam = this._convertOrientationParam(orientation);
@@ -390,9 +389,28 @@ class Sora2Client {
         data: response.data,
       };
     } catch (error) {
+      // 打印详细错误信息用于调试
+      console.error('[Sora2Client] Storyboard API Error:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          data: error.config?.data,
+        }
+      });
+
+      // 尝试提取详细错误信息
+      let errorMessage = error.message;
+      if (error.response?.data) {
+        const data = error.response.data;
+        errorMessage = data.message || data.error || data.detail || JSON.stringify(data);
+      }
+
       return {
         success: false,
-        error: error.response?.data?.message || error.message,
+        error: errorMessage,
       };
     }
   }

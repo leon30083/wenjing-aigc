@@ -2904,6 +2904,43 @@ const insertCharacterToFocusedScene = (username, alias) => {
 ))}
 ```
 
+### 错误28: 故事板发送额外 duration 参数导致 400 错误 ⭐ 新增 (2025-12-30)
+
+```javascript
+// ❌ 错误：故事板请求中包含单独的 duration 参数
+const response = await fetch(`${API_BASE}/api/video/storyboard`, {
+  method: 'POST',
+  body: JSON.stringify({
+    platform: 'juxin',
+    model: 'sora-2',
+    shots: shotsWithDuration,
+    images: allImages,
+    duration: String(totalDuration), // ❌ 导致 400 错误
+    aspect_ratio: '16:9',
+  }),
+});
+
+// ✅ 正确：不发送 duration 参数，总时长由各镜头时长之和决定
+const response = await fetch(`${API_BASE}/api/video/storyboard`, {
+  method: 'POST',
+  body: JSON.stringify({
+    platform: 'juxin',
+    model: 'sora-2',
+    shots: shotsWithDuration,
+    images: allImages,
+    // duration: String(totalDuration), // ⚠️ 已移除
+    aspect_ratio: '16:9',
+  }),
+});
+```
+
+**问题**: 故事板模式已在 prompt 中包含每个镜头的时长，发送额外的 `duration` 参数会导致 API 拒绝请求（400 错误）
+
+**解决方案**:
+- 移除单独的 `duration` 参数
+- 总时长 = 各镜头的 duration 之和
+- 前端应让用户手动输入每个镜头的时长
+
 ---
 
 ### 参考图片节点协作实现 ⭐ 新增 (2025-12-30)
@@ -3305,10 +3342,9 @@ async createStoryboardVideo(options) {
       private: isPrivate,
     };
 
-    // ⭐ 如果提供了 duration，添加到请求体
-    if (duration) {
-      body.duration = duration;
-    }
+    // ⚠️ 注意：故事板模式不需要单独的 duration 参数
+    // 总时长由 prompt 中各镜头的 duration 之和决定
+    // 前端应计算每个镜头的时长，而不是发送总时长
 
     // 转换画面方向参数
     const orientationParam = this._convertOrientationParam(orientation);

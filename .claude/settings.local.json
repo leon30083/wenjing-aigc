@@ -68,7 +68,8 @@
       "mcp__milk_tea_server__claim_milk_tea_coupon",
       "mcp__web-search-prime__webSearchPrime",
       "Bash(set http_proxy=http://127.0.0.1:7890)",
-      "Bash(set:*)"
+      "Bash(set:*)",
+      "Bash(with multi-shot format\".\nEOF\n\\)\")"
     ]
   }
 }

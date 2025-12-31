@@ -13,10 +13,6 @@ function StoryboardNode({ data }) {
     watermark: false,
   });
 
-  // ⭐ 新增：总时长选项（用于自动均分）
-  // 注意：API 只支持 10, 15, 25 秒（字符串类型）
-  const [totalDuration, setTotalDuration] = useState(15); // 10, 15, 25
-
   const [shots, setShots] = useState([
     { id: '1', scene: '', duration: 5, image: '' },
   ]);
@@ -33,11 +29,6 @@ function StoryboardNode({ data }) {
   const [useGlobalImages, setUseGlobalImages] = useState(false); // 全局图片复选框
   const [showImageSelector, setShowImageSelector] = useState(false); // 图片选择器模态框
   const [selectedShotIndex, setSelectedShotIndex] = useState(null); // 当前选择图片的镜头索引
-
-  // ⭐ 自动计算每个镜头的时长
-  const shotDuration = shots.length > 0
-    ? (totalDuration / shots.length).toFixed(1)
-    : 5;
 
   // ⭐ 计算当前总时长（用于智能提示）
   const currentTotalDuration = shots.reduce((sum, shot) => sum + (shot.duration || 0), 0);
@@ -195,10 +186,10 @@ function StoryboardNode({ data }) {
         }
       });
 
-      // ⭐ 使用自动均分的时长
+      // ⭐ 直接使用用户手动输入的时长，不再自动均分
       const shotsWithDuration = validShots.map(s => ({
         ...s,
-        duration: parseFloat(shotDuration),
+        duration: s.duration || 5, // 使用镜头自身的 duration，默认 5 秒
       }));
 
       // ✅ 调用后端故事板 API
@@ -210,7 +201,6 @@ function StoryboardNode({ data }) {
           model: config.model.toLowerCase(),
           shots: shotsWithDuration,
           images: allImages,
-          duration: String(totalDuration), // ⭐ 传递总时长（转换为字符串）
           aspect_ratio: config.aspect,
           watermark: config.watermark,
         }),
@@ -406,41 +396,21 @@ function StoryboardNode({ data }) {
         </div>
       )}
 
-      {/* ⭐ Total Duration Setting */}
-      <div style={{
-        padding: '6px',
-        backgroundColor: '#ecfdf5',
-        borderRadius: '4px',
-        marginBottom: '8px',
-        fontSize: '10px',
-      }}>
-        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#059669', marginBottom: '4px' }}>
-          ⏱️ 总时长设置
+      {/* 总时长提示 */}
+      {currentTotalDuration > 0 && (
+        <div style={{
+          padding: '4px 6px',
+          backgroundColor: '#f0fdf4',
+          borderRadius: '3px',
+          marginBottom: '8px',
+          fontSize: '10px',
+          color: '#166534',
+          textAlign: 'center'
+        }}>
+          ⏱️ 总时长: {currentTotalDuration} 秒
+          {currentTotalDuration > 25 && ' ⚠️ 超过 API 限制（25秒）'}
         </div>
-        <div className="nodrag" style={{ display: 'flex', gap: '4px' }}>
-          <select
-            className="nodrag"
-            value={totalDuration}
-            onChange={(e) => setTotalDuration(Number(e.target.value))}
-            disabled={status === 'generating'}
-            style={{ flex: 1, padding: '4px', fontSize: '11px', borderRadius: '3px', border: '1px solid #6ee7b7' }}
-          >
-            <option value={10}>10 秒</option>
-            <option value={15}>15 秒</option>
-            <option value={25}>25 秒（仅 sora-2-pro）</option>
-          </select>
-          <div style={{ fontSize: '10px', color: '#047857', padding: '4px' }}>
-            每镜头: {shotDuration} 秒
-          </div>
-        </div>
-
-        {/* 智能提示 */}
-        {currentTotalDuration > 25 && (
-          <div style={{ marginTop: '4px', padding: '4px', backgroundColor: '#fecaca', borderRadius: '3px', fontSize: '10px', color: '#991b1b' }}>
-            ⚠️ 当前总时长 {currentTotalDuration} 秒超过 API 限制（25秒）
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Global Config */}
       <div style={{
@@ -572,9 +542,33 @@ function StoryboardNode({ data }) {
 
             {/* Duration hint & Image selector */}
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-              <span style={{ fontSize: '9px', color: '#6b7280', whiteSpace: 'nowrap' }}>
-                ⏱️ 自动均分 {shotDuration}秒
-              </span>
+              {/* ⭐ 时长输入框 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flex: 1 }}>
+                <span style={{ fontSize: '9px', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                  ⏱️
+                </span>
+                <input
+                  className="nodrag"
+                  type="number"
+                  min="1"
+                  max="25"
+                  value={shot.duration}
+                  onChange={(e) => {
+                    const val = Math.min(25, Math.max(1, parseInt(e.target.value) || 5));
+                    updateShot(shot.id, 'duration', val);
+                  }}
+                  disabled={status === 'generating'}
+                  style={{
+                    width: '50px',
+                    padding: '2px 4px',
+                    borderRadius: '3px',
+                    border: '1px solid #c7d2fe',
+                    fontSize: '10px',
+                    textAlign: 'center',
+                  }}
+                />
+                <span style={{ fontSize: '9px', color: '#6b7280' }}>秒</span>
+              </div>
 
               {/* ⭐ 图片选择按钮 */}
               <button
