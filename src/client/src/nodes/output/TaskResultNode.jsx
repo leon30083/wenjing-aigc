@@ -54,11 +54,7 @@ function TaskResultNode({ data }) {
       // ⭐ 立即设置 ref（在 setState 之前）
       isCompletedFromHistoryRef.current = true;
 
-      // 一次性恢复所有状态
-      if (data.taskId && data.taskId !== taskIdRef.current) {
-        console.log('[TaskResultNode] Restoring taskId from history:', data.taskId);
-        setTaskId(data.taskId);
-      }
+      // 一次性恢复所有状态（除了 taskId，taskId 由事件监听器管理）
       if (data.taskStatus) {
         setTaskStatus(data.taskStatus);
       }
@@ -87,8 +83,8 @@ function TaskResultNode({ data }) {
       return;
     }
 
-    // 新任务路径
-    if (data.taskId && data.taskId !== taskIdRef.current) {
+    // 新任务路径（只在初始化时运行一次）
+    if (data.taskId && data.taskId !== taskIdRef.current && taskIdRef.current === null) {
       console.log('[TaskResultNode] Initial taskId from data:', data.taskId);
       setTaskId(data.taskId);
 
@@ -111,7 +107,7 @@ function TaskResultNode({ data }) {
         isCompletedFromHistoryRef.current = false;
       }
     }
-  }, [data.taskId]); // ⭐ 只依赖 taskId，移除其他依赖
+  }, []); // ⭐ 空依赖数组：只在挂载时运行一次
 
   // ⭐ useEffect 2: 设置事件监听器（只在挂载时执行一次）
   useEffect(() => {
@@ -136,6 +132,10 @@ function TaskResultNode({ data }) {
           newTaskId &&
           newTaskId !== taskIdRef.current) {
         console.log('[TaskResultNode] Match! Setting taskId:', newTaskId, 'platform:', newPlatform);
+
+        // ⭐ 关键修复：先设置 ref 为 true，确保后续恢复逻辑使用新数据
+        // 这会阻止 useEffect 1 从旧 data 恢复 taskId
+        isCompletedFromHistoryRef.current = true;
 
         // ⭐ 关键修复：立即同步到 node.data（不等 useEffect）
         // 这确保 VideoGenerateNode 的 getNodes() 调用能捕获到正确的 taskId
@@ -165,7 +165,7 @@ function TaskResultNode({ data }) {
         setVideoUrl(null);
         setError(null);
         setPolling(false);
-        isCompletedFromHistoryRef.current = false;
+        isCompletedFromHistoryRef.current = false; // ⭐ 恢复 ref 值，允许后续更新
       }
     };
 
