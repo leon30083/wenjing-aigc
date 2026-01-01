@@ -587,6 +587,79 @@ const insertCharacterAtCursor = (username, alias) => {
 - 为用户提供"查询状态"按钮
 - 可主动查询而无需等待轮询
 
+## 自动化测试流程 🤖 ⭐ 基础标准范式
+
+> **重要**: 这是项目开发的**基础标准范式**，所有开发完成后必须经过自动化测试验证！
+
+### 测试原则
+
+**✅ 自动化优先**:
+- 使用配置的 MCP 工具在浏览器中自动测试
+- 不要总是问用户"能否测试"
+- 每个任务都应该用自动化方式验证
+- 减少人工干预，提高开发效率
+
+**❌ 人工协助的边界**:
+以下操作需要用户协同完成：
+- 连线连接节点（React Flow 拖拽连线）
+- 模拟鼠标拖拽（节点位置调整）
+- 复杂的拖放操作
+
+**✅ MCP 工具可以完成的操作**:
+- 点击按钮、链接、输入框（click）
+- 填写表单、输入文本（fill/fill_form）
+- 选择下拉选项、勾选复选框
+- 截图验证 UI 效果（take_screenshot）
+- 读取页面内容（take_snapshot）
+- 执行 JavaScript 代码（evaluate_script）
+- 监听网络请求（list_network_requests）
+- 监听控制台日志（list_console_messages）
+
+### 标准测试流程
+
+```
+开发完成后
+├─ 1. 访问 http://localhost:5173/
+├─ 2. 获取页面快照（take_snapshot）
+├─ 3. 执行自动化操作
+│   ├─ fill() - 填写表单
+│   ├─ click() - 点击按钮
+│   ├─ evaluate_script() - 检查状态
+│   └─ wait_for() - 等待结果
+├─ 4. 验证结果
+│   ├─ take_screenshot() - 截图保存
+│   ├─ list_console_messages() - 检查错误
+│   └─ list_network_requests() - 检查 API
+└─ 5. 用户协作（如需要）
+    ├─ 请求用户协助连线/拖拽
+    └─ 继续自动化测试
+```
+
+### 测试检查清单
+
+**功能测试**（自动化）:
+- [ ] 页面加载成功（无 console 错误）
+- [ ] 节点显示正常（截图验证）
+- [ ] 表单输入响应（fill + click）
+- [ ] API 请求正确（list_network_requests）
+- [ ] 数据更新及时（evaluate_script 检查状态）
+
+**用户协作测试**:
+- [ ] 节点连线功能（用户协助）
+- [ ] 节点拖拽功能（用户协助）
+- [ ] 节点删除功能（用户协助）
+
+### 测试失败处理
+
+```
+测试失败时
+├─ 1. 记录错误信息（console_messages）
+├─ 2. 截图保存现场（take_screenshot）
+├─ 3. 分析根本原因
+├─ 4. 修复代码
+└─ 5. 重新测试直到通过
+```
+
 ## 禁止模式
 
 - ❌ 不使用 `child_process` 调用 API（会导致进程僵死）

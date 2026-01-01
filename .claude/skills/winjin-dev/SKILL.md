@@ -535,3 +535,4 @@ git push origin feature/workflow-management
 16. ✅ **关键时刻手动同步 node.data**: 在 getNodes() 捕获快照前，手动调用 setNodes() 确保数据同步 ⭐ 2026-01-01
 17. ✅ **防抖 localStorage 保存**: 500ms 防抖，减少 90% 的写入次数，提升响应速度 ⭐ 2026-01-01
 18. ✅ **getNodes() 的时机陷阱**: getNodes() 是同步的，useState 是异步的，useEffect 在渲染后执行 ⭐ 2026-01-01
+19. ✅ **自动化测试是基础标准范式**: 使用 MCP 工具在浏览器中自动测试，不要总是问用户，只在做连线/拖拽时请求用户协作 ⭐ 2026-01-01
