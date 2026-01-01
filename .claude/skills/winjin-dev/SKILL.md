@@ -681,6 +681,86 @@ const taskId = result.data.id || result.data.task_id;
   - `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 364, 228, 326-329, 50, 72-77
 - **修复日期**: 2026-01-01
 
+### 错误37: TaskResultNode 任务ID竞态条件 ⭐ 新增 (2026-01-01)
+- **现象**: 提交新任务后，TaskResultNode 仍然显示旧的 taskId，新任务被旧任务覆盖
+- **根本原因**:
+  - useEffect 1 依赖 `[data.taskId]`，当事件监听器更新 node.data.taskId 时会重新运行
+  - 事件监听器设置 `isCompletedFromHistoryRef.current = false`
+  - useEffect 1 运行时看到 ref 为 false，跳过恢复逻辑，然后从旧的 data 中恢复 taskId
+  - **竞态条件**: 事件监听器设置新 taskId → node.data 变化 → useEffect 1 重新运行 → 从旧的闭包数据中恢复旧 taskId
+- **错误尝试**:
+  - ❌ 在 useEffect 中添加 `taskId !== data.taskId` 检查（仍然会因为 node.data 变化而重新运行）
+  - ❌ 在事件监听器中延迟设置（治标不治本，仍有可能触发）
+  - ❌ 使用 `useEffect` 的 cleanup 函数（cleanup 在下一次 effect 之前运行，无法阻止当前 effect）
+- **正确做法**:
+  ```javascript
+  // ✅ 正确：useEffect 1 使用空依赖数组，只在挂载时运行一次
+  useEffect(() => {
+    const isCompletedTask = data.taskStatus === 'SUCCESS' && data.videoUrl;
+
+    if (data._isCompletedFromHistory || isCompletedTask) {
+      isCompletedFromHistoryRef.current = true;
+      // 恢复所有状态，除了 taskId（由事件监听器管理）
+      if (data.taskStatus) setTaskStatus(data.taskStatus);
+      if (data.videoUrl) setVideoUrl(data.videoUrl);
+      if (data.taskStatus === 'SUCCESS' && (!data.progress || data.progress === 0)) {
+        setProgress(100);
+      }
+      setPolling(false);
+      return;
+    }
+
+    // ⭐ 关键：只在 taskIdRef 为 null 时才设置初始 taskId
+    if (data.taskId && data.taskId !== taskIdRef.current && taskIdRef.current === null) {
+      setTaskId(data.taskId);
+      taskIdRef.current = data.taskId;
+      setPlatform(data.platform || 'juxin');
+      setTaskStatus(data.taskStatus || 'NOT_START');
+      setPolling(data.taskStatus === 'IN_PROGRESS');
+    }
+  }, []); // ⭐ 空依赖数组，防止重新运行
+
+  // ✅ 正确：事件监听器在更新 node.data 之前设置 ref
+  const handleVideoTaskCreated = (event) => {
+    const { sourceNodeId, taskId: newTaskId, platform: newPlatform } = event.detail;
+
+    if (connectedSourceId === sourceNodeId && newTaskId && newTaskId !== taskIdRef.current) {
+      // ⭐ 关键：先设置 ref 为 true，防止 useEffect 1 恢复旧数据
+      isCompletedFromHistoryRef.current = true;
+
+      // 更新 node.data
+      setNodes((nds) => nds.map((node) =>
+        node.id === nodeId ? {
+          ...node,
+          data: { ...node.data, taskId: newTaskId, platform: newPlatform || 'juxin', taskStatus: 'IN_PROGRESS', _isCompletedFromHistory: false }
+        } : node
+      ));
+
+      // 更新状态
+      setTaskId(newTaskId);
+      taskIdRef.current = newTaskId;
+      setPlatform(newPlatform || 'juxin');
+      setTaskStatus('IN_PROGRESS');
+      setProgress(0);
+      setVideoUrl(undefined);
+      setPolling(true);
+
+      // ⭐ 重置 ref，允许后续更新
+      isCompletedFromHistoryRef.current = false;
+    }
+  };
+  ```
+- **关键点**:
+  1. **空依赖数组**: useEffect 1 使用 `[]` 而非 `[data.taskId]`，只在挂载时运行一次
+  2. **taskIdRef 初始检查**: 只在 `taskIdRef.current === null` 时设置初始 taskId，防止重复设置
+  3. **事件监听器先设置 ref**: 更新 node.data 之前设置 `isCompletedFromHistoryRef.current = true`
+  4. **事件监听器后重置 ref**: 所有状态更新完成后重置 ref 为 false
+  5. **taskId 管理权移交**: taskId 完全由事件监听器管理，useEffect 不再恢复 taskId
+- **验证结果**: ✅ 新任务正确显示，不再被旧任务覆盖
+- **修复文件**:
+  - `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 47-110 (useEffect 1), Lines 132-169 (事件监听器)
+- **修复日期**: 2026-01-01
+
 ---
 
 ---
@@ -761,3 +841,4 @@ git push origin feature/workflow-management
 18. ✅ **专注于核心功能**: 避免过度复杂化，保持代码简洁可维护 ⭐ 2026-01-01
 19. ✅ **任务进度百分比显示**: 从 API 响应提取 progress 字段（0-100），在状态文本中显示 "⏳ 处理中 45%" ⭐ 2026-01-01
 20. ✅ **已完成任务进度默认 100%**: 任务完成时（SUCCESS + videoUrl）自动设置 progress 为 100%，即使 API 未返回 progress 字段 ⭐ 2026-01-01
+21. ✅ **useEffect 空依赖数组防止竞态条件**: 当 useEffect 和事件监听器都管理同一状态时，useEffect 应使用空依赖数组只在挂载时运行，避免事件更新触发 useEffect 恢复旧数据 ⭐ 2026-01-01

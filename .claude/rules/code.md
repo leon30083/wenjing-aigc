@@ -4231,6 +4231,192 @@ if (videoEdge) {
 
 ---
 
+### 错误36: TaskResultNode 进度百分比未显示 ⭐ 新增 (2026-01-01)
+
+**问题**:
+1. **进度显示错误**: 已完成任务显示 "✓ 完成 0%" 而非 "✓ 完成 100%"
+2. **getStatusText 忽略参数**: 状态文本函数硬编码返回 "✓ 完成"，未使用 progressValue 参数
+3. **轮询未设置进度**: API 返回 SUCCESS 时，没有设置 progress 为 100
+4. **恢复逻辑缺陷**: 从历史记录恢复时，未正确设置 progress 的默认值
+
+**错误代码**:
+```javascript
+// ❌ 错误：getStatusText 忽略 progressValue 参数
+const getStatusText = (status, progressValue) => {
+  switch (status) {
+    case 'SUCCESS': return '✓ 完成';  // ❌ 未显示进度
+    case 'FAILURE': return '✗ 失败';
+    case 'IN_PROGRESS': return `⏳ 处理中 ${progressValue}%`;
+    case 'NOT_START': return '⏸️ 未开始';
+    default: return '⏸️ 等待中';
+  }
+};
+
+// ❌ 错误：轮询函数未设置 progress 为 100
+if (status === 'SUCCESS' && taskData?.output) {
+  setVideoUrl(finalVideoUrl);
+  setPolling(false);
+  clearInterval(pollInterval);
+  // ❌ 未设置 progress
+}
+
+// ❌ 错误：恢复逻辑只检查 _isCompletedFromHistory
+if (data._isCompletedFromHistory) {
+  // 恢复逻辑
+}
+if (!isCompletedFromHistoryRef.current) {
+  return; // ❌ 已完成但未标记为历史的任务被跳过
+}
+```
+
+**正确代码**:
+```javascript
+// ✅ 正确：getStatusText 包含进度百分比
+const getStatusText = (status, progressValue) => {
+  switch (status) {
+    case 'SUCCESS': return `✓ 完成 ${progressValue}%`;  // ✅ 显示进度
+    case 'IN_PROGRESS': return `⏳ 处理中 ${progressValue}%`;
+  }
+};
+
+// ✅ 正确：轮询函数设置 progress 为 100
+if (status === 'SUCCESS' && taskData?.output) {
+  setVideoUrl(finalVideoUrl);
+  setProgress(100);  // ✅ 任务完成时设置进度为 100%
+  setPolling(false);
+  clearInterval(pollInterval);
+}
+
+// ✅ 正确：优先检查任务是否完成（无论来源）
+const isCompletedTask = data.taskStatus === 'SUCCESS' && data.videoUrl;
+if (data._isCompletedFromHistory || isCompletedTask) {
+  // 恢复所有状态，包括 progress 为 100%
+  if (data.taskStatus === 'SUCCESS' && (!data.progress || data.progress === 0)) {
+    setProgress(100);  // ✅ 已完成任务默认 100%
+  }
+}
+```
+
+**关键点**:
+1. **getStatusText 必须包含进度**: 成功状态显示 "✓ 完成 100%" 而非 "✓ 完成"
+2. **轮询时设置进度**: API 返回 SUCCESS 时，自动设置 progress 为 100
+3. **手动刷新设置进度**: 刷新已完成任务时，如果 progress 为 0，设置为 100
+4. **恢复逻辑检查任务状态**: 优先检查 `taskStatus === 'SUCCESS' && videoUrl` 而非 `_isCompletedFromHistory`
+5. **默认值逻辑**: 如果 progress 为 undefined 或 0，且任务已完成，默认为 100
+
+**修复文件**:
+- `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 364, 228, 326-329, 50, 72-77
+
+**相关文档**:
+- SKILL.md: 错误模式 36
+
+---
+
+### 错误37: TaskResultNode 任务ID竞态条件 ⭐ 新增 (2026-01-01)
+
+**问题**:
+1. **新任务被旧任务覆盖**: 提交新任务后，TaskResultNode 仍然显示旧的 taskId
+2. **useEffect 依赖 data.taskId**: 当事件监听器更新 node.data.taskId 时，useEffect 重新运行
+3. **闭包陷阱**: useEffect 从旧的闭包数据中恢复旧的 taskId
+4. **竞态条件**: 事件监听器设置新 taskId → node.data 变化 → useEffect 重新运行 → 从旧的闭包数据中恢复旧 taskId
+
+**错误代码**:
+```javascript
+// ❌ 错误：useEffect 依赖 data.taskId，导致重新运行
+useEffect(() => {
+  const isCompletedTask = data.taskStatus === 'SUCCESS' && data.videoUrl;
+
+  if (data._isCompletedFromHistory || isCompletedTask) {
+    isCompletedFromHistoryRef.current = true;
+    // 恢复所有状态
+    if (data.taskStatus) setTaskStatus(data.taskStatus);
+    if (data.videoUrl) setVideoUrl(data.videoUrl);
+    setPolling(false);
+    return;
+  }
+
+  // ❌ 每次 data.taskId 变化都会重新运行，恢复旧的 taskId
+  if (data.taskId && data.taskId !== taskIdRef.current) {
+    setTaskId(data.taskId);  // ❌ 这会恢复旧的 taskId
+    taskIdRef.current = data.taskId;
+  }
+}, [data.taskId]);  // ❌ 依赖 data.taskId 导致重新运行
+```
+
+**正确代码**:
+```javascript
+// ✅ 正确：useEffect 使用空依赖数组，只在挂载时运行一次
+useEffect(() => {
+  const isCompletedTask = data.taskStatus === 'SUCCESS' && data.videoUrl;
+
+  if (data._isCompletedFromHistory || isCompletedTask) {
+    isCompletedFromHistoryRef.current = true;
+    // 恢复所有状态，除了 taskId（由事件监听器管理）
+    if (data.taskStatus) setTaskStatus(data.taskStatus);
+    if (data.videoUrl) setVideoUrl(data.videoUrl);
+    if (data.taskStatus === 'SUCCESS' && (!data.progress || data.progress === 0)) {
+      setProgress(100);
+    }
+    setPolling(false);
+    return;
+  }
+
+  // ⭐ 关键：只在 taskIdRef 为 null 时才设置初始 taskId
+  if (data.taskId && data.taskId !== taskIdRef.current && taskIdRef.current === null) {
+    setTaskId(data.taskId);
+    taskIdRef.current = data.taskId;
+    setPlatform(data.platform || 'juxin');
+    setTaskStatus(data.taskStatus || 'NOT_START');
+    setPolling(data.taskStatus === 'IN_PROGRESS');
+  }
+}, []); // ⭐ 空依赖数组，防止重新运行
+
+// ✅ 正确：事件监听器在更新 node.data 之前设置 ref
+const handleVideoTaskCreated = (event) => {
+  const { sourceNodeId, taskId: newTaskId, platform: newPlatform } = event.detail;
+
+  if (connectedSourceId === sourceNodeId && newTaskId && newTaskId !== taskIdRef.current) {
+    // ⭐ 关键：先设置 ref 为 true，防止 useEffect 1 恢复旧数据
+    isCompletedFromHistoryRef.current = true;
+
+    // 更新 node.data
+    setNodes((nds) => nds.map((node) =>
+      node.id === nodeId ? {
+        ...node,
+        data: { ...node.data, taskId: newTaskId, platform: newPlatform || 'juxin', taskStatus: 'IN_PROGRESS', _isCompletedFromHistory: false }
+      } : node
+    ));
+
+    // 更新状态
+    setTaskId(newTaskId);
+    taskIdRef.current = newTaskId;
+    setPlatform(newPlatform || 'juxin');
+    setTaskStatus('IN_PROGRESS');
+    setProgress(0);
+    setVideoUrl(undefined);
+    setPolling(true);
+
+    // ⭐ 重置 ref，允许后续更新
+    isCompletedFromHistoryRef.current = false;
+  }
+};
+```
+
+**关键点**:
+1. **空依赖数组**: useEffect 使用 `[]` 而非 `[data.taskId]`，只在挂载时运行一次
+2. **taskIdRef 初始检查**: 只在 `taskIdRef.current === null` 时设置初始 taskId，防止重复设置
+3. **事件监听器先设置 ref**: 更新 node.data 之前设置 `isCompletedFromHistoryRef.current = true`
+4. **事件监听器后重置 ref**: 所有状态更新完成后重置 ref 为 false
+5. **taskId 管理权移交**: taskId 完全由事件监听器管理，useEffect 不再恢复 taskId
+
+**修复文件**:
+- `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 47-110 (useEffect 1), Lines 132-169 (事件监听器)
+
+**相关文档**:
+- SKILL.md: 错误模式 37
+
+---
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：
