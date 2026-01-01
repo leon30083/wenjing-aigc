@@ -293,9 +293,14 @@ function App() {
             // Store connected source ID for event listener
             newData.connectedSourceId = videoEdge.source;
           } else {
-            // ❌ 源节点类型无效，清除 connectedSourceId
+            // ❌ 源节点类型无效，清除所有相关数据
+            newData.taskId = undefined;
             newData.connectedSourceId = undefined;
           }
+        } else {
+          // ⭐ 关键修复：没有连线时，清除所有相关数据（防止旧连接残留）
+          newData.taskId = undefined;
+          newData.connectedSourceId = undefined;
         }
 
         // ⭐ 关键修复：只有当 data 真正变化时才返回新对象（避免无限循环）
