@@ -20,6 +20,9 @@ function TaskResultNode({ data }) {
   // ⭐ 新增：存储平台信息（用于 API 调用）
   const [platform, setPlatform] = useState(data.platform || 'juxin');
 
+  // ⭐ 新增：存储任务进度百分比（0-100）
+  const [progress, setProgress] = useState(data.progress || 0);
+
   // ⭐ 新增：标记是否从历史记录加载（已完成的任务，不需要轮询）
   const isCompletedFromHistoryRef = useRef(false);
 
@@ -183,8 +186,13 @@ function TaskResultNode({ data }) {
         const result = await response.json();
 
         if (result.success && result.data) {
-          const { status, data: taskData } = result.data;
+          const { status, data: taskData, progress: taskProgress } = result.data;
           setTaskStatus(status);
+
+          // ⭐ 更新进度百分比
+          if (typeof taskProgress === 'number') {
+            setProgress(taskProgress);
+          }
 
           if (status === 'SUCCESS' && taskData?.output) {
             // ⭐ 处理视频 URL：如果是相对路径，拼接完整 URL
@@ -276,8 +284,13 @@ function TaskResultNode({ data }) {
       const result = await response.json();
 
       if (result.success && result.data) {
-        const { status, data: taskData } = result.data;
+        const { status, data: taskData, progress: taskProgress } = result.data;
         setTaskStatus(status);
+
+        // ⭐ 更新进度百分比
+        if (typeof taskProgress === 'number') {
+          setProgress(taskProgress);
+        }
 
         if (status === 'SUCCESS' && taskData?.output) {
           // ⭐ 处理视频 URL：如果是相对路径，拼接完整 URL
@@ -326,12 +339,12 @@ function TaskResultNode({ data }) {
     }
   };
 
-  // Get status text
-  const getStatusText = (status) => {
+  // Get status text with progress
+  const getStatusText = (status, progressValue) => {
     switch (status) {
       case 'SUCCESS': return '✓ 完成';
       case 'FAILURE': return '✗ 失败';
-      case 'IN_PROGRESS': return '⏳ 处理中';
+      case 'IN_PROGRESS': return `⏳ 处理中 ${progressValue}%`;
       case 'NOT_START': return '⏸️ 未开始';
       default: return '⏸️ 等待中';
     }
@@ -448,7 +461,7 @@ function TaskResultNode({ data }) {
             fontSize: '11px',
             fontWeight: 'bold',
           }}>
-            {getStatusText(taskStatus)}
+            {getStatusText(taskStatus, progress)}
             {polling && ' ...'}
           </div>
         </div>
