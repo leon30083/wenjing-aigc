@@ -169,8 +169,14 @@ function TaskResultNode({ data }) {
           setTaskStatus(status);
 
           if (status === 'SUCCESS' && taskData?.output) {
+            // ⭐ 处理视频 URL：如果是相对路径，拼接完整 URL
+            let finalVideoUrl = taskData.output;
+            if (finalVideoUrl.startsWith('/downloads/')) {
+              finalVideoUrl = `${API_BASE}${finalVideoUrl}`;
+            }
+
             // ⭐ 新增：如果当前是本地路径，不覆盖
-            const currentIsLocal = videoUrl?.startsWith('/downloads/');
+            const currentIsLocal = videoUrl?.includes('/downloads/');
             const newIsLocal = taskData.output?.startsWith('/downloads/');
 
             if (currentIsLocal && !newIsLocal) {
@@ -178,10 +184,10 @@ function TaskResultNode({ data }) {
               return; // 不覆盖本地路径
             }
 
-            setVideoUrl(taskData.output);
+            setVideoUrl(finalVideoUrl);
             setPolling(false);
             clearInterval(pollInterval);
-            console.log('[TaskResultNode] Video URL set:', taskData.output);
+            console.log('[TaskResultNode] Video URL set:', finalVideoUrl);
           } else if (status === 'FAILURE') {
             setError(taskData?.fail_reason || '生成失败');
             setPolling(false);
@@ -191,7 +197,7 @@ function TaskResultNode({ data }) {
       } catch (err) {
         console.error('[TaskResultNode] Failed to poll task status:', err);
       }
-    }, 5000); // Poll every 5 seconds
+    }, 30000); // Poll every 30 seconds
 
     setPolling(true);
 
@@ -246,7 +252,9 @@ function TaskResultNode({ data }) {
     if (!taskId) return;
 
     try {
-      const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=juxin`);
+      // ⭐ 添加时间戳破坏缓存
+      const cacheBuster = Date.now();
+      const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=juxin&_t=${cacheBuster}`);
       const result = await response.json();
 
       if (result.success && result.data) {
@@ -254,7 +262,12 @@ function TaskResultNode({ data }) {
         setTaskStatus(status);
 
         if (status === 'SUCCESS' && taskData?.output) {
-          setVideoUrl(taskData.output);
+          // ⭐ 处理视频 URL：如果是相对路径，拼接完整 URL
+          let finalVideoUrl = taskData.output;
+          if (finalVideoUrl.startsWith('/downloads/')) {
+            finalVideoUrl = `${API_BASE}${finalVideoUrl}`;
+          }
+          setVideoUrl(finalVideoUrl);
         } else if (status === 'FAILURE') {
           setError(taskData?.fail_reason || '生成失败');
         }
