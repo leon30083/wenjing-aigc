@@ -761,6 +761,53 @@ const taskId = result.data.id || result.data.task_id;
   - `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 47-110 (useEffect 1), Lines 132-169 (事件监听器)
 - **修复日期**: 2026-01-01
 
+### 错误38: TaskResultNode platform 字段缺失导致 API 查询失败 ⭐ 新增 (2026-01-01)
+- **现象**: 旧任务查询 API 返回 400 错误，无法获取视频信息
+- **根本原因**:
+  - localStorage 保存的旧任务没有 `platform` 字段
+  - TaskResultNode 初始化使用默认值 `'juxin'`
+  - 贞贞平台的任务用聚鑫端点查询导致 400 错误
+  - VideoGenerateNode 显示"贞贞"但 TaskResultNode 查询用 `platform=juxin`
+- **错误尝试**:
+  - ❌ 手动修改 localStorage（不现实，用户无法操作）
+  - ❌ 删除旧任务重新创建（丢失已完成任务的记录）
+  - ❌ 在 useEffect 中只恢复 data.platform（如果 data.platform 本身就是 undefined，无法恢复）
+- **正确做法**:
+  ```javascript
+  // ✅ 正确：自动从连接的 VideoGenerateNode 检测 platform
+  useEffect(() => {
+    const sourceId = data.connectedSourceId || connectedSourceIdRef.current;
+    if (sourceId && (!platform || platform === 'juxin')) {
+      const allNodes = getNodes();
+      const sourceNode = allNodes.find(n => n.id === sourceId);
+
+      if (sourceNode && sourceNode.type === 'videoGenerateNode' && sourceNode.data?.apiConfig?.platform) {
+        const sourcePlatform = sourceNode.data.apiConfig.platform;
+
+        // 更新内部状态和 node.data
+        setPlatform(sourcePlatform);
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? { ...node, data: { ...node.data, platform: sourcePlatform } }
+              : node
+          )
+        );
+      }
+    }
+  }, [data.connectedSourceId]);
+  ```
+- **关键点**:
+  1. **自动检测 platform**: 从连接的 VideoGenerateNode 读取 apiConfig.platform
+  2. **条件触发**: 只在 platform 为 undefined 或 'juxin' 时执行
+  3. **同步更新**: 同时更新内部状态和 node.data
+  4. **向后兼容**: 自动修复旧数据，无需手动干预
+  5. **持久化修复**: 更新的 node.data 会自动保存到 localStorage
+- **验证结果**: ✅ 旧任务正确查询 API，成功获取视频信息
+- **修复文件**:
+  - `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 118-140 (useEffect 1.5)
+- **修复日期**: 2026-01-01
+
 ---
 
 ---
@@ -842,3 +889,4 @@ git push origin feature/workflow-management
 19. ✅ **任务进度百分比显示**: 从 API 响应提取 progress 字段（0-100），在状态文本中显示 "⏳ 处理中 45%" ⭐ 2026-01-01
 20. ✅ **已完成任务进度默认 100%**: 任务完成时（SUCCESS + videoUrl）自动设置 progress 为 100%，即使 API 未返回 progress 字段 ⭐ 2026-01-01
 21. ✅ **useEffect 空依赖数组防止竞态条件**: 当 useEffect 和事件监听器都管理同一状态时，useEffect 应使用空依赖数组只在挂载时运行，避免事件更新触发 useEffect 恢复旧数据 ⭐ 2026-01-01
+22. ✅ **自动检测修复缺失字段**: 从连接的源节点读取配置信息，自动修复 localStorage 中旧任务缺失的字段（如 platform），确保向后兼容 ⭐ 2026-01-01

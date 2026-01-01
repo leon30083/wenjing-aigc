@@ -4417,6 +4417,69 @@ const handleVideoTaskCreated = (event) => {
 
 ---
 
+### 错误38: TaskResultNode platform 字段缺失导致 API 查询失败 ⭐ 新增 (2026-01-01)
+
+**问题**:
+1. **API 查询 400 错误**: 旧任务查询 API 时返回 400 错误
+2. **平台不匹配**: 贞贞平台的任务用聚鑫端点查询（`platform=juxin` 而非 `zhenzhen`）
+3. **字段缺失**: localStorage 保存的旧任务没有 `platform` 字段
+4. **默认值错误**: TaskResultNode 初始化使用默认值 `'juxin'`
+
+**错误代码**:
+```javascript
+// ❌ 错误：platform 字段缺失，使用默认值
+const [platform, setPlatform] = useState(data.platform || 'juxin');
+
+// 查询 API 时使用错误的 platform
+fetch(`${API_BASE}/api/task/${taskId}?platform=${platform}`);
+// 实际请求: /api/task/video_xxx?platform=juxin
+// 应该请求: /api/task/video_xxx?platform=zhenzhen
+```
+
+**正确代码**:
+```javascript
+// ✅ 正确：自动从连接的 VideoGenerateNode 检测 platform
+useEffect(() => {
+  const sourceId = data.connectedSourceId || connectedSourceIdRef.current;
+
+  // 只在 platform 缺失或可能是错误值时执行
+  if (sourceId && (!platform || platform === 'juxin')) {
+    const allNodes = getNodes();
+    const sourceNode = allNodes.find(n => n.id === sourceId);
+
+    // 从 VideoGenerateNode 读取 apiConfig.platform
+    if (sourceNode && sourceNode.type === 'videoGenerateNode' && sourceNode.data?.apiConfig?.platform) {
+      const sourcePlatform = sourceNode.data.apiConfig.platform;
+
+      // 同步更新内部状态和 node.data
+      setPlatform(sourcePlatform);
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, platform: sourcePlatform } }
+            : node
+        )
+      );
+    }
+  }
+}, [data.connectedSourceId]);
+```
+
+**关键点**:
+1. **自动检测**: 从连接的源节点读取配置信息
+2. **条件触发**: 只在字段缺失或可能是错误值时执行
+3. **同步更新**: 同时更新内部状态和 node.data
+4. **向后兼容**: 自动修复旧数据，无需手动干预
+5. **持久化**: 更新的 node.data 自动保存到 localStorage
+
+**修复文件**:
+- `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 118-140 (useEffect 1.5)
+
+**相关文档**:
+- SKILL.md: 错误模式 38
+
+---
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：
