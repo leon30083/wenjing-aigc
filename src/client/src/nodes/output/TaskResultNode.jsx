@@ -46,6 +46,11 @@ function TaskResultNode({ data }) {
 
   // ⭐ useEffect 1: 从 data 恢复状态（工作流加载时）
   useEffect(() => {
+    // ⭐ 总是恢复 platform（无论什么情况）
+    if (data.platform) {
+      setPlatform(data.platform);
+    }
+
     // ⭐ 关键修复：优先检查是否是已完成的任务（无论来源）
     const isCompletedTask = data.taskStatus === 'SUCCESS' && data.videoUrl;
 
@@ -108,6 +113,31 @@ function TaskResultNode({ data }) {
       }
     }
   }, []); // ⭐ 空依赖数组：只在挂载时运行一次
+
+  // ⭐ useEffect 1.5: 从连接的 VideoGenerateNode 读取 platform（修复旧数据）
+  useEffect(() => {
+    const sourceId = data.connectedSourceId || connectedSourceIdRef.current;
+    if (sourceId && (!platform || platform === 'juxin')) {
+      // 查找连接的源节点
+      const allNodes = getNodes();
+      const sourceNode = allNodes.find(n => n.id === sourceId);
+
+      // 如果源节点是 VideoGenerateNode 且有 apiConfig，读取 platform
+      if (sourceNode && sourceNode.type === 'videoGenerateNode' && sourceNode.data?.apiConfig?.platform) {
+        const sourcePlatform = sourceNode.data.apiConfig.platform;
+
+        // 更新内部状态和 node.data
+        setPlatform(sourcePlatform);
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? { ...node, data: { ...node.data, platform: sourcePlatform } }
+              : node
+          )
+        );
+      }
+    }
+  }, [data.connectedSourceId]); // ⭐ 当连接变化时运行
 
   // ⭐ useEffect 2: 设置事件监听器（只在挂载时执行一次）
   useEffect(() => {
