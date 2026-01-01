@@ -20,15 +20,25 @@ function ReferenceImageNode({ data }) {
     { width: 260, height: 300 } // initialSize
   );
 
-  // ⭐ Data transfer: Pass selected images to connected nodes
+  // ⭐ 合并后的 useEffect：同时更新自己的 images 和目标节点的 connectedImages
   useEffect(() => {
-    if (selectedImages.size > 0 && nodeId) {
+    if (nodeId) {
       const edges = getEdges();
       const outgoingEdges = edges.filter(e => e.source === nodeId);
       const imageUrls = images.filter(img => selectedImages.has(img));
 
+      // ⚡ 一次 setNodes 调用同时更新自己和目标节点
       setNodes((nds) =>
         nds.map((node) => {
+          // 更新自己的 images（用于工作流恢复）
+          if (node.id === nodeId) {
+            return {
+              ...node,
+              data: { ...node.data, images }
+            };
+          }
+
+          // 更新目标节点的 connectedImages
           const isConnected = outgoingEdges.some(e => e.target === node.id);
           if (isConnected) {
             return {
@@ -36,6 +46,7 @@ function ReferenceImageNode({ data }) {
               data: { ...node.data, connectedImages: imageUrls }
             };
           }
+
           return node;
         })
       );

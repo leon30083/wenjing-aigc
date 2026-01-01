@@ -23,29 +23,60 @@ function CharacterLibraryNode({ data }) {
   // 状态管理
   // selectionMode: 'transfer' = 传送到视频节点（多选）, 'manage' = 角色编辑
   const [selectionMode, setSelectionMode] = useState('transfer');
-  const [selectedCharacters, setSelectedCharacters] = useState(new Set()); // 多选角色
+  // ⭐ 关键修复：从 data.selectedCharacters 恢复选中状态（支持工作流加载）
+  const [selectedCharacters, setSelectedCharacters] = useState(() => {
+    if (data.selectedCharacters && Array.isArray(data.selectedCharacters)) {
+      return new Set(data.selectedCharacters);
+    }
+    return new Set();
+  });
   const [batchMode, setBatchMode] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState(null);
   const [editAlias, setEditAlias] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState(null);
 
-  // ⭐ 多选模式：传递选中的角色数组到视频节点
+  // ⭐ 关键修复：当 data.selectedCharacters 变化时（加载工作流），恢复选中状态
   useEffect(() => {
-    data.selectedCharacters = Array.from(selectedCharacters);
+    if (data.selectedCharacters && Array.isArray(data.selectedCharacters)) {
+      const newSet = new Set(data.selectedCharacters);
+      // 只在实际变化时更新（避免无限循环）
+      if (newSet.size !== selectedCharacters.size ||
+          ![...newSet].every(id => selectedCharacters.has(id))) {
+        setSelectedCharacters(newSet);
+      }
+    }
+  }, [data.selectedCharacters]);
 
-    if (selectedCharacters.size > 0 && nodeId) {
-      const edges = getEdges();
-      const outgoingEdges = edges.filter(e => e.source === nodeId);
-
+  // ⭐ 合并后的 useEffect：同时更新自己和目标节点的 connectedCharacters
+  useEffect(() => {
+    if (nodeId && characters.length > 0) {
       // 获取选中的角色完整对象
       const characterObjects = characters.filter(c =>
         selectedCharacters.has(c.id)
       );
+      const selectedArray = Array.from(selectedCharacters);
 
-      // 更新所有连接的目标节点
+      // 获取连接的目标节点
+      const edges = getEdges();
+      const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+      // ⚡ 一次 setNodes 调用同时更新自己和目标节点
       setNodes((nds) =>
         nds.map((node) => {
+          // 更新自己的 connectedCharacters 和 selectedCharacters
+          if (node.id === nodeId) {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                connectedCharacters: characterObjects,
+                selectedCharacters: selectedArray
+              }
+            };
+          }
+
+          // ⭐ 关键修复：直接更新目标节点的 connectedCharacters（绕过 App.jsx）
           const isConnected = outgoingEdges.some(e => e.target === node.id);
           if (isConnected) {
             return {
@@ -56,31 +87,12 @@ function CharacterLibraryNode({ data }) {
               }
             };
           }
-          return node;
-        })
-      );
-    } else if (nodeId) {
-      // 清空连接时，传递空数组
-      const edges = getEdges();
-      const outgoingEdges = edges.filter(e => e.source === nodeId);
 
-      setNodes((nds) =>
-        nds.map((node) => {
-          const isConnected = outgoingEdges.some(e => e.target === node.id);
-          if (isConnected) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                connectedCharacters: []
-              }
-            };
-          }
           return node;
         })
       );
     }
-  }, [selectedCharacters, nodeId, getEdges, setNodes, characters]); // ⭐ 不包含 data
+  }, [selectedCharacters, nodeId, setNodes, characters, getEdges]);
 
   useEffect(() => {
     loadCharacters();

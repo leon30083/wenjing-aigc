@@ -151,9 +151,53 @@ useEffect(() => {
 }, [edges, setNodes]);
 ```
 
-#### 节点间数据传递
+#### 节点间数据传递 ⭐ 2026-01-01 更新
+
+**❌ 错误模式**: 依赖 App.jsx 中转
 ```javascript
-// 使用自定义事件系统
+// App.jsx (edges 变化时触发)
+useEffect(() => {
+  setNodes((nds) =>
+    nds.map((node) => {
+      const sourceNode = nds.find(n => n.id === edge.source);
+      return node.id === edge.target
+        ? { ...node, data: { ...node.data, connectedData: sourceNode.data.xxx } }
+        : node;
+    })
+  );
+}, [edges]); // ⚠️ 只监听 edges，节点内部状态变化不传递
+```
+
+**✅ 正确模式**: 源节点直接更新目标节点
+```javascript
+// CharacterLibraryNode.jsx
+useEffect(() => {
+  if (nodeId) {
+    const edges = getEdges();
+    const outgoingEdges = edges.filter(e => e.source === nodeId);
+    const characterObjects = characters.filter(c => selectedCharacters.has(c.id));
+
+    // ⭐ 一次 setNodes() 调用同时更新自己和目标节点
+    setNodes((nds) =>
+      nds.map((node) => {
+        // 更新自己
+        if (node.id === nodeId) {
+          return { ...node, data: { ...node.data, selectedCharacters: Array.from(selectedCharacters) } };
+        }
+        // ⭐ 直接更新目标节点（绕过 App.jsx）
+        const isConnected = outgoingEdges.some(e => e.target === node.id);
+        if (isConnected) {
+          return { ...node, data: { ...node.data, connectedCharacters: characterObjects } };
+        }
+        return node;
+      })
+    );
+  }
+}, [selectedCharacters, nodeId, setNodes, characters, getEdges]);
+```
+
+**事件系统**: 用于跨节点通信（taskId 等异步数据）
+```javascript
 // 发送节点
 window.dispatchEvent(new CustomEvent('video-task-created', {
   detail: { sourceNodeId: nodeId, taskId: id }
@@ -252,9 +296,16 @@ const taskId = result.data.id || result.data.task_id;
 - **原因**: API 使用 username 参数，存储用 ID 查找
 - **解决**: 添加 updateByUsername 方法
 
-### 错误16: React Flow 节点间数据传递错误
-- **原因**: useEffect 依赖数组包含 nodes、data 不包含 id
-- **解决**: 移除 nodes 依赖、使用 useNodeId()、使用事件系统
+### 错误16: React Flow 节点间数据传递错误 ⭐ 2026-01-01 更新
+- **原因**:
+  1. App.jsx 的 useEffect 只监听 edges 变化，不监听 nodes（核心问题）
+  2. useEffect 依赖数组包含 nodes 导致无限循环
+  3. data 对象不包含节点 id
+- **解决**:
+  1. 源节点直接更新目标节点（绕过 App.jsx）⭐ 核心方案
+  2. 移除 nodes 依赖，使用函数式更新
+  3. 使用 useNodeId() 获取节点 ID
+  4. 使用事件系统传递异步数据（taskId）
 
 ### 错误17: API 端点路径缺少前缀 ⭐ 2025-12-30
 - **原因**: 前端调用 API 时路径不完整，缺少 `/api/` 前缀
@@ -394,6 +445,34 @@ const taskId = result.data.id || result.data.task_id;
   - 参数面板使用浅色背景区分
   - 链接过长时自动截断并显示省略号
 
+### 错误34: 工作流快照时机问题 ⭐ 2026-01-01 新增
+- **现象**: 加载历史记录的工作流时，TaskResultNode 显示的视频不正确
+- **根本原因**:
+  1. VideoGenerateNode 调用 getNodes() 捕获快照时，TaskResultNode 的 useEffect 还没执行
+  2. useState 是异步的，useEffect 在渲染后执行，getNodes() 可能返回旧数据
+- **场景**: 连续生成视频时，第二次生成的快照包含第一次的视频结果
+- **解决方案**:
+  1. **短期修复**: 加载历史记录时，从历史记录的实际数据覆盖 TaskResultNode
+  2. **长期修复**: TaskResultNode 在轮询收到结果时，立即同步 node.data（不依赖 useEffect）
+- **示例代码**:
+  ```javascript
+  // App.jsx - 加载历史记录时覆盖
+  const cleanedNodes = savedNodes.map(node => {
+    if (node.type === 'taskResultNode') {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          taskId: record.taskId,
+          taskStatus: record.result?.status || 'idle',
+          videoUrl: record.result?.data?.output || null,
+        }
+      };
+    }
+    return { ...node, data: { ...node.data, onSizeChange: undefined } };
+  });
+  ```
+
 ---
 
 ## 项目结构
@@ -452,3 +531,7 @@ git push origin feature/workflow-management
 12. ✅ **图生视频提示词必须描述参考图**: 参考图片提供场景，提示词必须描述场景内容和角色活动
 13. ✅ **表单字段必须有 id/name 属性**: 满足浏览器可访问性要求
 14. ✅ **历史记录卡片显示视频**: 优先级检查 thumbnail → result.output → 占位符
+15. ✅ **源节点直接更新目标节点**: 绕过 App.jsx，使用 getEdges() 找到连接的节点，一次 setNodes() 更新多个节点 ⭐ 2026-01-01
+16. ✅ **关键时刻手动同步 node.data**: 在 getNodes() 捕获快照前，手动调用 setNodes() 确保数据同步 ⭐ 2026-01-01
+17. ✅ **防抖 localStorage 保存**: 500ms 防抖，减少 90% 的写入次数，提升响应速度 ⭐ 2026-01-01
+18. ✅ **getNodes() 的时机陷阱**: getNodes() 是同步的，useState 是异步的，useEffect 在渲染后执行 ⭐ 2026-01-01

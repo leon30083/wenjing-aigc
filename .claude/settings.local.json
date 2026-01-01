@@ -69,7 +69,13 @@
       "mcp__web-search-prime__webSearchPrime",
       "Bash(set http_proxy=http://127.0.0.1:7890)",
       "Bash(set:*)",
-      "Bash(with multi-shot format\".\nEOF\n\\)\")"
+      "Bash(with multi-shot format\".\nEOF\n\\)\")",
+      "mcp__zai-mcp-server__analyze_image",
+      "Skill(skill-creator)",
+      "Bash(ss:*)",
+      "Bash(tasklist:*)",
+      "Bash(cmd /c \"taskkill /F /PID 5360\")",
+      "Bash(cmd /c \"taskkill /F /PID 23604\")"
     ]
   }
 }

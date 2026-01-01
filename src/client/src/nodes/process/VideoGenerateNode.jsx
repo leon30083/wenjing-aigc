@@ -48,8 +48,19 @@ function VideoGenerateNode({ data }) {
 
   // Connected inputs (from connected nodes) - passed via data
   const connectedPrompt = data.connectedPrompt || '';
-  const connectedCharacters = data.connectedCharacters || []; // ⭐ 改为数组
-  const connectedImages = data.connectedImages || [];
+  // ⭐ 关键修复：使用 useState 触发重新渲染，但不同步回 data（避免循环）
+  const [connectedCharacters, setConnectedCharacters] = useState(data.connectedCharacters || []);
+  const [connectedImages, setConnectedImages] = useState(data.connectedImages || []);
+
+  // ⭐ 合并后的 useEffect：同时同步 connectedCharacters 和 connectedImages
+  useEffect(() => {
+    if (data.connectedCharacters) {
+      setConnectedCharacters(data.connectedCharacters);
+    }
+    if (data.connectedImages) {
+      setConnectedImages(data.connectedImages);
+    }
+  }, [data.connectedCharacters, data.connectedImages]);
 
   // Manual inputs
   const [manualPrompt, setManualPrompt] = useState(data.manualPrompt || ''); // ⭐ 从 data.manualPrompt 初始化（支持工作流恢复）
@@ -154,7 +165,9 @@ function VideoGenerateNode({ data }) {
     let result = text;
     // 替换 @username 为 @alias
     Object.entries(usernameToAlias).forEach(([username, alias]) => {
-      const regex = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+      // ⚠️ 关键修复：使用正向肯定预查而不是 \b（\b 不支持中文）
+      // 匹配 @username 后面是：空白字符、字符串结尾、或下一个 @ 符号
+      const regex = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|@)`, 'g');
       result = result.replace(regex, `@${alias}`);
     });
     return result;

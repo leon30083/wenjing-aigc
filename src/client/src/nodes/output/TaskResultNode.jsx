@@ -1,15 +1,19 @@
-import { Handle, Position } from 'reactflow';
+import { Handle, Position, useNodeId, useReactFlow } from 'reactflow';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNodeResize } from '../../hooks/useNodeResize';
 
 const API_BASE = 'http://localhost:9000';
 
 function TaskResultNode({ data }) {
+  const nodeId = useNodeId();
+  const { setNodes } = useReactFlow();
+
+  // ⭐ 关键修复：从 data 恢复状态（支持工作流加载）
   const [taskId, setTaskId] = useState(data.taskId || null);
   const taskIdRef = useRef(taskId);
-  const [taskStatus, setTaskStatus] = useState('idle');
-  const [videoUrl, setVideoUrl] = useState(null);
-  const [error, setError] = useState(null);
+  const [taskStatus, setTaskStatus] = useState(data.taskStatus || 'idle');
+  const [videoUrl, setVideoUrl] = useState(data.videoUrl || null);
+  const [error, setError] = useState(data.error || null);
   const [polling, setPolling] = useState(false);
   const [copySuccess, setCopySuccess] = useState(null); // 'taskId' | 'videoUrl' | null
 
@@ -29,13 +33,23 @@ function TaskResultNode({ data }) {
   useEffect(() => {
     console.log('[TaskResultNode] Node data:', { id: data.id, connectedSourceId: data.connectedSourceId });
 
-    // Check initial data.taskId
+    // ⭐ 关键修复：从 data 恢复状态（工作流加载时）
+    // 如果 data 中已有完整结果，直接恢复（不轮询 API）
     if (data.taskId && data.taskId !== taskIdRef.current) {
       console.log('[TaskResultNode] Initial taskId from data:', data.taskId);
       setTaskId(data.taskId);
-      setTaskStatus('idle');
-      setVideoUrl(null);
-      setError(null);
+    }
+
+    // ⭐ 关键修复：如果 data 中已有结果状态，直接恢复（跳过轮询）
+    if (data.taskStatus && data.taskStatus !== 'idle') {
+      setTaskStatus(data.taskStatus);
+      if (data.videoUrl) {
+        setVideoUrl(data.videoUrl);
+        setPolling(false); // 已有结果，不需要轮询
+      }
+      if (data.error) {
+        setError(data.error);
+      }
     }
 
     // ⭐ 关键修复：只有当连接到源节点时才监听事件
@@ -56,6 +70,8 @@ function TaskResultNode({ data }) {
         setTaskStatus('idle');
         setVideoUrl(null);
         setError(null);
+        // ⭐ 关键修复：新任务开始时重置所有状态，确保自动轮询
+        setPolling(false); // 重置为 false，让轮询 useEffect 重新启动
       }
     };
 
@@ -64,7 +80,7 @@ function TaskResultNode({ data }) {
     return () => {
       window.removeEventListener('video-task-created', handleVideoCreated);
     };
-  }, [data.taskId, data.connectedSourceId]);
+  }, [data.taskId, data.taskStatus, data.videoUrl, data.error, data.connectedSourceId]);
 
   // Poll task status when taskId is set
   useEffect(() => {
@@ -109,6 +125,29 @@ function TaskResultNode({ data }) {
       setPolling(false);
     };
   }, [taskId, taskStatus, videoUrl]);
+
+  // ⭐ 关键修复：将结果同步到 node.data（用于工作流快照保存）
+  useEffect(() => {
+    // 当任务完成或有结果时，同步到 node.data
+    if ((taskStatus === 'SUCCESS' && videoUrl) || taskStatus === 'FAILURE') {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  taskId,
+                  taskStatus,
+                  videoUrl,
+                  error
+                }
+              }
+            : node
+        )
+      );
+    }
+  }, [taskStatus, videoUrl, error, taskId, nodeId, setNodes]);
 
   // Manual refresh
   const refreshStatus = async () => {

@@ -554,6 +554,28 @@ const insertCharacterAtCursor = (username, alias) => {
   2. **父组件**: 使用 `useCallback` 创建稳定回调函数
 - **关键点**: 移除 `data` 从 useEffect 依赖数组
 
+**节点间数据传递架构** ⭐ 2026-01-01 新增:
+- **核心原则**: 源节点直接更新目标节点，避免依赖父组件中转
+- **数据流**:
+  ```
+  源节点 (Source Node)
+  ├─ useState 管理 UI 状态
+  ├─ useEffect 监听状态变化
+  ├─ setNodes() 同步到 node.data
+  └─ setNodes() 直接更新目标节点.data
+
+  目标节点 (Target Node)
+  ├─ useEffect 接收 data.xxx 变化
+  ├─ 更新内部 useState
+  └─ 渲染 UI
+  ```
+- **关键实现**:
+  - 使用 `getEdges()` 找到连接的节点
+  - 一次 `setNodes()` 调用更新多个节点
+  - 精确的依赖数组避免无限循环
+- **❌ 错误模式**: App.jsx 中转（只监听 edges，节点内部状态变化不传递）
+- **✅ 正确模式**: 源节点直接更新（绕过 App.jsx 的数据传递陷阱）
+
 ## 轮询策略
 
 ### 后台自动轮询服务

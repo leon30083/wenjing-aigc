@@ -30,10 +30,20 @@ function StoryboardNode({ data }) {
   const [status, setStatus] = useState(data.taskId ? 'success' : 'idle'); // ⭐ 如果有 taskId 则设置为成功状态
 
   // ⭐ Phase 1: 角色引用相关状态
-  const connectedCharacters = data.connectedCharacters || [];
-  const connectedImages = data.connectedImages || [];
+  // ⭐ 关键修复：使用 useState 触发重新渲染，但不同步回 data（避免循环）
+  const [connectedCharacters, setConnectedCharacters] = useState(data.connectedCharacters || []);
+  const [connectedImages, setConnectedImages] = useState(data.connectedImages || []);
   const sceneRefs = useRef([]);
   const lastFocusedSceneIndex = useRef(null);
+
+  // ⭐ 只从 data 同步到 state（单向），不同步回 data（避免循环）
+  useEffect(() => {
+    setConnectedCharacters(data.connectedCharacters || []);
+  }, [data.connectedCharacters]);
+
+  useEffect(() => {
+    setConnectedImages(data.connectedImages || []);
+  }, [data.connectedImages]);
 
   // ⭐ 新增：全局图片控制和镜头图片选择状态
   const [useGlobalImages, setUseGlobalImages] = useState(false); // 全局图片复选框
@@ -64,7 +74,9 @@ function StoryboardNode({ data }) {
     if (!text) return '';
     let result = text;
     Object.entries(usernameToAlias).forEach(([username, alias]) => {
-      const regex = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+      // ⚠️ 关键修复：使用正向肯定预查而不是 \b（\b 不支持中文）
+      // 匹配 @username 后面是：空白字符、字符串结尾、或下一个 @ 符号
+      const regex = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|@)`, 'g');
       result = result.replace(regex, `@${alias}`);
     });
     return result;

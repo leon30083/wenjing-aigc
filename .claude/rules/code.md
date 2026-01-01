@@ -1065,9 +1065,14 @@ app.put('/api/character/:username/favorite', (req, res) => {
 **问题**: 角色 API 端点使用 `username` 作为路径参数，但存储层使用 `id` 查找，导致更新失败
 **解决方案**: 添加 `updateByUsername` 方法，或在 API 中先通过 username 查找 id 再更新
 
-### 错误16: React Flow 节点间数据传递错误 ⭐ 新增
-```javascript
-// ❌ 错误：useEffect 依赖数组包含 nodes 导致无限循环
+### 错误16: React Flow 节点间数据传递错误 ⭐ 更新 (2026-01-01)
+
+**问题诊断**:
+1. **App.jsx 数据传递陷阱**: useEffect 只监听 edges，不监听 nodes，导致节点内部状态变化不传递到目标节点
+2. **useEffect 无限循环**: 依赖数组包含 nodes，导致重复渲染
+3. **节点 ID 缺失**: data 对象不包含 id，必须使用 useNodeId()
+
+**错误示例**:
 useEffect(() => {
   setNodes((nds) =>
     nds.map((node) => {
@@ -1174,9 +1179,59 @@ function TaskResultNode({ data }) {
 3. 使用 getNodes() 获取的数据可能是旧的，因为 setNodes() 是异步批处理更新
 
 **解决方案**:
-1. 从依赖数组移除 nodes，使用函数式更新自动获取最新值
-2. 使用 useNodeId() Hook 获取节点 ID
-3. 使用自定义事件系统在节点间传递数据
+1. **源节点直接更新目标节点** ⭐ 核心方案（绕过 App.jsx）
+2. 从依赖数组移除 nodes，使用函数式更新自动获取最新值
+3. 使用 useNodeId() Hook 获取节点 ID
+4. 使用自定义事件系统在节点间传递异步数据（taskId）
+
+**源节点直接更新目标节点的正确模式** ⭐ 2026-01-01 新增:
+```javascript
+// CharacterLibraryNode.jsx - 源节点直接更新目标节点
+useEffect(() => {
+  if (nodeId) {
+    const edges = getEdges();
+    const outgoingEdges = edges.filter(e => e.source === nodeId);
+    const characterObjects = characters.filter(c => selectedCharacters.has(c.id));
+
+    // ⭐ 一次 setNodes() 调用同时更新自己和目标节点
+    setNodes((nds) =>
+      nds.map((node) => {
+        // 更新自己的状态
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              selectedCharacters: Array.from(selectedCharacters),
+              connectedCharacters: characterObjects
+            }
+          };
+        }
+
+        // ⭐ 直接更新目标节点（绕过 App.jsx 的数据流）
+        const isConnected = outgoingEdges.some(e => e.target === node.id);
+        if (isConnected) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              connectedCharacters: characterObjects
+            }
+          };
+        }
+
+        return node;
+      })
+    );
+  }
+}, [selectedCharacters, nodeId, setNodes, characters, getEdges]);
+```
+
+**关键点**:
+- 使用 `getEdges()` 找到连接的目标节点
+- 一次 `setNodes()` 调用更新多个节点
+- 避免 App.jsx 的 useEffect 只监听 edges 的陷阱
+- 精确的依赖数组避免无限循环
 
 ### 错误17: API 端点路径缺少前缀 ⭐ 新增
 ```javascript
@@ -3882,6 +3937,162 @@ function StoryboardNode({ data }) {
 **相关文档**:
 - base.md: 工作流持久化方案（第242-275行）
 - SKILL.md: 错误模式 33
+
+---
+
+### 错误34: 工作流快照时机问题 ⭐ 2026-01-01 新增
+
+```javascript
+// ❌ 错误：getNodes() 在 TaskResultNode 同步之前调用
+function VideoGenerateNode({ data }) {
+  const handleGenerate = async () => {
+    // 手动同步 manualPrompt
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId
+          ? { ...node, data: { ...node.data, manualPrompt } }
+          : node
+      )
+    );
+
+    // ⚠️ 问题：立即调用 getNodes()，但 TaskResultNode 的 useEffect 还没执行
+    const workflowSnapshot = {
+      nodes: getNodes(),  // TaskResultNode.data 可能还是旧的
+      edges: getEdges(),
+    };
+
+    // ... API 调用，保存快照到历史记录 ...
+  };
+}
+
+// TaskResultNode.jsx - useEffect 是异步的
+useEffect(() => {
+  if ((taskStatus === 'SUCCESS' && videoUrl) || taskStatus === 'FAILURE') {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                taskId,      // ⚠️ 这个更新可能晚于 VideoGenerateNode 的 getNodes()
+                taskStatus,
+                videoUrl,
+                error
+              }
+            }
+          : node
+      )
+    );
+  }
+}, [taskStatus, videoUrl, error, taskId, nodeId, setNodes]);
+```
+
+**问题**:
+1. **时机问题**: VideoGenerateNode 调用 getNodes() 捕获快照时，TaskResultNode 的 useEffect 还没执行
+2. **异步陷阱**: useState 是异步的，useEffect 在渲染后执行，getNodes() 可能返回旧数据
+3. **实际影响**: 加载历史记录时显示错误视频（第一次的视频结果，而不是第二次的）
+
+**场景**:
+```
+1. 第一次生成"小猫视频"，TaskResultNode 显示小猫视频 ✅
+2. 用户修改提示词，点击生成第二次（火山视频）
+3. VideoGenerateNode 调用 getNodes()，此时 TaskResultNode.data 还是小猫视频
+4. 快照保存到历史记录，包含小猫视频 ❌
+5. 用户加载历史记录，看到小猫视频而不是火山视频 ❌
+```
+
+**解决方案**:
+
+**短期修复** - 加载历史记录时覆盖 TaskResultNode 数据:
+```javascript
+// ✅ App.jsx - handleLoadWorkflowFromHistory
+const handleLoadWorkflowFromHistory = (record) => {
+  const { workflowSnapshot, taskId, result } = record;
+
+  if (!workflowSnapshot) {
+    alert('⚠️ 该历史记录没有工作流快照，无法恢复工作流。');
+    return;
+  }
+
+  const { nodes: savedNodes, edges: savedEdges } = workflowSnapshot;
+
+  // ⭐ 关键修复：从历史记录的实际数据恢复 TaskResultNode
+  const cleanedNodes = savedNodes.map(node => {
+    if (node.type === 'taskResultNode') {
+      // 使用历史记录的真实数据，而不是快照中的数据
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          taskId: taskId,              // ⭐ 使用历史记录的 taskId
+          taskStatus: result?.status || 'idle',
+          videoUrl: result?.data?.output || null,  // ⭐ 使用历史记录的视频 URL
+          error: result?.data?.fail_reason || null,
+        }
+      };
+    }
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        onSizeChange: undefined,
+      }
+    };
+  });
+
+  setNodes(cleanedNodes);
+  setEdges(savedEdges);
+  // ...
+};
+```
+
+**长期修复** - TaskResultNode 主动同步数据:
+```javascript
+// ✅ TaskResultNode.jsx - 轮询收到结果时立即同步
+const pollTaskStatus = async () => {
+  const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=juxin`);
+  const result = await response.json();
+
+  if (result.success && result.data) {
+    const { status, data: taskData } = result.data;
+    setTaskStatus(status);  // useState 更新
+
+    // ⭐ 关键修复：立即同步到 node.data（不等待 useEffect）
+    if (status === 'SUCCESS' && taskData?.output) {
+      setVideoUrl(taskData.output);
+
+      // 立即同步到 node.data
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  taskId,
+                  taskStatus: status,
+                  videoUrl: taskData.output,
+                  error: null
+                }
+              }
+            : node
+        )
+      );
+    }
+  }
+};
+```
+
+**关键点**:
+1. **时机问题**: getNodes() 是同步的，useState 是异步的，useEffect 在渲染后执行
+2. **短期方案**: 加载历史记录时，从历史记录的实际数据覆盖快照中的旧数据
+3. **长期方案**: TaskResultNode 在轮询收到结果时，立即同步 node.data（不依赖 useEffect）
+4. **核心原则**: 关键时刻手动调用 setNodes() 确保数据同步
+
+**相关文档**:
+- SKILL.md: 错误模式 34
+- Plan: `vivid-kindling-yeti.md` - 工作流数据架构修复与新问题分析
 
 ---
 

@@ -228,7 +228,12 @@ function App() {
         if (characterEdge) {
           const sourceNode = nds.find((n) => n.id === characterEdge.source);
 
-          // For video generate node: get selected character
+          // For video generate node: get selected character(s)
+          // ⭐ 支持 connectedCharacters 数组（CharacterLibraryNode 传递）
+          if (sourceNode?.data?.connectedCharacters) {
+            newData.connectedCharacters = sourceNode.data.connectedCharacters;
+          }
+          // 兼容旧的单角色选择
           if (sourceNode?.data?.selectedCharacter) {
             newData.connectedCharacter = sourceNode.data.selectedCharacter;
           }
@@ -236,7 +241,6 @@ function App() {
           // For character result node: store connected source ID for event listener
           if (node.type === 'characterResultNode') {
             newData.connectedSourceId = characterEdge.source;
-            console.log('[App] CharacterResultNode connectedSourceId:', node.id, '->', characterEdge.source);
           }
         }
 
@@ -258,22 +262,44 @@ function App() {
           }
           // Store connected source ID for event listener
           newData.connectedSourceId = videoEdge.source;
-          console.log('[App] TaskResultNode connectedSourceId:', node.id, '->', videoEdge.source);
         }
 
-        return { ...node, data: newData };
+        // ⭐ 关键修复：只有当 data 真正变化时才返回新对象（避免无限循环）
+        // 使用精确比较关键属性（替代 JSON.stringify，避免对象属性顺序影响）
+        const oldData = node.data;
+        const dataChanged = (
+          oldData.connectedCharacters !== newData.connectedCharacters ||
+          oldData.connectedImages !== newData.connectedImages ||
+          oldData.connectedPrompt !== newData.connectedPrompt ||
+          oldData.taskId !== newData.taskId ||
+          oldData.selectedCharacters !== newData.selectedCharacters ||
+          oldData.manualPrompt !== newData.manualPrompt ||
+          oldData.images !== newData.images ||
+          oldData.shots !== newData.shots ||
+          oldData.useGlobalImages !== newData.useGlobalImages
+        );
+
+        if (dataChanged) {
+          return { ...node, data: newData };
+        }
+        return node;
       })
     );
   }, [edges, setNodes, handleNodeSizeChange]);
 
-  // Save workflow to localStorage whenever nodes or edges change
+  // Save workflow to localStorage whenever nodes or edges change (with 500ms debounce)
   useEffect(() => {
-    try {
-      localStorage.setItem('workflow-nodes', JSON.stringify(nodes));
-      localStorage.setItem('workflow-edges', JSON.stringify(edges));
-    } catch (error) {
-      console.error('Failed to save workflow:', error);
-    }
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem('workflow-nodes', JSON.stringify(nodes));
+        localStorage.setItem('workflow-edges', JSON.stringify(edges));
+        console.log('[App] Workflow saved to localStorage');
+      } catch (error) {
+        console.error('[App] Failed to save workflow:', error);
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timer);
   }, [nodes, edges]);
 
   // Add a new node
