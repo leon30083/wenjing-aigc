@@ -277,9 +277,9 @@ function VideoGenerateNode({ data }) {
         // Update node data so taskId can be passed to connected nodes
         // Note: Using useReactFlow() here would require importing it
         // For now, we use the event system
-        console.log('[VideoGenerateNode] Dispatching event:', { sourceNodeId: nodeId, taskId: id });
+        console.log('[VideoGenerateNode] Dispatching event:', { sourceNodeId: nodeId, taskId: id, platform: apiConfig.platform });
         window.dispatchEvent(new CustomEvent('video-task-created', {
-          detail: { sourceNodeId: nodeId, taskId: id }
+          detail: { sourceNodeId: nodeId, taskId: id, platform: apiConfig.platform }
         }));
 
         // Notify parent

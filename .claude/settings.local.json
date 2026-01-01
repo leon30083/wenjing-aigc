@@ -75,7 +75,11 @@
       "Bash(ss:*)",
       "Bash(tasklist:*)",
       "Bash(cmd /c \"taskkill /F /PID 5360\")",
-      "Bash(cmd /c \"taskkill /F /PID 23604\")"
+      "Bash(cmd /c \"taskkill /F /PID 23604\")",
+      "Bash(cmd /c \"taskkill /F /PID 6432\")",
+      "Bash(cmd /c \"taskkill /F /PID 30028\")",
+      "Bash(cmd /c \"taskkill /F /PID 11684\")",
+      "Bash(wc:*)"
     ]
   }
 }

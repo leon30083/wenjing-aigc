@@ -17,6 +17,9 @@ function TaskResultNode({ data }) {
   const [polling, setPolling] = useState(false);
   const [copySuccess, setCopySuccess] = useState(null); // 'taskId' | 'videoUrl' | null
 
+  // ⭐ 新增：存储平台信息（用于 API 调用）
+  const [platform, setPlatform] = useState(data.platform || 'juxin');
+
   // ⭐ 新增：标记是否从历史记录加载（已完成的任务，不需要轮询）
   const isCompletedFromHistoryRef = useRef(false);
 
@@ -96,11 +99,11 @@ function TaskResultNode({ data }) {
   useEffect(() => {
     // Listen for custom event when video is created
     const handleVideoCreated = (event) => {
-      const { sourceNodeId, taskId: newTaskId } = event.detail;
+      const { sourceNodeId, taskId: newTaskId, platform: newPlatform } = event.detail;
       // ⭐ 修复：使用 connectedSourceIdRef.current 而不是 data.connectedSourceId
       // ref 始终保持最新值（由另一个 useEffect 更新），避免闭包陷阱
       const connectedSourceId = connectedSourceIdRef.current;
-      console.log('[TaskResultNode] Event received:', { sourceNodeId, newTaskId, connectedSourceId });
+      console.log('[TaskResultNode] Event received:', { sourceNodeId, newTaskId, newPlatform, connectedSourceId });
 
       // ⭐ 新增：验证源节点类型
       // 获取所有节点并找到源节点，验证其类型是否有效
@@ -114,7 +117,7 @@ function TaskResultNode({ data }) {
           validSourceTypes.includes(sourceNode.type) &&
           newTaskId &&
           newTaskId !== taskIdRef.current) {
-        console.log('[TaskResultNode] Match! Setting taskId:', newTaskId);
+        console.log('[TaskResultNode] Match! Setting taskId:', newTaskId, 'platform:', newPlatform);
 
         // ⭐ 关键修复：立即同步到 node.data（不等 useEffect）
         // 这确保 VideoGenerateNode 的 getNodes() 调用能捕获到正确的 taskId
@@ -126,6 +129,7 @@ function TaskResultNode({ data }) {
                   data: {
                     ...node.data,
                     taskId: newTaskId,
+                    platform: newPlatform || 'juxin', // ⭐ 保存 platform
                     taskStatus: 'idle',
                     videoUrl: null,
                     error: null,
@@ -138,6 +142,7 @@ function TaskResultNode({ data }) {
 
         // 然后更新 useState（用于 UI）
         setTaskId(newTaskId);
+        setPlatform(newPlatform || 'juxin'); // ⭐ 更新 platform 状态
         setTaskStatus('idle');
         setVideoUrl(null);
         setError(null);
@@ -172,7 +177,9 @@ function TaskResultNode({ data }) {
 
     const pollInterval = setInterval(async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=juxin`);
+        // ⭐ 使用正确的 platform 参数并添加缓存破坏
+        const cacheBuster = Date.now();
+        const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=${platform}&_t=${cacheBuster}`);
         const result = await response.json();
 
         if (result.success && result.data) {
@@ -216,7 +223,7 @@ function TaskResultNode({ data }) {
       clearInterval(pollInterval);
       setPolling(false);
     };
-  }, [taskId, taskStatus]); // ⭐ 移除 videoUrl，避免循环
+  }, [taskId, taskStatus, platform]); // ⭐ 移除 videoUrl，避免循环；添加 platform
 
   // ⭐ 关键修复：将结果同步到 node.data（用于工作流快照保存）
   // 使用 ref 存储上次的值，避免无限循环
@@ -263,9 +270,9 @@ function TaskResultNode({ data }) {
     if (!taskId) return;
 
     try {
-      // ⭐ 添加时间戳破坏缓存
+      // ⭐ 添加时间戳破坏缓存，使用正确的 platform
       const cacheBuster = Date.now();
-      const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=juxin&_t=${cacheBuster}`);
+      const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=${platform}&_t=${cacheBuster}`);
       const result = await response.json();
 
       if (result.success && result.data) {

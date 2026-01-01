@@ -131,7 +131,10 @@ function APISettingsNode({ data }) {
             cursor: 'pointer',
           }}
         >
-          <option value="sora-2" style={{ backgroundColor: 'white', color: '#1e293b' }}>Sora-2</option>
+          {/* 根据平台显示不同的模型名称 */}
+          <option value="sora-2" style={{ backgroundColor: 'white', color: '#1e293b' }}>
+            {config.platform === 'juxin' ? 'Sora-2-all' : 'Sora-2'}
+          </option>
           <option value="sora-2-pro" style={{ backgroundColor: 'white', color: '#1e293b' }}>Sora-2 Pro</option>
         </select>
       </div>

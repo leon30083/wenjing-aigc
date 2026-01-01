@@ -570,6 +570,49 @@ const taskId = result.data.id || result.data.task_id;
   });
   ```
 
+### 错误35: 轮询请求缺少 platform 参数导致查询失败 ⭐ 2026-01-01 新增
+- **现象**: 任务在后台显示成功，但前端TaskResultNode一直显示"查询中..."，无法获取结果
+- **具体场景**: 用贞贞平台提交的任务，后台返回304 Not Modified，前端无法获取任务状态
+- **根本原因**:
+  1. **事件系统缺少 platform 参数**: VideoGenerateNode 派发事件时只传递 `sourceNodeId` 和 `taskId`，没有传递 `platform`
+  2. **轮询请求硬编码平台**: TaskResultNode 轮询时硬编码 `platform=juxin`，导致贞贞平台任务查询错误的端点
+  3. **缺少缓存破坏参数**: 请求没有添加时间戳参数，浏览器返回304 Not Modified
+- **错误示例**:
+  ```javascript
+  // ❌ VideoGenerateNode - 派发事件时缺少 platform
+  window.dispatchEvent(new CustomEvent('video-task-created', {
+    detail: { sourceNodeId: nodeId, taskId: id }  // ❌ 缺少 platform
+  }));
+
+  // ❌ TaskResultNode - 硬编码平台参数
+  const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=juxin`);
+  // 问题：贞贞平台任务会查询错误的端点
+  ```
+- **正确做法**:
+  ```javascript
+  // ✅ VideoGenerateNode - 传递 platform 参数
+  window.dispatchEvent(new CustomEvent('video-task-created', {
+    detail: { sourceNodeId: nodeId, taskId: id, platform: apiConfig.platform }
+  }));
+
+  // ✅ TaskResultNode - 从状态中获取 platform 并添加缓存破坏
+  const cacheBuster = Date.now();
+  const response = await fetch(`${API_BASE}/api/task/${taskId}?platform=${platform}&_t=${cacheBuster}`);
+  ```
+- **关键点**:
+  - **事件传递**: VideoGenerateNode 必须传递 platform 参数（juxin 或 zhenzhen）
+  - **状态管理**: TaskResultNode 使用 useState 存储 platform，从事件中接收
+  - **缓存破坏**: 添加 `&_t=${Date.now()}` 参数避免浏览器304缓存
+  - **依赖数组**: useEffect 依赖数组包含 platform，确保平台切换时重新开始轮询
+- **验证结果**:
+  - ✅ 贞贞平台任务使用 `platform=zhenzhen` 查询成功
+  - ✅ 聚鑫平台任务使用 `platform=juxin` 查询成功
+  - ✅ 浏览器不再返回304 Not Modified
+- **修复文件**:
+  - `src/client/src/nodes/process/VideoGenerateNode.jsx` - Lines 280-283（传递 platform）
+  - `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 21, 102, 145, 182, 226, 275（接收和使用 platform）
+- **修复日期**: 2026-01-01
+
 ---
 
 ---

@@ -570,7 +570,7 @@ function App() {
           fontWeight: 'bold',
           color: '#f8fafc',
         }}>
-          ⚡ WinJin 工作流编辑器
+          ⚡ AI star视频工作台
         </h1>
 
         {/* Current Workflow Name Display */}
