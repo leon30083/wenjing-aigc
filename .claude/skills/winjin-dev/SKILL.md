@@ -445,6 +445,44 @@ const taskId = result.data.id || result.data.task_id;
   - 参数面板使用浅色背景区分
   - 链接过长时自动截断并显示省略号
 
+### 错误25: 本地视频 URL 缺少完整前缀导致无法播放 ⭐ 2026-01-01 新增
+- **现象**: 视频下载后，点击视频无法播放，显示"无法播放媒体"
+- **根本原因**:
+  1. 后端返回本地视频路径为 `/downloads/xxx.mp4`（相对路径）
+  2. 前端直接使用相对路径作为 `<video>` 的 `src` 属性
+  3. 浏览器解析为当前页面 URL + 相对路径（如 `http://localhost:5173/downloads/...`）
+  4. 但视频文件在 9000 端口服务器，导致 404 无法播放
+- **错误示例**:
+  ```javascript
+  // ❌ 错误：直接使用相对路径
+  const response = await fetch(`${API_BASE}/api/task/${taskId}`);
+  const result = await response.json();
+  const videoUrl = result.data.data.output; // "/downloads/xxx.mp4"
+  <video src={videoUrl} /> // 浏览器解析为 http://localhost:5173/downloads/xxx.mp4 (404)
+  ```
+- **正确做法**: 检查路径前缀，如果是本地路径，拼接完整 API_BASE
+  ```javascript
+  // ✅ 正确：拼接完整 URL
+  const response = await fetch(`${API_BASE}/api/task/${taskId}`);
+  const result = await response.json();
+  let finalVideoUrl = result.data.data.output;
+
+  // ⭐ 关键：为本地路径拼接完整前缀
+  if (finalVideoUrl.startsWith('/downloads/')) {
+    finalVideoUrl = `${API_BASE}${finalVideoUrl}`;
+  }
+  // 结果: "http://localhost:9000/downloads/xxx.mp4"
+
+  <video src={finalVideoUrl} /> // 正确加载视频
+  ```
+- **关键规则**:
+  1. **相对路径识别**: 以 `/downloads/` 开头的路径是本地视频
+  2. **URL 拼接**: 本地路径必须拼接 `API_BASE` 前缀
+  3. **远程路径**: 以 `http://` 或 `https://` 开头的路径直接使用
+  4. **缓存破坏**: 手动刷新时添加 `&_t=时间戳` 参数绕过浏览器缓存
+- **轮询间隔注意事项**: 必须使用 30 秒间隔，避免 429 Rate Limit 错误（见错误6）
+- **修复日期**: 2026-01-01
+
 ### 错误34: 工作流快照时机问题 ⭐ 2026-01-01 新增
 - **现象**: 加载历史记录的工作流时，TaskResultNode 显示的视频不正确
 - **根本原因**:

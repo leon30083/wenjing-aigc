@@ -4096,6 +4096,71 @@ const pollTaskStatus = async () => {
 
 ---
 
+### 错误25: 本地视频 URL 缺少完整前缀导致无法播放 ⭐ 2026-01-01 新增
+
+```javascript
+// ❌ 错误：直接使用相对路径，导致视频无法播放
+const response = await fetch(`${API_BASE}/api/task/${taskId}`);
+const result = await response.json();
+const { data: taskData } = result.data;
+
+setVideoUrl(taskData.output); // "/downloads/xxx.mp4"
+// 浏览器解析为: http://localhost:5173/downloads/xxx.mp4 (404 - 视频在 9000 端口)
+```
+
+```javascript
+// ✅ 正确：为本地路径拼接完整前缀
+const response = await fetch(`${API_BASE}/api/task/${taskId}`);
+const result = await response.json();
+const { data: taskData } = result.data;
+
+let finalVideoUrl = taskData.output;
+
+// ⭐ 关键：检查是否为本地路径，拼接完整 URL
+if (finalVideoUrl.startsWith('/downloads/')) {
+  finalVideoUrl = `${API_BASE}${finalVideoUrl}`;
+}
+// 结果: "http://localhost:9000/downloads/xxx.mp4"
+
+setVideoUrl(finalVideoUrl);
+```
+
+**问题**:
+1. **相对路径解析错误**: `/downloads/xxx.mp4` 被浏览器解析为当前页面域名（5173端口）
+2. **端口不匹配**: 视频文件在 9000 端口服务器，但请求发到了 5173 端口
+3. **浏览器缓存**: 手动刷新可能返回 304 缓存，获取不到最新数据
+
+**解决方案**:
+1. **路径检查**: 检查 URL 是否以 `/downloads/` 开头
+2. **URL 拼接**: 本地路径拼接 `API_BASE` 前缀
+3. **缓存破坏**: 手动刷新添加 `&_t=Date.now()` 参数
+
+**手动刷新缓存破坏**:
+```javascript
+// ✅ 正确：添加时间戳参数破坏缓存
+const refreshStatus = async () => {
+  const cacheBuster = Date.now();
+  const response = await fetch(
+    `${API_BASE}/api/task/${taskId}?platform=juxin&_t=${cacheBuster}`
+  );
+  // ...
+};
+```
+
+**关键规则**:
+1. **相对路径识别**: `/downloads/` 开头 = 本地视频
+2. **URL 拼接**: 本地路径必须拼接 API_BASE
+3. **远程路径**: `http://` 或 `https://` 开头直接使用
+4. **轮询间隔**: 必须使用 30 秒（避免 429 错误）
+5. **缓存破坏**: 手动刷新添加时间戳参数
+
+**修复日期**: 2026-01-01
+
+**相关文档**:
+- SKILL.md: 错误模式 25
+
+---
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：
