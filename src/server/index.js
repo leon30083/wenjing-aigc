@@ -32,6 +32,8 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // 静态文件服务
 app.use(express.static('src/renderer/public'));
+// ⭐ 添加 downloads 目录的静态文件服务（用于本地视频播放）
+app.use('/downloads', express.static('downloads'));
 
 // 创建 Sora2 客户端实例
 const sora2Clients = {
@@ -368,6 +370,14 @@ app.get('/api/task/:taskId', async (req, res) => {
       // 任务完成
       if (status === 'SUCCESS' && data) {
         historyStorage.markCompleted(taskId, data);
+
+        // ⭐ 检查是否有本地下载路径
+        const record = historyStorage.getRecord(taskId);
+        if (record?.downloadedPath) {
+          // 优先返回本地路径
+          result.data.data = { ...data, output: `/downloads/${path.basename(record.downloadedPath)}`, localPath: true };
+          console.log(`[API] 返回本地视频路径: ${record.downloadedPath}`);
+        }
       }
       // 任务失败
       else if (status === 'FAILURE') {
@@ -584,7 +594,26 @@ app.get('/api/history/list', (req, res) => {
       status,
       platform,
     });
-    res.json({ success: true, data: records });
+
+    // ⭐ 转换 downloadedPath 为本地路径格式
+    const processedRecords = records.map(record => {
+      if (record.downloadedPath) {
+        return {
+          ...record,
+          result: {
+            ...record.result,
+            data: {
+              ...record.result?.data,
+              output: `/downloads/${path.basename(record.downloadedPath)}`,
+              localPath: true
+            }
+          }
+        };
+      }
+      return record;
+    });
+
+    res.json({ success: true, data: processedRecords });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -842,8 +871,23 @@ async function checkAndUpdateTask(taskId, platform) {
 
       // 任务完成
       if (status === 'SUCCESS' && data) {
-        historyStorage.markCompleted(taskId, data);
         console.log(`[轮询] 任务完成: ${taskId}`);
+
+        // ⭐ 自动下载视频到本地
+        let downloadedPath = null;
+        try {
+          downloadedPath = await client.downloadVideo(taskId);
+          console.log(`[轮询] 视频已下载到本地: ${downloadedPath}`);
+        } catch (downloadError) {
+          console.error(`[轮询] 下载视频失败:`, downloadError.message);
+          // 下载失败不影响任务完成状态，只是没有本地路径
+        }
+
+        // 保存结果和本地路径
+        historyStorage.markCompleted(taskId, data);
+        if (downloadedPath) {
+          historyStorage.updateRecord(taskId, { downloadedPath });
+        }
       }
       // 任务失败
       else if (status === 'FAILURE') {
