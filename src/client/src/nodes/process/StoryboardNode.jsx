@@ -6,7 +6,7 @@ const API_BASE = 'http://localhost:9000';
 
 function StoryboardNode({ data }) {
   const nodeId = useNodeId();
-  const { getNodes, getEdges, setNodes } = useReactFlow(); // ⭐ 添加 setNodes 用于更新节点 data
+  const { setNodes } = useReactFlow();
 
   // ⭐ 接收外部 API 配置（来自 APISettingsNode）
   const externalApiConfig = data.apiConfig || null;
@@ -248,12 +248,6 @@ function StoryboardNode({ data }) {
         )
       );
 
-      // ⭐ 捕获工作流快照（保存节点和连线状态）
-      const workflowSnapshot = {
-        nodes: getNodes(),
-        edges: getEdges(),
-      };
-
       // ✅ 调用后端故事板 API
       const requestBody = {
         platform: apiConfig.platform,
@@ -262,7 +256,6 @@ function StoryboardNode({ data }) {
         images: allImages,
         aspect_ratio: apiConfig.aspect,
         watermark: apiConfig.watermark,
-        workflowSnapshot: workflowSnapshot, // ⭐ 添加工作流快照
       };
 
       // Add API key if provided
@@ -283,7 +276,7 @@ function StoryboardNode({ data }) {
 
         setStatus('success');
 
-        // ⭐ 关键修复：保存 taskId 到节点 data，以便工作流快照包含 taskId
+        // ⭐ 保存 taskId 到节点 data
         if (taskId) {
           setNodes((nds) =>
             nds.map((node) =>

@@ -1,4 +1,4 @@
-import { Handle, Position, useNodeId, useReactFlow } from 'reactflow';
+import { Handle, Position, useNodeId } from 'reactflow';
 import React, { useState } from 'react';
 import { useNodeResize } from '../../hooks/useNodeResize';
 
@@ -6,7 +6,6 @@ const API_BASE = 'http://localhost:9000';
 
 function CharacterCreateNode({ data }) {
   const nodeId = useNodeId(); // Get current node ID
-  const { getNodes, getEdges } = useReactFlow(); // ⭐ 添加工作流快照支持
   const [platform, setPlatform] = useState('zhenzhen'); // juxin or zhenzhen
   const [inputType, setInputType] = useState('url'); // 'url' or 'task'
   const [videoUrl, setVideoUrl] = useState('');
@@ -56,16 +55,9 @@ function CharacterCreateNode({ data }) {
     setResult(null);
 
     try {
-      // ⭐ 捕获工作流快照（保存节点和连线状态）
-      const workflowSnapshot = {
-        nodes: getNodes(),
-        edges: getEdges(),
-      };
-
       const payload = {
         platform: platform, // 使用选定的平台
         timestamps: timestamps.trim(),
-        workflowSnapshot: workflowSnapshot, // ⭐ 添加工作流快照
       };
 
       if (inputType === 'url') {

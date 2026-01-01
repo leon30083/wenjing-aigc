@@ -208,18 +208,6 @@ React + React Flow
     - 超过 25 秒警告提示
   - **⚠️ API 注意**: 故事板模式不发送单独的 `duration` 参数，总时长由各镜头时长之和决定
 
-### 历史记录管理 API ⭐ 新增
-
-**删除单条记录**:
-- **端点**: `DELETE /api/history/:taskId`
-- **参数**: `taskId` - 任务 ID（路径参数）
-- **响应**: `{ success: true, data: { deleted: true } }`
-
-**清空所有记录**:
-- **端点**: `DELETE /api/history/all`
-- **响应**: `{ success: true, data: { message: 'All records cleared' } }`
-- **⚠️ 注意**: 前端应实现二次确认机制，防止误操作
-
 ### 备份管理 API ⭐ 新增
 
 **导出备份数据**:

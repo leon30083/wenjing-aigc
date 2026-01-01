@@ -580,219 +580,18 @@ app.delete('/api/batch/:batchId', (req, res) => {
   }
 });
 
-// ==================== 历史记录 ====================
-
-/**
- * 获取所有历史记录
- * GET /api/history/list
- */
-app.get('/api/history/list', (req, res) => {
-  try {
-    const { limit, skip, status, platform } = req.query;
-    const records = historyStorage.getAllRecords({
-      limit: limit ? parseInt(limit) : undefined,
-      skip: skip ? parseInt(skip) : undefined,
-      status,
-      platform,
-    });
-
-    // ⭐ 转换 downloadedPath 为本地路径格式
-    const processedRecords = records.map(record => {
-      if (record.downloadedPath) {
-        return {
-          ...record,
-          result: {
-            ...record.result,
-            data: {
-              ...record.result?.data,
-              output: `/downloads/${path.basename(record.downloadedPath)}`,
-              localPath: true
-            }
-          }
-        };
-      }
-      return record;
-    });
-
-    res.json({ success: true, data: processedRecords });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-/**
- * 获取统计信息
- * GET /api/history/stats
- * 必须放在 /api/history/:taskId 之前，否则会被拦截
- */
-app.get('/api/history/stats', (req, res) => {
-  try {
-    const stats = historyStorage.getStats();
-    res.json({ success: true, data: stats });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-/**
- * 迁移旧记录视频到本地
- * POST /api/history/migrate-downloads
- * 批量下载已完成但没有本地下载的历史记录
- */
-app.post('/api/history/migrate-downloads', async (req, res) => {
-  try {
-    // 获取所有已完成但没有本地下载的记录
-    const records = historyStorage.getAllRecords({ status: 'completed' });
-    // ⭐ Fix: output is in result.output, not result.data.output
-    const needsDownload = records.filter(r =>
-      !r.downloadedPath && r.result?.output
-    );
-
-    console.log(`[迁移] 发现 ${needsDownload.length} 条需要下载的记录`);
-
-    const results = [];
-    for (const record of needsDownload) {
-      try {
-        const client = getClient(record.platform);
-        const downloadedPath = await client.downloadVideo(record.taskId);
-
-        historyStorage.updateRecord(record.taskId, { downloadedPath });
-
-        results.push({
-          taskId: record.taskId,
-          success: true,
-          path: downloadedPath
-        });
-
-        console.log(`[迁移] ✅ ${record.taskId} → ${downloadedPath}`);
-      } catch (error) {
-        results.push({
-          taskId: record.taskId,
-          success: false,
-          error: error.message
-        });
-        console.error(`[迁移] ❌ ${record.taskId} 失败:`, error.message);
-      }
-    }
-
-    res.json({
-      success: true,
-      data: {
-        total: needsDownload.length,
-        successful: results.filter(r => r.success).length,
-        failed: results.filter(r => !r.success).length,
-        results
-      }
-    });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-/**
- * 获取单条历史记录
- * GET /api/history/:taskId
- */
-app.get('/api/history/:taskId', (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const record = historyStorage.getRecord(taskId);
-    if (!record) {
-      return res.json({ success: false, error: 'Record not found' });
-    }
-    res.json({ success: true, data: record });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-/**
- * 删除历史记录
- * DELETE /api/history/:taskId
- */
-app.delete('/api/history/:taskId', (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const deleted = historyStorage.deleteRecord(taskId);
-    res.json({ success: true, data: { deleted } });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-/**
- * 设置收藏状态
- * PUT /api/history/:taskId/favorite
- */
-app.put('/api/history/:taskId/favorite', (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { favorite } = req.body;
-
-    if (typeof favorite !== 'boolean') {
-      return res.json({ success: false, error: 'favorite 必须是布尔值' });
-    }
-
-    // 先获取记录
-    const record = historyStorage.getRecord(taskId);
-    if (!record) {
-      return res.json({ success: false, error: '记录不存在' });
-    }
-
-    // 更新记录
-    const success = historyStorage.updateRecord(taskId, { favorite });
-    if (!success) {
-      return res.json({ success: false, error: '更新失败' });
-    }
-
-    // 返回更新后的记录
-    const updated = historyStorage.getRecord(taskId);
-    res.json({ success: true, data: updated });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-/**
- * 获取收藏列表
- * GET /api/history/favorites
- */
-app.get('/api/history/favorites', (req, res) => {
-  try {
-    const allRecords = historyStorage.getAllRecords();
-    const favorites = allRecords.filter(r => r.favorite === true);
-    res.json({ success: true, data: favorites });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-/**
- * 清空所有历史记录
- * DELETE /api/history/all
- */
-app.delete('/api/history/all', (req, res) => {
-  try {
-    historyStorage.clearAll();
-    res.json({ success: true, data: { message: 'All records cleared' } });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
 // ==================== 备份管理 ====================
 
 /**
  * GET /api/backup/export
- * 导出所有数据（历史记录 + 角色库）
+ * 导出角色库数据
  */
 app.get('/api/backup/export', (req, res) => {
   try {
     const backup = {
-      version: '1.0',
+      version: '2.0',
       timestamp: new Date().toISOString(),
       data: {
-        history: historyStorage.getAllRecords(),
         characters: characterStorage.getAllCharacters(),
       },
     };
@@ -806,40 +605,19 @@ app.get('/api/backup/export', (req, res) => {
 /**
  * POST /api/backup/import
  * 导入备份数据
- * Body: { history: [], characters: [] }
+ * Body: { characters: [] }
  */
 app.post('/api/backup/import', (req, res) => {
   try {
-    const { history, characters } = req.body;
+    const { characters } = req.body;
 
-    if (!history && !characters) {
+    if (!characters) {
       return res.json({ success: false, error: 'No data provided' });
     }
 
     const result = {
-      history: { imported: 0, skipped: 0, errors: [] },
       characters: { imported: 0, skipped: 0, errors: [] },
     };
-
-    // 导入历史记录
-    if (Array.isArray(history)) {
-      history.forEach((record) => {
-        try {
-          if (record.taskId) {
-            // 检查是否已存在
-            const existing = historyStorage.getRecord(record.taskId);
-            if (!existing) {
-              historyStorage.addRecord(record);
-              result.history.imported++;
-            } else {
-              result.history.skipped++;
-            }
-          }
-        } catch (error) {
-          result.history.errors.push({ record, error: error.message });
-        }
-      });
-    }
 
     // 导入角色库
     if (Array.isArray(characters)) {
@@ -864,7 +642,7 @@ app.post('/api/backup/import', (req, res) => {
     res.json({
       success: true,
       data: result,
-      message: `导入完成：历史记录 ${result.history.imported} 条，角色 ${result.characters.imported} 个`,
+      message: `导入完成：角色 ${result.characters.imported} 个`,
     });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -877,19 +655,11 @@ app.post('/api/backup/import', (req, res) => {
  */
 app.get('/api/backup/info', (req, res) => {
   try {
-    const historyStats = historyStorage.getStats();
     const characterStats = characterStorage.getStats();
 
     res.json({
       success: true,
       data: {
-        history: {
-          total: historyStats.total || 0,
-          queued: historyStats.queued || 0,
-          processing: historyStats.processing || 0,
-          completed: historyStats.completed || 0,
-          failed: historyStats.failed || 0,
-        },
         characters: {
           total: characterStats.total || 0,
         },

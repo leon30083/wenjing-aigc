@@ -13,7 +13,6 @@ import 'reactflow/dist/style.css';
 import './App.css';
 import { useWorkflowExecution } from './hooks/useWorkflowExecution';
 import { WorkflowStorage } from './utils/workflowStorage';
-import HistoryPanel from './components/HistoryPanel';
 
 // API base URL
 const API_BASE = 'http://localhost:9000';
@@ -181,11 +180,6 @@ function App() {
   const [showSaveAsDialog, setShowSaveAsDialog] = useState(false);
   const [saveAsName, setSaveAsName] = useState('');
   const [saveAsDescription, setSaveAsDescription] = useState('');
-  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
-
-  // Migration state for downloading old history records
-  const [needsMigration, setNeedsMigration] = useState(false);
-  const [migrationProgress, setMigrationProgress] = useState(null);
 
   // Get React Flow instance for coordinate conversion
   const { project } = useReactFlow();
@@ -474,126 +468,6 @@ function App() {
       setShowWorkflowMenu(false);
     } else {
       alert(`❌ 加载失败: ${result.error}`);
-    }
-  };
-
-  // Check if migration is needed (old records without local downloads)
-  useEffect(() => {
-    const checkMigrationNeeded = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/api/history/list`);
-        const result = await response.json();
-        if (result.success) {
-          // ⭐ Fix: output is in result.output, not result.data.output
-          const needsDownload = result.data.filter(r =>
-            r.status === 'completed' && !r.downloadedPath && r.result?.output
-          );
-          setNeedsMigration(needsDownload.length > 0);
-          setMigrationProgress({ total: needsDownload.length });
-        }
-      } catch (error) {
-        console.error('检查迁移状态失败:', error);
-      }
-    };
-
-    checkMigrationNeeded();
-  }, []);
-
-  // Execute migration: download old history record videos to local
-  const migrateDownloads = async () => {
-    if (!confirm(`确定要下载 ${migrationProgress?.total || 0} 个视频吗？这可能需要一些时间。`)) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/api/history/migrate-downloads`, {
-        method: 'POST'
-      });
-      const result = await response.json();
-
-      if (result.success) {
-        alert(`✅ 迁移完成！\n成功: ${result.data.successful}\n失败: ${result.data.failed}`);
-        setNeedsMigration(false);
-        // Trigger HistoryPanel to reload by toggling showHistoryPanel
-        setShowHistoryPanel(prev => {
-          const newValue = !prev;
-          // If we just hid it, show it again to trigger reload
-          if (!newValue) {
-            setTimeout(() => setShowHistoryPanel(true), 50);
-          }
-          return newValue;
-        });
-      }
-    } catch (error) {
-      alert(`❌ 迁移失败: ${error.message}`);
-    }
-  };
-
-  // Load workflow from history record
-  const handleLoadWorkflowFromHistory = (record) => {
-    const { workflowSnapshot } = record;
-
-    console.log('[handleLoadWorkflowFromHistory] Record:', record);
-    console.log('[handleLoadWorkflowFromHistory] WorkflowSnapshot:', workflowSnapshot);
-
-    if (!workflowSnapshot) {
-      alert('⚠️ 该历史记录没有工作流快照，无法恢复工作流。');
-      return;
-    }
-
-    const { nodes: savedNodes, edges: savedEdges } = workflowSnapshot;
-
-    console.log('[handleLoadWorkflowFromHistory] Saved nodes:', savedNodes);
-    console.log('[handleLoadWorkflowFromHistory] Saved edges:', savedEdges);
-
-    if (savedNodes && savedEdges) {
-      // ⭐ 修复错误34: 从历史记录的实际数据恢复 TaskResultNode（而不是使用快照中的旧数据）
-      const cleanedNodes = savedNodes.map(node => {
-        // 特殊处理 TaskResultNode：使用历史记录的真实数据覆盖快照
-        if (node.type === 'taskResultNode') {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              taskId: record.taskId, // ⭐ 使用历史记录的 taskId
-              taskStatus: record.result?.status || 'idle',
-              videoUrl: record.result?.data?.output || null, // ⭐ 使用历史记录的视频 URL
-              error: record.result?.data?.fail_reason || null,
-              onSizeChange: undefined,
-              // ⭐ 新增：标记为已完成历史记录（TaskResultNode 检查这个标记）
-              _isCompletedFromHistory: true
-            }
-          };
-        }
-
-        // 其他节点：只清理函数引用
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            onSizeChange: undefined,
-          }
-        };
-      });
-
-      console.log('[handleLoadWorkflowFromHistory] Setting nodes:', cleanedNodes);
-      setNodes(cleanedNodes);
-      setEdges(savedEdges);
-
-      // 更新 nextNodeId
-      if (cleanedNodes.length > 0) {
-        const maxId = Math.max(...cleanedNodes.map(n => parseInt(n.id) || 0));
-        setNextNodeId(maxId + 1);
-      } else {
-        setNextNodeId(10);
-      }
-
-      // 清除当前工作流名称（从历史加载的不对应已保存的工作流）
-      setCurrentWorkflowName(null);
-
-      console.log('[App] Workflow loaded from history:', record.taskId);
-    } else {
-      alert('⚠️ 工作流快照格式错误，无法恢复工作流。');
     }
   };
 
@@ -952,72 +826,10 @@ function App() {
             ↺ 重置
           </button>
         )}
-
-        {/* History Panel Toggle Button */}
-        <button
-          onClick={() => setShowHistoryPanel(!showHistoryPanel)}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: showHistoryPanel ? '#f59e0b' : '#475569',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '13px',
-            fontWeight: 'bold',
-          }}
-          title="显示/隐藏历史记录面板"
-        >
-          {showHistoryPanel ? '📜 隐藏历史' : '📜 历史记录'}
-        </button>
       </div>
 
       {/* Canvas */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }} onClick={closeContextMenu}>
-        {/* History Panel (Left Side) */}
-        {showHistoryPanel && (
-          <div style={{
-            width: '320px',
-            flexShrink: 0,
-          }}>
-            {/* Migration warning banner */}
-            {needsMigration && (
-              <div style={{
-                padding: '12px',
-                backgroundColor: '#fef3c7',
-                borderRadius: '8px',
-                marginBottom: '12px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}>
-                <div>
-                  <div style={{ fontWeight: 'bold', color: '#92400e' }}>💡 发现旧记录需要下载</div>
-                  <div style={{ fontSize: '12px', color: '#b45309' }}>
-                    历史记录中的视频还在远程服务器，建议下载到本地以确保持久可用
-                  </div>
-                </div>
-                <button
-                  onClick={migrateDownloads}
-                  style={{
-                    padding: '8px 12px',
-                    backgroundColor: '#f59e0b',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    fontSize: '12px',
-                  }}
-                >
-                  📥 开始下载
-                </button>
-              </div>
-            )}
-            <HistoryPanel onLoadWorkflow={handleLoadWorkflowFromHistory} />
-          </div>
-        )}
-
         {/* ReactFlow Canvas */}
         <div style={{ flex: 1, height: '100%' }}>
           <ReactFlow

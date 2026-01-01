@@ -10,7 +10,7 @@ let isResizingNode = false;
 
 function VideoGenerateNode({ data }) {
   const nodeId = useNodeId();
-  const { setNodes, getNodes, getEdges } = useReactFlow();
+  const { setNodes } = useReactFlow();
   const promptInputRef = useRef(null);
   const nodeRef = useRef(null);
   const resizeHandleRef = useRef(null);
@@ -242,12 +242,6 @@ function VideoGenerateNode({ data }) {
         )
       );
 
-      // ⭐ 捕获工作流快照（保存节点和连线状态）
-      const workflowSnapshot = {
-        nodes: getNodes(),
-        edges: getEdges(),
-      };
-
       const payload = {
         platform: apiConfig.platform,
         model: apiConfig.model.toLowerCase(), // Convert to lowercase (Sora-2 -> sora-2)
@@ -255,7 +249,6 @@ function VideoGenerateNode({ data }) {
         duration: duration,
         aspect_ratio: apiConfig.aspect,
         watermark: apiConfig.watermark,
-        workflowSnapshot: workflowSnapshot, // ⭐ 添加工作流快照
       };
 
       // Add API key if provided

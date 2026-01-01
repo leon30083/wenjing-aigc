@@ -473,53 +473,23 @@ const taskId = result.data.id || result.data.task_id;
   });
   ```
 
-### 错误35: 历史记录加载 useEffect 检查顺序问题 ⭐ 2026-01-01 新增
-- **现象**: 从历史记录加载工作流后，TaskResultNode 显示错误视频或状态未恢复
-- **根本原因**: useEffect 1 的检查顺序错误，`isCompletedFromHistoryRef.current` 检查在 `_isCompletedFromHistory` 标志之前
-- **场景**:
-  1. 历史记录加载时设置 `_isCompletedFromHistory: true`
-  2. useEffect 1 执行，但 `isCompletedFromHistoryRef.current` 可能是 `false`
-  3. ref 检查优先执行，直接 return，跳过了 `_isCompletedFromHistory` 检查
-- **错误代码**:
-  ```javascript
-  // ❌ 错误：ref 检查优先，拦截历史记录恢复
-  useEffect(() => {
-    if (!isCompletedFromHistoryRef.current) {
-      console.log('[TaskResultNode] Skipping restore (new task in progress)');
-      return;  // ❌ 历史记录加载时也会被拦截
-    }
-
-    if (data._isCompletedFromHistory) {
-      // 恢复逻辑... ❌ 永远不会执行
-    }
-  }, [data.taskId]);
-  ```
-- **正确代码**:
-  ```javascript
-  // ✅ 正确：优先检查 _isCompletedFromHistory 标志
-  useEffect(() => {
-    // ⭐ 优先检查历史记录标志
-    if (data._isCompletedFromHistory) {
-      console.log('[TaskResultNode] Loaded from history (flagged), restoring state');
-      isCompletedFromHistoryRef.current = true;
-      // 恢复状态...
-      return;
-    }
-
-    // ⚠️ ref 检查必须放在 _isCompletedFromHistory 之后
-    if (!isCompletedFromHistoryRef.current) {
-      console.log('[TaskResultNode] Skipping restore (new task in progress)');
-      return;
-    }
-  }, [data.taskId]);
-  ```
-- **关键点**:
-  - 检查顺序很重要：先检查 `_isCompletedFromHistory` 标志，再检查 ref
-  - ref 检查的目的是防止新任务被历史记录覆盖，但不应拦截历史记录加载
-  - 历史记录加载时应该**总是**恢复状态，不受 ref 影响
-- **状态**: ⚠️ 部分修复（调整检查顺序），但用户反馈问题仍然存在，可能还有其他原因
+---
 
 ---
+
+## 项目简化说明 ⭐ 2026-01-01
+
+**历史记录功能已移除**：
+- ❌ 移除了复杂的历史记录功能（工作流快照加载）
+- ❌ 移除了所有历史记录相关的已知错误（错误33/34/35）
+- ✅ 保留了角色库功能（CharacterLibraryNode）
+- ✅ 保留了工作流手动保存功能（WorkflowStorage）
+- 🎯 目标：降低代码复杂度，减少维护成本
+
+**原因**：
+- 用户几乎不使用历史记录功能
+- 工作流快照机制导致大量数据同步问题
+- 代码复杂度过高（约 2,308 行相关代码）
 
 ## 项目结构
 
@@ -576,10 +546,8 @@ git push origin feature/workflow-management
 11. ✅ **Sora2 不支持 1:1 比例**: 只提供 16:9 和 9:16
 12. ✅ **图生视频提示词必须描述参考图**: 参考图片提供场景，提示词必须描述场景内容和角色活动
 13. ✅ **表单字段必须有 id/name 属性**: 满足浏览器可访问性要求
-14. ✅ **历史记录卡片显示视频**: 优先级检查 thumbnail → result.output → 占位符
-15. ✅ **源节点直接更新目标节点**: 绕过 App.jsx，使用 getEdges() 找到连接的节点，一次 setNodes() 更新多个节点 ⭐ 2026-01-01
-16. ✅ **关键时刻手动同步 node.data**: 在 getNodes() 捕获快照前，手动调用 setNodes() 确保数据同步 ⭐ 2026-01-01
-17. ✅ **防抖 localStorage 保存**: 500ms 防抖，减少 90% 的写入次数，提升响应速度 ⭐ 2026-01-01
-18. ✅ **getNodes() 的时机陷阱**: getNodes() 是同步的，useState 是异步的，useEffect 在渲染后执行 ⭐ 2026-01-01
-19. ✅ **自动化测试是基础标准范式**: 使用 MCP 工具在浏览器中自动测试，不要总是问用户，只在做连线/拖拽时请求用户协作 ⭐ 2026-01-01
-20. ✅ **useEffect 检查顺序很重要**: 优先检查标志位（如 `_isCompletedFromHistory`），再检查状态 ref，避免拦截恢复逻辑 ⭐ 2026-01-01
+14. ✅ **源节点直接更新目标节点**: 绕过 App.jsx，使用 getEdges() 找到连接的节点，一次 setNodes() 更新多个节点 ⭐ 2026-01-01
+15. ✅ **关键时刻手动同步 node.data**: 在 getNodes() 捕获快照前，手动调用 setNodes() 确保数据同步 ⭐ 2026-01-01
+16. ✅ **防抖 localStorage 保存**: 500ms 防抖，减少 90% 的写入次数，提升响应速度 ⭐ 2026-01-01
+17. ✅ **自动化测试是基础标准范式**: 使用 MCP 工具在浏览器中自动测试，不要总是问用户，只在做连线/拖拽时请求用户协作 ⭐ 2026-01-01
+18. ✅ **专注于核心功能**: 避免过度复杂化，保持代码简洁可维护 ⭐ 2026-01-01
