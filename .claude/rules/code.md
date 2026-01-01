@@ -4161,6 +4161,76 @@ const refreshStatus = async () => {
 
 ---
 
+### 错误26: 节点连接验证缺失导致事件错误响应 ⭐ 2026-01-01 新增
+
+```javascript
+// ❌ 错误：App.jsx 未验证源节点类型
+const videoEdge = incomingEdges.find((e) => e.targetHandle === 'task-input');
+if (videoEdge) {
+  const sourceNode = nds.find((n) => n.id === videoEdge.source);
+  if (sourceNode?.data?.taskId) {
+    newData.taskId = sourceNode.data.taskId;
+  }
+  // ❌ 没有验证 sourceNode.type，任何节点都能设置 connectedSourceId
+  newData.connectedSourceId = videoEdge.source;
+}
+```
+
+```javascript
+// ✅ 正确：App.jsx 验证源节点类型
+const videoEdge = incomingEdges.find((e) => e.targetHandle === 'task-input');
+if (videoEdge) {
+  const sourceNode = nds.find((n) => n.id === videoEdge.source);
+
+  // ✅ 验证源节点类型
+  const validVideoSourceTypes = [
+    'videoGenerateNode',   // 视频生成节点
+    'storyboardNode',      // 故事板节点
+    'characterCreateNode'  // 角色创建节点
+  ];
+
+  if (sourceNode && validVideoSourceTypes.includes(sourceNode.type)) {
+    // 源节点类型有效，允许设置 connectedSourceId
+    if (sourceNode?.data?.taskId) {
+      newData.taskId = sourceNode.data.taskId;
+    }
+    newData.connectedSourceId = videoEdge.source;
+  } else {
+    // ❌ 源节点类型无效，清除 connectedSourceId
+    newData.connectedSourceId = undefined;
+  }
+}
+```
+
+**问题**:
+1. **未连接节点响应**: 画布上有两个TaskResultNode，一个连接到VideoGenerateNode，另一个未连接，但未连接的节点在任务提交时也显示执行了任务
+2. **连接验证缺失**: App.jsx 在设置 `connectedSourceId` 时没有验证源节点类型
+3. **事件广播机制**: `window.dispatchEvent` 是全局广播，所有监听器都会收到事件
+
+**解决方案**:
+1. **源节点类型验证**: 在 App.jsx 的连接处理逻辑中，设置 connectedSourceId 之前验证源节点类型
+2. **双重保护**: App.jsx（数据层）+ TaskResultNode（事件层）两层验证
+3. **类型白名单**: 每个输入端口只接受特定类型的节点
+
+**输入端口节点类型映射**:
+| 输入端口 (Handle ID) | 有效源节点类型 | 用途 |
+|---------------------|---------------|------|
+| `prompt-input` | `textNode` | 文本提示词输入 |
+| `character-input` | `characterLibraryNode` | 角色库连接 |
+| `characters-input` | `characterLibraryNode` | 多选角色连接 |
+| `images-input` | `referenceImageNode` | 参考图片连接 |
+| `api-config` | `apiSettingsNode` | API 配置连接 |
+| `task-input` | `videoGenerateNode`, `storyboardNode`, `characterCreateNode` | 任务结果接收 |
+
+**修复文件**:
+- `src/client/src/App.jsx` - Lines 218-299（所有输入端口添加源节点类型验证）
+- `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 9, 105-117（导入 getNodes，事件处理器添加源节点类型验证）
+
+**相关文档**:
+- SKILL.md: 错误模式 26
+
+---
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：

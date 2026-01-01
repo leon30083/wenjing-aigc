@@ -6,7 +6,7 @@ const API_BASE = 'http://localhost:9000';
 
 function TaskResultNode({ data }) {
   const nodeId = useNodeId();
-  const { setNodes } = useReactFlow();
+  const { setNodes, getNodes } = useReactFlow();
 
   // ⭐ 关键修复：从 data 恢复状态（支持工作流加载）
   const [taskId, setTaskId] = useState(data.taskId || null);
@@ -101,8 +101,19 @@ function TaskResultNode({ data }) {
       // ref 始终保持最新值（由另一个 useEffect 更新），避免闭包陷阱
       const connectedSourceId = connectedSourceIdRef.current;
       console.log('[TaskResultNode] Event received:', { sourceNodeId, newTaskId, connectedSourceId });
-      // Check if this task result node is connected to the source node
-      if (connectedSourceId === sourceNodeId && newTaskId && newTaskId !== taskIdRef.current) {
+
+      // ⭐ 新增：验证源节点类型
+      // 获取所有节点并找到源节点，验证其类型是否有效
+      const allNodes = getNodes();
+      const sourceNode = allNodes.find(n => n.id === sourceNodeId);
+      const validSourceTypes = ['videoGenerateNode', 'storyboardNode', 'characterCreateNode'];
+
+      // 检查：1) connectedSourceId 匹配 2) 源节点类型有效 3) newTaskId 存在且不同
+      if (connectedSourceId === sourceNodeId &&
+          sourceNode &&
+          validSourceTypes.includes(sourceNode.type) &&
+          newTaskId &&
+          newTaskId !== taskIdRef.current) {
         console.log('[TaskResultNode] Match! Setting taskId:', newTaskId);
 
         // ⭐ 关键修复：立即同步到 node.data（不等 useEffect）

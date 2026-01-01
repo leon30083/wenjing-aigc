@@ -483,6 +483,65 @@ const taskId = result.data.id || result.data.task_id;
 - **轮询间隔注意事项**: 必须使用 30 秒间隔，避免 429 Rate Limit 错误（见错误6）
 - **修复日期**: 2026-01-01
 
+### 错误26: 节点连接验证缺失导致事件错误响应 ⭐ 2026-01-01 新增
+- **现象**: 未连接或连接到错误类型节点的结果节点仍然响应事件
+  - **具体场景**: 画布上有两个TaskResultNode，一个连接到VideoGenerateNode，另一个未连接任何节点，但未连接的节点在任务提交时也显示执行了任务
+  - **影响范围**: 所有结果节点（TaskResultNode, CharacterResultNode等）
+- **根本原因**:
+  1. **App.jsx**: 在设置 `connectedSourceId` 时没有验证源节点类型，任何类型的节点连接到输入端口都会设置 `connectedSourceId`
+  2. **事件监听器**: 只检查 `connectedSourceId === sourceNodeId`，不检查节点类型
+  3. **事件广播机制**: `window.dispatchEvent` 是全局广播，所有监听器都会收到事件
+- **错误示例**:
+  ```javascript
+  // ❌ App.jsx - 错误：未验证源节点类型
+  const videoEdge = incomingEdges.find((e) => e.targetHandle === 'task-input');
+  if (videoEdge) {
+    const sourceNode = nds.find((n) => n.id === videoEdge.source);
+    if (sourceNode?.data?.taskId) {
+      newData.taskId = sourceNode.data.taskId;
+    }
+    // ❌ 没有验证 sourceNode.type，任何节点都能设置 connectedSourceId
+    newData.connectedSourceId = videoEdge.source;
+  }
+  ```
+- **正确做法**: 在 App.jsx 的连接处理逻辑中，设置 connectedSourceId 之前验证源节点类型
+  ```javascript
+  // ✅ App.jsx - 正确：验证源节点类型
+  const videoEdge = incomingEdges.find((e) => e.targetHandle === 'task-input');
+  if (videoEdge) {
+    const sourceNode = nds.find((n) => n.id === videoEdge.source);
+
+    // ✅ 验证源节点类型
+    const validVideoSourceTypes = [
+      'videoGenerateNode',   // 视频生成节点
+      'storyboardNode',      // 故事板节点
+      'characterCreateNode'  // 角色创建节点
+    ];
+
+    if (sourceNode && validVideoSourceTypes.includes(sourceNode.type)) {
+      // 源节点类型有效，允许设置 connectedSourceId
+      if (sourceNode?.data?.taskId) {
+        newData.taskId = sourceNode.data.taskId;
+      }
+      newData.connectedSourceId = videoEdge.source;
+    } else {
+      // ❌ 源节点类型无效，清除 connectedSourceId
+      newData.connectedSourceId = undefined;
+    }
+  }
+  ```
+- **关键点**:
+  - **task-input**: 只接受 `videoGenerateNode`, `storyboardNode`, `characterCreateNode`
+  - **character-input**: 只接受 `characterLibraryNode`
+  - **prompt-input**: 只接受 `textNode`
+  - **images-input**: 只接受 `referenceImageNode`
+  - **事件系统**: 所有节点都会收到事件广播，但只有 `connectedSourceId` 匹配且源节点类型有效的节点才会响应
+- **验证结果**: ✅ 未连接的节点不响应事件，只有正确连接的节点显示任务
+- **修复文件**:
+  - `src/client/src/App.jsx` - Lines 218-299（所有输入端口添加源节点类型验证）
+  - `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 105-117（事件处理器添加源节点类型验证）
+- **修复日期**: 2026-01-01
+
 ### 错误34: 工作流快照时机问题 ⭐ 2026-01-01 新增
 - **现象**: 加载历史记录的工作流时，TaskResultNode 显示的视频不正确
 - **根本原因**:

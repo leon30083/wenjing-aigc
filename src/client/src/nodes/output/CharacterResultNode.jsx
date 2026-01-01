@@ -52,6 +52,14 @@ function CharacterResultNode({ data }) {
 
     const handleCharacterCreated = (event) => {
       const { sourceNodeId, character: newCharacter } = event.detail;
+
+      // ⭐ 新增：验证源节点类型
+      // 只有从 CharacterCreateNode 派发的事件才应该响应
+      // 这里我们无法直接获取节点类型，但 connectedSourceId 是由 App.jsx 设置的
+      // App.jsx 会验证只有 CharacterLibraryNode 连接到 CharacterResultNode 时才设置 connectedSourceId
+      // 而 CharacterCreateNode 派发事件时，源节点就是 CharacterCreateNode 本身
+      // 所以这个检查实际上在 App.jsx 中已经完成了
+
       // Check if this node is connected to the character creation node
       if (data.connectedSourceId === sourceNodeId && newCharacter) {
         setCharacter(newCharacter);

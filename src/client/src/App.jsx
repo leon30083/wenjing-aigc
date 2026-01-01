@@ -219,8 +219,12 @@ function App() {
         const promptEdge = incomingEdges.find((e) => e.targetHandle === 'prompt-input');
         if (promptEdge) {
           const sourceNode = nds.find((n) => n.id === promptEdge.source);
+          // ✅ 只有 TextNode 可以连接到 prompt-input
           if (sourceNode?.type === 'textNode') {
             newData.connectedPrompt = sourceNode.data.value || '';
+          } else {
+            // ❌ 源节点类型无效，清除连接数据
+            newData.connectedPrompt = undefined;
           }
         }
 
@@ -229,19 +233,30 @@ function App() {
         if (characterEdge) {
           const sourceNode = nds.find((n) => n.id === characterEdge.source);
 
-          // For video generate node: get selected character(s)
-          // ⭐ 支持 connectedCharacters 数组（CharacterLibraryNode 传递）
-          if (sourceNode?.data?.connectedCharacters) {
-            newData.connectedCharacters = sourceNode.data.connectedCharacters;
-          }
-          // 兼容旧的单角色选择
-          if (sourceNode?.data?.selectedCharacter) {
-            newData.connectedCharacter = sourceNode.data.selectedCharacter;
-          }
+          // ✅ 验证源节点类型（只有 CharacterLibraryNode 可以连接到 character-input）
+          const validCharacterSourceTypes = ['characterLibraryNode'];
 
-          // For character result node: store connected source ID for event listener
-          if (node.type === 'characterResultNode') {
-            newData.connectedSourceId = characterEdge.source;
+          if (sourceNode && validCharacterSourceTypes.includes(sourceNode.type)) {
+            // 源节点类型有效，允许传递角色数据
+            // For video generate node: get selected character(s)
+            // ⭐ 支持 connectedCharacters 数组（CharacterLibraryNode 传递）
+            if (sourceNode?.data?.connectedCharacters) {
+              newData.connectedCharacters = sourceNode.data.connectedCharacters;
+            }
+            // 兼容旧的单角色选择
+            if (sourceNode?.data?.selectedCharacter) {
+              newData.connectedCharacter = sourceNode.data.selectedCharacter;
+            }
+
+            // For character result node: store connected source ID for event listener
+            if (node.type === 'characterResultNode') {
+              newData.connectedSourceId = characterEdge.source;
+            }
+          } else {
+            // ❌ 源节点类型无效，清除所有角色相关数据
+            newData.connectedCharacters = undefined;
+            newData.connectedCharacter = undefined;
+            newData.connectedSourceId = undefined;
           }
         }
 
@@ -249,8 +264,12 @@ function App() {
         const imagesEdge = incomingEdges.find((e) => e.targetHandle === 'images-input');
         if (imagesEdge) {
           const sourceNode = nds.find((n) => n.id === imagesEdge.source);
-          if (sourceNode?.data?.images) {
+          // ✅ 只有 ReferenceImageNode 可以连接到 images-input
+          if (sourceNode?.type === 'referenceImageNode' && sourceNode?.data?.images) {
             newData.connectedImages = sourceNode.data.images;
+          } else {
+            // ❌ 源节点类型无效，清除连接数据
+            newData.connectedImages = undefined;
           }
         }
 
@@ -258,11 +277,25 @@ function App() {
         const videoEdge = incomingEdges.find((e) => e.targetHandle === 'task-input');
         if (videoEdge) {
           const sourceNode = nds.find((n) => n.id === videoEdge.source);
-          if (sourceNode?.data?.taskId) {
-            newData.taskId = sourceNode.data.taskId;
+
+          // ✅ 验证源节点类型
+          const validVideoSourceTypes = [
+            'videoGenerateNode',   // 视频生成节点
+            'storyboardNode',      // 故事板节点
+            'characterCreateNode'  // 角色创建节点
+          ];
+
+          if (sourceNode && validVideoSourceTypes.includes(sourceNode.type)) {
+            // 源节点类型有效，允许设置 connectedSourceId
+            if (sourceNode?.data?.taskId) {
+              newData.taskId = sourceNode.data.taskId;
+            }
+            // Store connected source ID for event listener
+            newData.connectedSourceId = videoEdge.source;
+          } else {
+            // ❌ 源节点类型无效，清除 connectedSourceId
+            newData.connectedSourceId = undefined;
           }
-          // Store connected source ID for event listener
-          newData.connectedSourceId = videoEdge.source;
         }
 
         // ⭐ 关键修复：只有当 data 真正变化时才返回新对象（避免无限循环）
