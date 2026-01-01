@@ -15,6 +15,9 @@ import { useWorkflowExecution } from './hooks/useWorkflowExecution';
 import { WorkflowStorage } from './utils/workflowStorage';
 import HistoryPanel from './components/HistoryPanel';
 
+// API base URL
+const API_BASE = 'http://localhost:9000';
+
 // Import test nodes
 import TextNode from './nodes/input/TextNode';
 import ReferenceImageNode from './nodes/input/ReferenceImageNode';
@@ -179,6 +182,10 @@ function App() {
   const [saveAsName, setSaveAsName] = useState('');
   const [saveAsDescription, setSaveAsDescription] = useState('');
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+
+  // Migration state for downloading old history records
+  const [needsMigration, setNeedsMigration] = useState(false);
+  const [migrationProgress, setMigrationProgress] = useState(null);
 
   // Get React Flow instance for coordinate conversion
   const { project } = useReactFlow();
@@ -467,6 +474,58 @@ function App() {
       setShowWorkflowMenu(false);
     } else {
       alert(`❌ 加载失败: ${result.error}`);
+    }
+  };
+
+  // Check if migration is needed (old records without local downloads)
+  useEffect(() => {
+    const checkMigrationNeeded = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/history/list`);
+        const result = await response.json();
+        if (result.success) {
+          // ⭐ Fix: output is in result.output, not result.data.output
+          const needsDownload = result.data.filter(r =>
+            r.status === 'completed' && !r.downloadedPath && r.result?.output
+          );
+          setNeedsMigration(needsDownload.length > 0);
+          setMigrationProgress({ total: needsDownload.length });
+        }
+      } catch (error) {
+        console.error('检查迁移状态失败:', error);
+      }
+    };
+
+    checkMigrationNeeded();
+  }, []);
+
+  // Execute migration: download old history record videos to local
+  const migrateDownloads = async () => {
+    if (!confirm(`确定要下载 ${migrationProgress?.total || 0} 个视频吗？这可能需要一些时间。`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/history/migrate-downloads`, {
+        method: 'POST'
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`✅ 迁移完成！\n成功: ${result.data.successful}\n失败: ${result.data.failed}`);
+        setNeedsMigration(false);
+        // Trigger HistoryPanel to reload by toggling showHistoryPanel
+        setShowHistoryPanel(prev => {
+          const newValue = !prev;
+          // If we just hid it, show it again to trigger reload
+          if (!newValue) {
+            setTimeout(() => setShowHistoryPanel(true), 50);
+          }
+          return newValue;
+        });
+      }
+    } catch (error) {
+      alert(`❌ 迁移失败: ${error.message}`);
     }
   };
 
@@ -921,6 +980,40 @@ function App() {
             width: '320px',
             flexShrink: 0,
           }}>
+            {/* Migration warning banner */}
+            {needsMigration && (
+              <div style={{
+                padding: '12px',
+                backgroundColor: '#fef3c7',
+                borderRadius: '8px',
+                marginBottom: '12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <div>
+                  <div style={{ fontWeight: 'bold', color: '#92400e' }}>💡 发现旧记录需要下载</div>
+                  <div style={{ fontSize: '12px', color: '#b45309' }}>
+                    历史记录中的视频还在远程服务器，建议下载到本地以确保持久可用
+                  </div>
+                </div>
+                <button
+                  onClick={migrateDownloads}
+                  style={{
+                    padding: '8px 12px',
+                    backgroundColor: '#f59e0b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                  }}
+                >
+                  📥 开始下载
+                </button>
+              </div>
+            )}
             <HistoryPanel onLoadWorkflow={handleLoadWorkflowFromHistory} />
           </div>
         )}

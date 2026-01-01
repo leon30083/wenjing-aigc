@@ -9,6 +9,7 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const Sora2Client = require('./sora2-client');
 const BatchQueue = require('./batch-queue');
 const HistoryStorage = require('./history-storage');
@@ -634,6 +635,61 @@ app.get('/api/history/stats', (req, res) => {
 });
 
 /**
+ * 迁移旧记录视频到本地
+ * POST /api/history/migrate-downloads
+ * 批量下载已完成但没有本地下载的历史记录
+ */
+app.post('/api/history/migrate-downloads', async (req, res) => {
+  try {
+    // 获取所有已完成但没有本地下载的记录
+    const records = historyStorage.getAllRecords({ status: 'completed' });
+    // ⭐ Fix: output is in result.output, not result.data.output
+    const needsDownload = records.filter(r =>
+      !r.downloadedPath && r.result?.output
+    );
+
+    console.log(`[迁移] 发现 ${needsDownload.length} 条需要下载的记录`);
+
+    const results = [];
+    for (const record of needsDownload) {
+      try {
+        const client = getClient(record.platform);
+        const downloadedPath = await client.downloadVideo(record.taskId);
+
+        historyStorage.updateRecord(record.taskId, { downloadedPath });
+
+        results.push({
+          taskId: record.taskId,
+          success: true,
+          path: downloadedPath
+        });
+
+        console.log(`[迁移] ✅ ${record.taskId} → ${downloadedPath}`);
+      } catch (error) {
+        results.push({
+          taskId: record.taskId,
+          success: false,
+          error: error.message
+        });
+        console.error(`[迁移] ❌ ${record.taskId} 失败:`, error.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        total: needsDownload.length,
+        successful: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        results
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
  * 获取单条历史记录
  * GET /api/history/:taskId
  */
@@ -941,6 +997,7 @@ app.listen(PORT, () => {
   console.log(`  POST /api/video/download - 下载视频`);
   console.log(`  GET  /api/history/list - 获取历史记录`);
   console.log(`  GET  /api/history/stats - 获取统计信息`);
+  console.log(`  POST /api/history/migrate-downloads - 迁移旧记录视频到本地`);
 
   // 启动后台轮询服务
   startPollingService();

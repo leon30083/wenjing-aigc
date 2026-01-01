@@ -38,15 +38,17 @@ function TaskResultNode({ data }) {
     taskIdRef.current = taskId;
   }, [taskId]);
 
-  // ⭐ 关键修复：优先检查 _isCompletedFromHistory 标记（避免无限循环）
-  // 使用 useEffect 只恢复状态，不调用 setNodes()
+  // ⭐ useEffect 1: 从 data 恢复状态（工作流加载时）
   useEffect(() => {
+    // ⭐ 修复：优先检查 _isCompletedFromHistory 标记（防止被 ref 检查拦截）
     if (data._isCompletedFromHistory) {
-      console.log('[TaskResultNode] Loaded from history (flagged), skipping polling and node updates');
+      console.log('[TaskResultNode] Loaded from history (flagged), restoring state');
+      // ⭐ 立即设置 ref（在 setState 之前）
       isCompletedFromHistoryRef.current = true;
 
-      // ⭐ 只恢复内部状态，不调用 setNodes() 避免循环
+      // 一次性恢复所有状态
       if (data.taskId && data.taskId !== taskIdRef.current) {
+        console.log('[TaskResultNode] Restoring taskId from history:', data.taskId);
         setTaskId(data.taskId);
       }
       if (data.taskStatus) {
@@ -59,57 +61,48 @@ function TaskResultNode({ data }) {
         setError(data.error);
       }
       setPolling(false);
-
-      return; // ⭐ 直接返回，不执行后续逻辑
-    }
-  }, [data._isCompletedFromHistory, data.taskId, data.taskStatus, data.videoUrl, data.error]);
-
-  // ⭐ 单独的 useEffect：设置事件监听器（只在非历史记录时）
-  useEffect(() => {
-    // ⭐ 如果是从历史记录加载的，不需要监听事件
-    if (isCompletedFromHistoryRef.current) {
       return;
     }
 
-    // ⭐ 关键修复：从 data 恢复状态（工作流加载时）
+    // ⭐ 关键修复：如果 ref 已经是 false（新任务），跳过恢复
+    // 这防止新任务被历史记录覆盖
+    // ⚠️ 必须放在 _isCompletedFromHistory 检查之后！
+    if (!isCompletedFromHistoryRef.current) {
+      console.log('[TaskResultNode] Skipping restore (new task in progress)');
+      return;
+    }
+
+    // 新任务路径
     if (data.taskId && data.taskId !== taskIdRef.current) {
       console.log('[TaskResultNode] Initial taskId from data:', data.taskId);
       setTaskId(data.taskId);
 
-      // ⭐ 新增：检查是否是从历史记录加载的已完成任务
+      // ⭐ 关键：检查是否已完成（必须同时满足两个条件）
       if (data.taskStatus === 'SUCCESS' && data.videoUrl) {
         isCompletedFromHistoryRef.current = true;
-        console.log('[TaskResultNode] Completed task from history, skipping polling');
+        setPolling(false);
+        setTaskStatus(data.taskStatus);
+        setVideoUrl(data.videoUrl);
+        if (data.error) {
+          setError(data.error);
+        }
       } else {
         isCompletedFromHistoryRef.current = false;
       }
     }
+  }, [data.taskId]); // ⭐ 只依赖 taskId，移除其他依赖
 
-    // ⭐ 关键修复：如果 data 中已有结果状态，直接恢复（跳过轮询）
-    if (data.taskStatus && data.taskStatus !== 'idle') {
-      setTaskStatus(data.taskStatus);
-      if (data.videoUrl) {
-        setVideoUrl(data.videoUrl);
-        setPolling(false); // 已有结果，不需要轮询
-      }
-      if (data.error) {
-        setError(data.error);
-      }
-    }
-
-    // ⭐ 关键修复：只有当连接到源节点时才监听事件
-    // 使用 connectedSourceIdRef.current 而不是 data.connectedSourceId，避免依赖 data
-    if (!connectedSourceIdRef.current) {
-      console.log('[TaskResultNode] No connected source, skipping event listener setup');
-      return;
-    }
-
+  // ⭐ useEffect 2: 设置事件监听器（只在挂载时执行一次）
+  useEffect(() => {
     // Listen for custom event when video is created
     const handleVideoCreated = (event) => {
       const { sourceNodeId, taskId: newTaskId } = event.detail;
-      console.log('[TaskResultNode] Event received:', { sourceNodeId, newTaskId, connectedSourceId: connectedSourceIdRef.current });
+      // ⭐ 修复：使用 connectedSourceIdRef.current 而不是 data.connectedSourceId
+      // ref 始终保持最新值（由另一个 useEffect 更新），避免闭包陷阱
+      const connectedSourceId = connectedSourceIdRef.current;
+      console.log('[TaskResultNode] Event received:', { sourceNodeId, newTaskId, connectedSourceId });
       // Check if this task result node is connected to the source node
-      if (connectedSourceIdRef.current === sourceNodeId && newTaskId && newTaskId !== taskIdRef.current) {
+      if (connectedSourceId === sourceNodeId && newTaskId && newTaskId !== taskIdRef.current) {
         console.log('[TaskResultNode] Match! Setting taskId:', newTaskId);
 
         // ⭐ 关键修复：立即同步到 node.data（不等 useEffect）
@@ -176,6 +169,15 @@ function TaskResultNode({ data }) {
           setTaskStatus(status);
 
           if (status === 'SUCCESS' && taskData?.output) {
+            // ⭐ 新增：如果当前是本地路径，不覆盖
+            const currentIsLocal = videoUrl?.startsWith('/downloads/');
+            const newIsLocal = taskData.output?.startsWith('/downloads/');
+
+            if (currentIsLocal && !newIsLocal) {
+              console.log('[TaskResultNode] 保留本地路径，忽略远程 URL:', taskData.output);
+              return; // 不覆盖本地路径
+            }
+
             setVideoUrl(taskData.output);
             setPolling(false);
             clearInterval(pollInterval);
@@ -197,28 +199,45 @@ function TaskResultNode({ data }) {
       clearInterval(pollInterval);
       setPolling(false);
     };
-  }, [taskId, taskStatus, videoUrl]);
+  }, [taskId, taskStatus]); // ⭐ 移除 videoUrl，避免循环
 
   // ⭐ 关键修复：将结果同步到 node.data（用于工作流快照保存）
+  // 使用 ref 存储上次的值，避免无限循环
+  const lastSyncedDataRef = useRef({ taskId: null, taskStatus: null, videoUrl: null, error: null });
+
   useEffect(() => {
     // 当任务完成或有结果时，同步到 node.data
     if ((taskStatus === 'SUCCESS' && videoUrl) || taskStatus === 'FAILURE') {
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === nodeId
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  taskId,
-                  taskStatus,
-                  videoUrl,
-                  error
+      // ⭐ 关键：只在值真正变化时才调用 setNodes()，避免无限循环
+      const currentData = { taskId, taskStatus, videoUrl, error };
+      const lastData = lastSyncedDataRef.current;
+
+      const hasChanged =
+        currentData.taskId !== lastData.taskId ||
+        currentData.taskStatus !== lastData.taskStatus ||
+        currentData.videoUrl !== lastData.videoUrl ||
+        currentData.error !== lastData.error;
+
+      if (hasChanged) {
+        console.log('[TaskResultNode] Syncing to node.data:', currentData);
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    taskId,
+                    taskStatus,
+                    videoUrl,
+                    error
+                  }
                 }
-              }
-            : node
-        )
-      );
+              : node
+          )
+        );
+        lastSyncedDataRef.current = currentData;
+      }
     }
   }, [taskStatus, videoUrl, error, taskId, nodeId, setNodes]);
 
