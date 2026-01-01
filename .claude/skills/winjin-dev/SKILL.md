@@ -613,6 +613,74 @@ const taskId = result.data.id || result.data.task_id;
   - `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 21, 102, 145, 182, 226, 275（接收和使用 platform）
 - **修复日期**: 2026-01-01
 
+### 错误36: 已完成任务显示进度 0% 而非 100% ⭐ 2026-01-01 新增
+- **现象**: TaskResultNode 显示 "✓ 完成 0%" 而非 "✓ 完成 100%"
+- **根本原因**:
+  1. **getStatusText 函数硬编码**: 成功状态返回 "✓ 完成"，忽略了 progressValue 参数
+  2. **轮询函数未设置进度**: API 返回 SUCCESS 时，只更新 taskStatus 和 videoUrl，未设置 progress 为 100
+  3. **恢复逻辑顺序错误**: 检查 `_isCompletedFromHistory` 在检查 `taskStatus === 'SUCCESS'` 之前，导致已完成任务不执行恢复逻辑
+- **错误示例**:
+  ```javascript
+  // ❌ 错误：getStatusText 忽略 progressValue 参数
+  const getStatusText = (status, progressValue) => {
+    switch (status) {
+      case 'SUCCESS': return '✓ 完成';  // ❌ 硬编码，忽略 progressValue
+      case 'IN_PROGRESS': return `⏳ 处理中 ${progressValue}%`;
+    }
+  };
+
+  // ❌ 错误：轮询函数未设置 progress 为 100
+  if (status === 'SUCCESS' && taskData?.output) {
+    setVideoUrl(finalVideoUrl);
+    setPolling(false);
+    // ❌ 缺少 setProgress(100);
+  }
+
+  // ❌ 错误：恢复逻辑检查 _isCompletedFromHistory 在前
+  if (data._isCompletedFromHistory) {
+    // 恢复逻辑
+  }
+  if (!isCompletedFromHistoryRef.current) {
+    return; // ❌ 已完成但未标记为历史的任务被跳过
+  }
+  ```
+- **正确做法**:
+  ```javascript
+  // ✅ 正确：getStatusText 包含进度百分比
+  const getStatusText = (status, progressValue) => {
+    switch (status) {
+      case 'SUCCESS': return `✓ 完成 ${progressValue}%`;  // ✅ 显示进度
+      case 'IN_PROGRESS': return `⏳ 处理中 ${progressValue}%`;
+    }
+  };
+
+  // ✅ 正确：轮询函数设置 progress 为 100
+  if (status === 'SUCCESS' && taskData?.output) {
+    setVideoUrl(finalVideoUrl);
+    setProgress(100);  // ✅ 任务完成时设置进度为 100%
+    setPolling(false);
+  }
+
+  // ✅ 正确：优先检查任务是否完成（无论来源）
+  const isCompletedTask = data.taskStatus === 'SUCCESS' && data.videoUrl;
+  if (data._isCompletedFromHistory || isCompletedTask) {
+    // 恢复所有状态，包括 progress 为 100%
+    if (data.taskStatus === 'SUCCESS' && (!data.progress || data.progress === 0)) {
+      setProgress(100);  // ✅ 已完成任务默认 100%
+    }
+  }
+  ```
+- **关键点**:
+  1. **getStatusText 必须包含进度**: 成功状态显示 "✓ 完成 100%" 而非 "✓ 完成"
+  2. **轮询时设置进度**: API 返回 SUCCESS 时，自动设置 progress 为 100
+  3. **手动刷新设置进度**: 刷新已完成任务时，如果 progress 为 0，设置为 100
+  4. **恢复逻辑检查任务状态**: 优先检查 `taskStatus === 'SUCCESS' && videoUrl` 而非 `_isCompletedFromHistory`
+  5. **默认值逻辑**: 如果 progress 为 undefined 或 0，且任务已完成，默认为 100
+- **验证结果**: ✅ 已完成任务正确显示 "✓ 完成 100%"
+- **修复文件**:
+  - `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 364, 228, 326-329, 50, 72-77
+- **修复日期**: 2026-01-01
+
 ---
 
 ---
@@ -692,3 +760,4 @@ git push origin feature/workflow-management
 17. ✅ **自动化测试是基础标准范式**: 使用 MCP 工具在浏览器中自动测试，不要总是问用户，只在做连线/拖拽时请求用户协作 ⭐ 2026-01-01
 18. ✅ **专注于核心功能**: 避免过度复杂化，保持代码简洁可维护 ⭐ 2026-01-01
 19. ✅ **任务进度百分比显示**: 从 API 响应提取 progress 字段（0-100），在状态文本中显示 "⏳ 处理中 45%" ⭐ 2026-01-01
+20. ✅ **已完成任务进度默认 100%**: 任务完成时（SUCCESS + videoUrl）自动设置 progress 为 100%，即使 API 未返回 progress 字段 ⭐ 2026-01-01
