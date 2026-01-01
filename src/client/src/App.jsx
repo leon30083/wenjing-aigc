@@ -276,7 +276,8 @@ function App() {
           oldData.manualPrompt !== newData.manualPrompt ||
           oldData.images !== newData.images ||
           oldData.shots !== newData.shots ||
-          oldData.useGlobalImages !== newData.useGlobalImages
+          oldData.useGlobalImages !== newData.useGlobalImages ||
+          oldData.connectedSourceId !== newData.connectedSourceId // ⭐ 新增：修复 TaskResultNode 连接检测
         );
 
         if (dataChanged) {
@@ -487,15 +488,34 @@ function App() {
     console.log('[handleLoadWorkflowFromHistory] Saved edges:', savedEdges);
 
     if (savedNodes && savedEdges) {
-      // 清理节点数据，移除可能导致问题的字段（如函数引用）
-      const cleanedNodes = savedNodes.map(node => ({
-        ...node,
-        data: {
-          ...node.data,
-          // 移除可能包含函数的字段
-          onSizeChange: undefined,
+      // ⭐ 修复错误34: 从历史记录的实际数据恢复 TaskResultNode（而不是使用快照中的旧数据）
+      const cleanedNodes = savedNodes.map(node => {
+        // 特殊处理 TaskResultNode：使用历史记录的真实数据覆盖快照
+        if (node.type === 'taskResultNode') {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              taskId: record.taskId, // ⭐ 使用历史记录的 taskId
+              taskStatus: record.result?.status || 'idle',
+              videoUrl: record.result?.data?.output || null, // ⭐ 使用历史记录的视频 URL
+              error: record.result?.data?.fail_reason || null,
+              onSizeChange: undefined,
+              // ⭐ 新增：标记为已完成历史记录（TaskResultNode 检查这个标记）
+              _isCompletedFromHistory: true
+            }
+          };
         }
-      }));
+
+        // 其他节点：只清理函数引用
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            onSizeChange: undefined,
+          }
+        };
+      });
 
       console.log('[handleLoadWorkflowFromHistory] Setting nodes:', cleanedNodes);
       setNodes(cleanedNodes);

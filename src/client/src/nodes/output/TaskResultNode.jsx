@@ -17,6 +17,15 @@ function TaskResultNode({ data }) {
   const [polling, setPolling] = useState(false);
   const [copySuccess, setCopySuccess] = useState(null); // 'taskId' | 'videoUrl' | null
 
+  // ⭐ 新增：标记是否从历史记录加载（已完成的任务，不需要轮询）
+  const isCompletedFromHistoryRef = useRef(false);
+
+  // ⭐ 新增：使用 useRef 存储 connectedSourceId，避免 useEffect 依赖 data
+  const connectedSourceIdRef = useRef(data.connectedSourceId);
+  useEffect(() => {
+    connectedSourceIdRef.current = data.connectedSourceId;
+  }, [data.connectedSourceId]);
+
   const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
     data,
     300, // minWidth
@@ -29,15 +38,51 @@ function TaskResultNode({ data }) {
     taskIdRef.current = taskId;
   }, [taskId]);
 
-  // Listen for taskId updates from connected video generation nodes
+  // ⭐ 关键修复：优先检查 _isCompletedFromHistory 标记（避免无限循环）
+  // 使用 useEffect 只恢复状态，不调用 setNodes()
   useEffect(() => {
-    console.log('[TaskResultNode] Node data:', { id: data.id, connectedSourceId: data.connectedSourceId });
+    if (data._isCompletedFromHistory) {
+      console.log('[TaskResultNode] Loaded from history (flagged), skipping polling and node updates');
+      isCompletedFromHistoryRef.current = true;
+
+      // ⭐ 只恢复内部状态，不调用 setNodes() 避免循环
+      if (data.taskId && data.taskId !== taskIdRef.current) {
+        setTaskId(data.taskId);
+      }
+      if (data.taskStatus) {
+        setTaskStatus(data.taskStatus);
+      }
+      if (data.videoUrl) {
+        setVideoUrl(data.videoUrl);
+      }
+      if (data.error) {
+        setError(data.error);
+      }
+      setPolling(false);
+
+      return; // ⭐ 直接返回，不执行后续逻辑
+    }
+  }, [data._isCompletedFromHistory, data.taskId, data.taskStatus, data.videoUrl, data.error]);
+
+  // ⭐ 单独的 useEffect：设置事件监听器（只在非历史记录时）
+  useEffect(() => {
+    // ⭐ 如果是从历史记录加载的，不需要监听事件
+    if (isCompletedFromHistoryRef.current) {
+      return;
+    }
 
     // ⭐ 关键修复：从 data 恢复状态（工作流加载时）
-    // 如果 data 中已有完整结果，直接恢复（不轮询 API）
     if (data.taskId && data.taskId !== taskIdRef.current) {
       console.log('[TaskResultNode] Initial taskId from data:', data.taskId);
       setTaskId(data.taskId);
+
+      // ⭐ 新增：检查是否是从历史记录加载的已完成任务
+      if (data.taskStatus === 'SUCCESS' && data.videoUrl) {
+        isCompletedFromHistoryRef.current = true;
+        console.log('[TaskResultNode] Completed task from history, skipping polling');
+      } else {
+        isCompletedFromHistoryRef.current = false;
+      }
     }
 
     // ⭐ 关键修复：如果 data 中已有结果状态，直接恢复（跳过轮询）
@@ -53,8 +98,8 @@ function TaskResultNode({ data }) {
     }
 
     // ⭐ 关键修复：只有当连接到源节点时才监听事件
-    // 如果 connectedSourceId 为 undefined，说明节点未连接任何源节点，不应该响应
-    if (!data.connectedSourceId) {
+    // 使用 connectedSourceIdRef.current 而不是 data.connectedSourceId，避免依赖 data
+    if (!connectedSourceIdRef.current) {
       console.log('[TaskResultNode] No connected source, skipping event listener setup');
       return;
     }
@@ -62,16 +107,38 @@ function TaskResultNode({ data }) {
     // Listen for custom event when video is created
     const handleVideoCreated = (event) => {
       const { sourceNodeId, taskId: newTaskId } = event.detail;
-      console.log('[TaskResultNode] Event received:', { sourceNodeId, newTaskId, connectedSourceId: data.connectedSourceId });
+      console.log('[TaskResultNode] Event received:', { sourceNodeId, newTaskId, connectedSourceId: connectedSourceIdRef.current });
       // Check if this task result node is connected to the source node
-      if (data.connectedSourceId === sourceNodeId && newTaskId && newTaskId !== taskIdRef.current) {
+      if (connectedSourceIdRef.current === sourceNodeId && newTaskId && newTaskId !== taskIdRef.current) {
         console.log('[TaskResultNode] Match! Setting taskId:', newTaskId);
+
+        // ⭐ 关键修复：立即同步到 node.data（不等 useEffect）
+        // 这确保 VideoGenerateNode 的 getNodes() 调用能捕获到正确的 taskId
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    taskId: newTaskId,
+                    taskStatus: 'idle',
+                    videoUrl: null,
+                    error: null,
+                    _isCompletedFromHistory: false // 新任务不是历史记录
+                  }
+                }
+              : node
+          )
+        );
+
+        // 然后更新 useState（用于 UI）
         setTaskId(newTaskId);
         setTaskStatus('idle');
         setVideoUrl(null);
         setError(null);
-        // ⭐ 关键修复：新任务开始时重置所有状态，确保自动轮询
-        setPolling(false); // 重置为 false，让轮询 useEffect 重新启动
+        setPolling(false);
+        isCompletedFromHistoryRef.current = false;
       }
     };
 
@@ -80,11 +147,17 @@ function TaskResultNode({ data }) {
     return () => {
       window.removeEventListener('video-task-created', handleVideoCreated);
     };
-  }, [data.taskId, data.taskStatus, data.videoUrl, data.error, data.connectedSourceId]);
+  }, []); // ⭐ 空依赖数组：只在组件挂载时执行一次，使用 ref 获取最新值
 
   // Poll task status when taskId is set
   useEffect(() => {
     if (!taskId) {
+      return;
+    }
+
+    // ⭐ 新增：如果是已完成的历史记录，不开始轮询
+    if (isCompletedFromHistoryRef.current) {
+      console.log('[TaskResultNode] Skipping polling for completed task from history');
       return;
     }
 
