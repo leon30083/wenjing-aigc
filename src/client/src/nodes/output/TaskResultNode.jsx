@@ -46,9 +46,11 @@ function TaskResultNode({ data }) {
 
   // ⭐ useEffect 1: 从 data 恢复状态（工作流加载时）
   useEffect(() => {
-    // ⭐ 修复：优先检查 _isCompletedFromHistory 标记（防止被 ref 检查拦截）
-    if (data._isCompletedFromHistory) {
-      console.log('[TaskResultNode] Loaded from history (flagged), restoring state');
+    // ⭐ 关键修复：优先检查是否是已完成的任务（无论来源）
+    const isCompletedTask = data.taskStatus === 'SUCCESS' && data.videoUrl;
+
+    if (data._isCompletedFromHistory || isCompletedTask) {
+      console.log('[TaskResultNode] Restoring state from history/completed task');
       // ⭐ 立即设置 ref（在 setState 之前）
       isCompletedFromHistoryRef.current = true;
 
@@ -65,6 +67,13 @@ function TaskResultNode({ data }) {
       }
       if (data.error) {
         setError(data.error);
+      }
+      // ⭐ 恢复 progress 值（对于已完成的任务，如果没有有效进度则默认 100%）
+      if (data.taskStatus === 'SUCCESS' && (!data.progress || data.progress === 0)) {
+        // 已完成的任务默认 100%
+        setProgress(100);
+      } else if (data.progress !== undefined) {
+        setProgress(data.progress);
       }
       setPolling(false);
       return;
@@ -89,6 +98,12 @@ function TaskResultNode({ data }) {
         setPolling(false);
         setTaskStatus(data.taskStatus);
         setVideoUrl(data.videoUrl);
+        // ⭐ 已完成的任务设置 progress 为 100（如果没有有效进度）
+        if (data.progress && data.progress > 0) {
+          setProgress(data.progress);
+        } else {
+          setProgress(100);
+        }
         if (data.error) {
           setError(data.error);
         }
@@ -189,9 +204,14 @@ function TaskResultNode({ data }) {
           const { status, data: taskData, progress: taskProgress } = result.data;
           setTaskStatus(status);
 
-          // ⭐ 更新进度百分比
+          // ⭐ 更新进度百分比（支持数字和字符串格式 "100%"）
           if (typeof taskProgress === 'number') {
             setProgress(taskProgress);
+          } else if (typeof taskProgress === 'string') {
+            const parsedProgress = parseInt(taskProgress.replace('%', ''));
+            if (!isNaN(parsedProgress)) {
+              setProgress(parsedProgress);
+            }
           }
 
           if (status === 'SUCCESS' && taskData?.output) {
@@ -211,6 +231,7 @@ function TaskResultNode({ data }) {
             }
 
             setVideoUrl(finalVideoUrl);
+            setProgress(100); // ⭐ 关键：任务完成时设置进度为 100%
             setPolling(false);
             clearInterval(pollInterval);
             console.log('[TaskResultNode] Video URL set:', finalVideoUrl);
@@ -287,9 +308,14 @@ function TaskResultNode({ data }) {
         const { status, data: taskData, progress: taskProgress } = result.data;
         setTaskStatus(status);
 
-        // ⭐ 更新进度百分比
+        // ⭐ 更新进度百分比（支持数字和字符串格式 "100%"）
         if (typeof taskProgress === 'number') {
           setProgress(taskProgress);
+        } else if (typeof taskProgress === 'string') {
+          const parsedProgress = parseInt(taskProgress.replace('%', ''));
+          if (!isNaN(parsedProgress)) {
+            setProgress(parsedProgress);
+          }
         }
 
         if (status === 'SUCCESS' && taskData?.output) {
@@ -299,6 +325,10 @@ function TaskResultNode({ data }) {
             finalVideoUrl = `${API_BASE}${finalVideoUrl}`;
           }
           setVideoUrl(finalVideoUrl);
+          // ⭐ 任务完成时确保进度为 100%
+          if (!taskProgress || taskProgress === 0) {
+            setProgress(100);
+          }
         } else if (status === 'FAILURE') {
           setError(taskData?.fail_reason || '生成失败');
         }
@@ -342,7 +372,7 @@ function TaskResultNode({ data }) {
   // Get status text with progress
   const getStatusText = (status, progressValue) => {
     switch (status) {
-      case 'SUCCESS': return '✓ 完成';
+      case 'SUCCESS': return `✓ 完成 ${progressValue}%`;
       case 'FAILURE': return '✗ 失败';
       case 'IN_PROGRESS': return `⏳ 处理中 ${progressValue}%`;
       case 'NOT_START': return '⏸️ 未开始';
