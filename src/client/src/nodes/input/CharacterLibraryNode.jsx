@@ -6,7 +6,7 @@ const API_BASE = 'http://localhost:9000';
 
 function CharacterLibraryNode({ data }) {
   const nodeId = useNodeId(); // ⭐ 获取当前节点 ID
-  const { setNodes, getEdges } = useReactFlow();
+  const { setNodes, getEdges, edges } = useReactFlow();
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,7 +92,7 @@ function CharacterLibraryNode({ data }) {
         })
       );
     }
-  }, [selectedCharacters, nodeId, setNodes, characters, getEdges]);
+  }, [selectedCharacters, nodeId, setNodes, characters, getEdges, edges]); // ⭐ 添加 edges
 
   useEffect(() => {
     loadCharacters();

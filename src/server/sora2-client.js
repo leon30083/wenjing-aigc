@@ -118,7 +118,7 @@ class Sora2Client {
    * 创建视频（文生视频）
    * @param {object} options - 视频创建参数
    * @param {string} options.prompt - 提示词
-   * @param {string} [options.model='sora-2'] - 模型名称 (sora-2, sora-2-pro)
+   * @param {string} [options.model] - 模型名称 (聚鑫: sora-2-all, 贞贞: sora-2, sora-2-pro)
    * @param {string} [options.orientation='landscape'] - 画面方向 (portrait/landscape 或 16:9/9:16)
    * @param {number} [options.duration=10] - 视频时长 (10, 15, 25)
    * @param {string|boolean} [options.size='small'] - 分辨率 (small/large) 或 hd (true/false)
@@ -131,7 +131,7 @@ class Sora2Client {
     try {
       const {
         prompt,
-        model = 'sora-2',
+        model,
         orientation = 'landscape',
         duration = 10,
         size = 'small',
@@ -140,13 +140,16 @@ class Sora2Client {
         images = [],
       } = options;
 
+      // 根据平台设置默认模型
+      const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
+
       // 参数校验
       if (!prompt) {
         throw new Error('prompt 是必填参数');
       }
 
-      const validModels = ['sora-2', 'sora-2-pro'];
-      if (!validModels.includes(model)) {
+      const validModels = ['sora-2-all', 'sora-2', 'sora-2-pro'];
+      if (!validModels.includes(finalModel)) {
         throw new Error(`model 必须是 ${validModels.join(' 或 ')} 之一`);
       }
 
@@ -157,7 +160,7 @@ class Sora2Client {
 
       // 构建请求体（根据平台不同使用不同参数）
       const body = {
-        model,
+        model: finalModel,
         prompt,
         images,
         watermark,
@@ -212,7 +215,7 @@ class Sora2Client {
    * 创建视频（带角色参考）
    * @param {object} options - 视频创建参数
    * @param {string} options.prompt - 提示词（可使用 @{username} 引用角色）
-   * @param {string} [options.model='sora-2'] - 模型名称
+   * @param {string} [options.model] - 模型名称 (聚鑫: sora-2-all, 贞贞: sora-2, sora-2-pro)
    * @param {string} options.character_url - 角色视频链接
    * @param {string} options.character_timestamps - 角色出现时间范围 "1,3"
    * @param {string} [options.orientation='landscape'] - 画面方向
@@ -225,7 +228,7 @@ class Sora2Client {
     try {
       const {
         prompt,
-        model = 'sora-2',
+        model,
         character_url,
         character_timestamps,
         orientation = 'landscape',
@@ -233,6 +236,9 @@ class Sora2Client {
         size = 'small',
         images = [],
       } = options;
+
+      // 根据平台设置默认模型
+      const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
 
       if (!prompt) {
         throw new Error('prompt 是必填参数');
@@ -253,7 +259,7 @@ class Sora2Client {
 
       // 构建请求体
       const body = {
-        model,
+        model: finalModel,
         prompt,
         images,
         character_url,
@@ -307,7 +313,7 @@ class Sora2Client {
    * @param {string} options.shots[].scene - 每个镜头的场景描述
    * @param {number} options.shots[].duration - 每个镜头的时长（秒）
    * @param {string} [options.shots[].image] - 每个镜头的参考图片URL（可选）
-   * @param {string} [options.model='sora-2'] - 模型名称
+   * @param {string} [options.model] - 模型名称 (聚鑫: sora-2-all, 贞贞: sora-2, sora-2-pro)
    * @param {string} [options.orientation='landscape'] - 画面方向
    * @param {string|boolean} [options.size='small'] - 分辨率
    * @param {boolean} [options.watermark=false] - 是否无水印
@@ -320,13 +326,16 @@ class Sora2Client {
       const {
         shots,
         duration, // ⭐ 新增：总时长参数（可选）
-        model = 'sora-2',
+        model,
         orientation = 'landscape',
         size = 'small',
         watermark = false,
         private: isPrivate = true,
         images = [],
       } = options;
+
+      // 根据平台设置默认模型
+      const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
 
       if (!shots || !Array.isArray(shots) || shots.length === 0) {
         throw new Error('shots 是必填参数，且必须是非空数组');
@@ -348,7 +357,7 @@ class Sora2Client {
 
       // 构建请求体
       const body = {
-        model,
+        model: finalModel,
         prompt,
         images: allImages,
         watermark,

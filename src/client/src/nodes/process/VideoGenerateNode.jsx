@@ -35,7 +35,7 @@ function VideoGenerateNode({ data }) {
   // 默认 API 配置（未连接时使用）
   const defaultApiConfig = {
     platform: 'juxin',
-    model: 'sora-2',
+    model: 'sora-2-all',
     aspect: '16:9',
     watermark: false,
   };
@@ -53,12 +53,20 @@ function VideoGenerateNode({ data }) {
   const [connectedImages, setConnectedImages] = useState(data.connectedImages || []);
 
   // ⭐ 合并后的 useEffect：同时同步 connectedCharacters 和 connectedImages
+  // ⭐ 关键修复：当 data.* 为 undefined 时，清除状态
   useEffect(() => {
-    if (data.connectedCharacters) {
+    if (data.connectedCharacters !== undefined) {
       setConnectedCharacters(data.connectedCharacters);
+    } else {
+      // 连接断开时，清除状态
+      setConnectedCharacters([]);
     }
-    if (data.connectedImages) {
+
+    if (data.connectedImages !== undefined) {
       setConnectedImages(data.connectedImages);
+    } else {
+      // 连接断开时，清除状态
+      setConnectedImages([]);
     }
   }, [data.connectedCharacters, data.connectedImages]);
 

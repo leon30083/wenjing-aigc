@@ -4,11 +4,11 @@ import { useNodeResize } from '../../hooks/useNodeResize';
 
 function APISettingsNode({ data }) {
   const nodeId = useNodeId();
-  const { setNodes, getEdges } = useReactFlow();
+  const { setNodes, getEdges, edges } = useReactFlow();
 
   const [config, setConfig] = useState({
-    platform: 'juxin',      // 'juxin' | 'zhenzhen'
-    model: 'sora-2',        // 'sora-2' | 'sora-2-pro'
+    platform: 'juxin',         // 'juxin' | 'zhenzhen'
+    model: 'sora-2-all',     // 'sora-2-all' | 'sora-2' | 'sora-2-pro'
     aspect: '16:9',         // '16:9' | '9:16'
     watermark: false,       // true | false
     apiKey: '',            // API Key（用户自定义）
@@ -44,7 +44,7 @@ function APISettingsNode({ data }) {
         })
       );
     }
-  }, [config, nodeId, getEdges, setNodes, data.label]);
+  }, [config, nodeId, getEdges, setNodes, data.label, edges]); // ⭐ 添加 edges
 
   const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
     data,
@@ -92,7 +92,12 @@ function APISettingsNode({ data }) {
           name="platform"
           className="nodrag"
           value={config.platform}
-          onChange={(e) => setConfig({ ...config, platform: e.target.value })}
+          onChange={(e) => {
+            const newPlatform = e.target.value;
+            // ⭐ 根据平台自动切换默认模型
+            const newModel = newPlatform === 'juxin' ? 'sora-2-all' : 'sora-2';
+            setConfig({ ...config, platform: newPlatform, model: newModel });
+          }}
           style={{
             width: '100%',
             padding: '6px 8px',
@@ -131,10 +136,8 @@ function APISettingsNode({ data }) {
             cursor: 'pointer',
           }}
         >
-          {/* 根据平台显示不同的模型名称 */}
-          <option value="sora-2" style={{ backgroundColor: 'white', color: '#1e293b' }}>
-            {config.platform === 'juxin' ? 'Sora-2-all' : 'Sora-2'}
-          </option>
+          <option value="sora-2-all" style={{ backgroundColor: 'white', color: '#1e293b' }}>Sora-2-all</option>
+          <option value="sora-2" style={{ backgroundColor: 'white', color: '#1e293b' }}>Sora-2</option>
           <option value="sora-2-pro" style={{ backgroundColor: 'white', color: '#1e293b' }}>Sora-2 Pro</option>
         </select>
       </div>

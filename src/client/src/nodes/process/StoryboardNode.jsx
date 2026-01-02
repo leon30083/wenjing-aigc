@@ -15,7 +15,7 @@ function StoryboardNode({ data }) {
   // 默认 API 配置（未连接时使用）
   const defaultApiConfig = {
     platform: 'juxin',
-    model: 'sora-2',
+    model: 'sora-2-all',
     aspect: '16:9',
     watermark: false,
   };
@@ -41,8 +41,14 @@ function StoryboardNode({ data }) {
     setConnectedCharacters(data.connectedCharacters || []);
   }, [data.connectedCharacters]);
 
+  // ⭐ 关键修复：当 data.connectedImages 为 undefined 时（连接断开），清除状态
   useEffect(() => {
-    setConnectedImages(data.connectedImages || []);
+    if (data.connectedImages !== undefined) {
+      setConnectedImages(data.connectedImages);
+    } else {
+      // 连接断开时，清除状态
+      setConnectedImages([]);
+    }
   }, [data.connectedImages]);
 
   // ⭐ 新增：全局图片控制和镜头图片选择状态
