@@ -901,7 +901,46 @@ const taskId = result.data.id || result.data.task_id;
   - `src/renderer/public/index.html` - Lines 666-669, 746-750（添加模型选项）
 - **修复日期**: 2026-01-02
 
----
+### 错误40: App.jsx 把 selectedImages 数组当作 Set 处理 ⭐ 新增 (2026-01-02)
+- **现象**: 点击连接线时，取消选中的图片又重新出现在目标节点
+- **根本原因**:
+  - ReferenceImageNode 保存 `selectedImages` 到 `node.data` 时是**数组** (`Array.from(selectedImages)`)
+  - App.jsx 中间件读取后使用 `.size` 和 `.has()` 方法，这些是 Set 的方法
+  - 导致逻辑判断失败，传递了错误的图片数据
+- **错误尝试**:
+  - ❌ 修改 VideoGenerateNode 的清除逻辑（治标不治本）
+  - ❌ 修改 ReferenceImageNode 的广播逻辑（方向错误）
+  - ❌ 在 App.jsx 中使用 Set 方法处理数组
+- **正确做法**:
+  ```javascript
+  // ❌ 错误：App.jsx 把数组当作 Set
+  const selectedImagesSet = sourceNode.data?.selectedImages;
+  if (selectedImagesSet && selectedImagesSet.size > 0) {
+    newData.connectedImages = allImages.filter(img => selectedImagesSet.has(img));
+  }
+
+  // ✅ 正确：selectedImages 是已过滤的数组，直接使用
+  const selectedImagesArray = sourceNode.data?.selectedImages;
+  const allImages = sourceNode.data?.images || [];
+
+  if (selectedImagesArray && Array.isArray(selectedImagesArray)) {
+    // 有 selectedImages 数据：使用它（已过滤）
+    newData.connectedImages = selectedImagesArray;
+  } else {
+    // 向后兼容：没有 selectedImages 数据时传递所有图片
+    newData.connectedImages = allImages;
+  }
+  ```
+- **关键点**:
+  1. **数据类型**: `selectedImages` 保存为**数组**，不是 Set
+  2. **已过滤**: ReferenceImageNode 已经过滤选中的图片，App.jsx 直接使用
+  3. **向后兼容**: 检查 `Array.isArray()` 而非 `.length`，避免 undefined 错误
+  4. **数据流**: ReferenceImageNode (Set) → 过滤 → Array → node.data → App.jsx → 目标节点
+- **验证结果**: ✅ 取消选中图片后，目标节点正确清除显示；点击连接线不会重新显示
+- **修复文件**:
+  - `src/client/src/nodes/input/ReferenceImageNode.jsx` - Lines 12-17, 29-39, 47, 59（工作流恢复支持）
+  - `src/client/src/App.jsx` - Lines 269-280（修复数组处理逻辑）
+- **修复日期**: 2026-01-02
 
 ---
 
@@ -964,26 +1003,27 @@ git push origin feature/workflow-management
 1. ⚠️ **聚鑫平台模型名称**: 必须使用 `sora-2-all`，不能使用 `sora-2` ⭐ 2026-01-02
 2. ⚠️ **贞贞平台模型名称**: 使用 `sora-2` 或 `sora-2-pro` ⭐ 2026-01-02
 3. ⚠️ **平台自动切换**: 后端 Sora2Client 已实现自动选择，前端默认值需同步 ⭐ 2026-01-02
-4. ✅ **角色创建不传 model**: 所有平台统一，创建角色时不传 model 参数
-5. ✅ **API 调用前检查路径**: 确保包含 `/api/` 前缀
-6. ✅ **角色创建优先使用 from_task**: 比 URL 更可靠
-7. ✅ **React Flow 节点使用 useNodeId()**: data 对象不包含 id
-8. ✅ **React Flow Handle 标签布局**: Handle 和标签必须完全分离，独立定位
-9. ✅ **轮询间隔至少 30 秒**: 避免 429 错误
-10. ✅ **双平台兼容**: 同时支持聚鑫和贞贞的响应格式
-11. ✅ **每次开发后更新文档**: 遵循更新流程和检查清单
-12. ✅ **localStorage 数据必须验证**: 使用 try-catch 和默认值
-13. ✅ **导入文件验证格式**: 检查必需字段和数据类型
-14. ✅ **视频时长使用数字类型**: duration: 10 (非 "10")
-15. ✅ **Sora2 不支持 1:1 比例**: 只提供 16:9 和 9:16
-16. ✅ **图生视频提示词必须描述参考图**: 参考图片提供场景，提示词必须描述场景内容和角色活动
-17. ✅ **表单字段必须有 id/name 属性**: 满足浏览器可访问性要求
-18. ✅ **源节点直接更新目标节点**: 绕过 App.jsx，使用 getEdges() 找到连接的节点，一次 setNodes() 更新多个节点 ⭐ 2026-01-01
-19. ✅ **关键时刻手动同步 node.data**: 在 getNodes() 捕获快照前，手动调用 setNodes() 确保数据同步 ⭐ 2026-01-01
-20. ✅ **防抖 localStorage 保存**: 500ms 防抖，减少 90% 的写入次数，提升响应速度 ⭐ 2026-01-01
-21. ✅ **自动化测试是基础标准范式**: 使用 MCP 工具在浏览器中自动测试，不要总是问用户，只在做连线/拖拽时请求用户协作 ⭐ 2026-01-01
-22. ✅ **专注于核心功能**: 避免过度复杂化，保持代码简洁可维护 ⭐ 2026-01-01
-23. ✅ **任务进度百分比显示**: 从 API 响应提取 progress 字段（0-100），在状态文本中显示 "⏳ 处理中 45%" ⭐ 2026-01-01
-24. ✅ **已完成任务进度默认 100%**: 任务完成时（SUCCESS + videoUrl）自动设置 progress 为 100%，即使 API 未返回 progress 字段 ⭐ 2026-01-01
-25. ✅ **useEffect 空依赖数组防止竞态条件**: 当 useEffect 和事件监听器都管理同一状态时，useEffect 应使用空依赖数组只在挂载时运行，避免事件更新触发 useEffect 恢复旧数据 ⭐ 2026-01-01
-26. ✅ **自动检测修复缺失字段**: 从连接的源节点读取配置信息，自动修复 localStorage 中旧任务缺失的字段（如 platform），确保向后兼容 ⭐ 2026-01-01
+4. ⚠️ **node.data 数据类型**: selectedImages/selectedCharacters 保存为**数组**而非 Set ⭐ 2026-01-02
+5. ✅ **角色创建不传 model**: 所有平台统一，创建角色时不传 model 参数
+6. ✅ **API 调用前检查路径**: 确保包含 `/api/` 前缀
+7. ✅ **角色创建优先使用 from_task**: 比 URL 更可靠
+8. ✅ **React Flow 节点使用 useNodeId()**: data 对象不包含 id
+9. ✅ **React Flow Handle 标签布局**: Handle 和标签必须完全分离，独立定位
+10. ✅ **轮询间隔至少 30 秒**: 避免 429 错误
+11. ✅ **双平台兼容**: 同时支持聚鑫和贞贞的响应格式
+12. ✅ **每次开发后更新文档**: 遵循更新流程和检查清单
+13. ✅ **localStorage 数据必须验证**: 使用 try-catch 和默认值
+14. ✅ **导入文件验证格式**: 检查必需字段和数据类型
+15. ✅ **视频时长使用数字类型**: duration: 10 (非 "10")
+16. ✅ **Sora2 不支持 1:1 比例**: 只提供 16:9 和 9:16
+17. ✅ **图生视频提示词必须描述参考图**: 参考图片提供场景，提示词必须描述场景内容和角色活动
+18. ✅ **表单字段必须有 id/name 属性**: 满足浏览器可访问性要求
+19. ✅ **源节点直接更新目标节点**: 绕过 App.jsx，使用 getEdges() 找到连接的节点，一次 setNodes() 更新多个节点 ⭐ 2026-01-01
+20. ✅ **关键时刻手动同步 node.data**: 在 getNodes() 捕获快照前，手动调用 setNodes() 确保数据同步 ⭐ 2026-01-01
+21. ✅ **防抖 localStorage 保存**: 500ms 防抖，减少 90% 的写入次数，提升响应速度 ⭐ 2026-01-01
+22. ✅ **自动化测试是基础标准范式**: 使用 MCP 工具在浏览器中自动测试，不要总是问用户，只在做连线/拖拽时请求用户协作 ⭐ 2026-01-01
+23. ✅ **专注于核心功能**: 避免过度复杂化，保持代码简洁可维护 ⭐ 2026-01-01
+24. ✅ **任务进度百分比显示**: 从 API 响应提取 progress 字段（0-100），在状态文本中显示 "⏳ 处理中 45%" ⭐ 2026-01-01
+25. ✅ **已完成任务进度默认 100%**: 任务完成时（SUCCESS + videoUrl）自动设置 progress 为 100%，即使 API 未返回 progress 字段 ⭐ 2026-01-01
+26. ✅ **useEffect 空依赖数组防止竞态条件**: 当 useEffect 和事件监听器都管理同一状态时，useEffect 应使用空依赖数组只在挂载时运行，避免事件更新触发 useEffect 恢复旧数据 ⭐ 2026-01-01
+27. ✅ **自动检测修复缺失字段**: 从连接的源节点读取配置信息，自动修复 localStorage 中旧任务缺失的字段（如 platform），确保向后兼容 ⭐ 2026-01-01

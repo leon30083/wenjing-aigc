@@ -265,12 +265,26 @@ function App() {
         if (imagesEdge) {
           const sourceNode = nds.find((n) => n.id === imagesEdge.source);
           // ✅ 只有 ReferenceImageNode 可以连接到 images-input
-          if (sourceNode?.type === 'referenceImageNode' && sourceNode?.data?.images) {
-            newData.connectedImages = sourceNode.data.images;
+          if (sourceNode?.type === 'referenceImageNode') {
+            // ⭐ 关键修复：ReferenceImageNode 保存 selectedImages 为数组
+            // 如果有选中的图片数组，直接使用；否则传递所有图片
+            const selectedImagesArray = sourceNode.data?.selectedImages;
+            const allImages = sourceNode.data?.images || [];
+
+            if (selectedImagesArray && Array.isArray(selectedImagesArray)) {
+              // 有 selectedImages 数据：使用它（已过滤）
+              newData.connectedImages = selectedImagesArray;
+            } else {
+              // 向后兼容：没有 selectedImages 数据时传递所有图片
+              newData.connectedImages = allImages;
+            }
           } else {
             // ❌ 源节点类型无效，清除连接数据
             newData.connectedImages = undefined;
           }
+        } else {
+          // ⭐ 关键修复：没有 images-input 连接时，清除 connectedImages
+          newData.connectedImages = undefined;
         }
 
         // Check for video input (for task result node)

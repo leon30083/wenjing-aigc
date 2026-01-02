@@ -4565,6 +4565,67 @@ class Sora2Client {
 
 ---
 
+### 错误40: App.jsx 把 selectedImages 数组当作 Set 处理 ⭐ 新增 (2026-01-02)
+
+```javascript
+// ❌ 错误：App.jsx 把数组当作 Set
+const imagesEdge = incomingEdges.find((e) => e.targetHandle === 'images-input');
+if (imagesEdge) {
+  const sourceNode = nds.find((n) => n.id === imagesEdge.source);
+  if (sourceNode?.type === 'referenceImageNode') {
+    const allImages = sourceNode.data?.images || [];
+    const selectedImagesSet = sourceNode.data?.selectedImages; // ⚠️ 这是数组，不是 Set
+
+    // ❌ 数组没有 .size 和 .has() 方法
+    if (selectedImagesSet && selectedImagesSet.size > 0) {
+      newData.connectedImages = allImages.filter(img => selectedImagesSet.has(img));
+    }
+  }
+}
+
+// ✅ 正确：selectedImages 是已过滤的数组，直接使用
+const imagesEdge = incomingEdges.find((e) => e.targetHandle === 'images-input');
+if (imagesEdge) {
+  const sourceNode = nds.find((n) => n.id === imagesEdge.source);
+  if (sourceNode?.type === 'referenceImageNode') {
+    // ReferenceImageNode 保存 selectedImages 为数组
+    const selectedImagesArray = sourceNode.data?.selectedImages;
+    const allImages = sourceNode.data?.images || [];
+
+    if (selectedImagesArray && Array.isArray(selectedImagesArray)) {
+      // 有 selectedImages 数据：使用它（已过滤）
+      newData.connectedImages = selectedImagesArray;
+    } else {
+      // 向后兼容：没有 selectedImages 数据时传递所有图片
+      newData.connectedImages = allImages;
+    }
+  } else {
+    newData.connectedImages = undefined;
+  }
+} else {
+  newData.connectedImages = undefined;
+}
+```
+
+**问题**: ReferenceImageNode 保存 `selectedImages` 到 `node.data` 时是**数组**，App.jsx 中间件错误地使用 Set 的 `.size` 和 `.has()` 方法处理
+
+**解决方案**:
+1. 使用 `Array.isArray()` 检查数据类型
+2. 直接使用已过滤的数组，无需再次过滤
+3. 向后兼容：没有数据时使用所有图片
+4. 数据流：ReferenceImageNode (Set) → 过滤 → Array → node.data → App.jsx → 目标节点
+
+**修复日期**: 2026-01-02
+
+**修复文件**:
+- `src/client/src/nodes/input/ReferenceImageNode.jsx` - Lines 12-17, 29-39, 47, 59（工作流恢复支持）
+- `src/client/src/App.jsx` - Lines 269-280（修复数组处理逻辑）
+
+**相关文档**:
+- SKILL.md: 错误模式 40
+
+---
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：

@@ -4,11 +4,17 @@ import { useNodeResize } from '../../hooks/useNodeResize';
 
 function ReferenceImageNode({ data }) {
   const nodeId = useNodeId();
-  const { setNodes, getEdges } = useReactFlow();
+  const { setNodes, getEdges, edges } = useReactFlow();
 
   const [images, setImages] = useState(data.images || []);
   const [inputValue, setInputValue] = useState('');
-  const [selectedImages, setSelectedImages] = useState(new Set());
+  // ⭐ 关键修复：从 data.selectedImages 恢复选中状态（支持工作流加载）
+  const [selectedImages, setSelectedImages] = useState(() => {
+    if (data.selectedImages && Array.isArray(data.selectedImages)) {
+      return new Set(data.selectedImages);
+    }
+    return new Set();
+  });
   const [selectionMode, setSelectionMode] = useState('select'); // 'select' | 'preview'
   const [previewImage, setPreviewImage] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -20,21 +26,38 @@ function ReferenceImageNode({ data }) {
     { width: 260, height: 300 } // initialSize
   );
 
-  // ⭐ 合并后的 useEffect：同时更新自己的 images 和目标节点的 connectedImages
+  // ⭐ 关键修复：当 data.selectedImages 变化时（加载工作流），恢复选中状态
+  useEffect(() => {
+    if (data.selectedImages && Array.isArray(data.selectedImages)) {
+      const newSet = new Set(data.selectedImages);
+      // 只在实际变化时更新（避免无限循环）
+      if (newSet.size !== selectedImages.size ||
+          ![...newSet].every(url => selectedImages.has(url))) {
+        setSelectedImages(newSet);
+      }
+    }
+  }, [data.selectedImages]);
+
+  // ⭐ 合并后的 useEffect：同时更新自己的 images/selectedImages 和目标节点的 connectedImages
   useEffect(() => {
     if (nodeId) {
       const edges = getEdges();
       const outgoingEdges = edges.filter(e => e.source === nodeId);
       const imageUrls = images.filter(img => selectedImages.has(img));
+      const selectedArray = Array.from(selectedImages);
 
       // ⚡ 一次 setNodes 调用同时更新自己和目标节点
       setNodes((nds) =>
         nds.map((node) => {
-          // 更新自己的 images（用于工作流恢复）
+          // 更新自己的 images 和 selectedImages（用于工作流恢复）
           if (node.id === nodeId) {
             return {
               ...node,
-              data: { ...node.data, images }
+              data: {
+                ...node.data,
+                images,
+                selectedImages: selectedArray
+              }
             };
           }
 
@@ -51,7 +74,7 @@ function ReferenceImageNode({ data }) {
         })
       );
     }
-  }, [selectedImages, images, nodeId, getEdges, setNodes]);
+  }, [selectedImages, images, nodeId, getEdges, setNodes, edges]); // ⭐ 添加 edges
 
   const addImage = () => {
     if (inputValue.trim() && !images.includes(inputValue.trim())) {
