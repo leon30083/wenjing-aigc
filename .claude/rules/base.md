@@ -62,16 +62,19 @@ React + React Flow
 ### 贞贞平台 (ai.t8star.cn)
 - **Base URL**: `https://ai.t8star.cn`
 - **模型**: `sora-2`, `sora-2-pro` ⭐ 两个可选 (2026-01-02 更新)
-- **创建视频**: `POST /v1/video/create`
+- **创建视频**: `POST /v2/videos/generations`
 - **查询任务**: `GET /v2/videos/generations/{taskId}` ⚠️ 路径参数
 - **创建角色**: `POST /sora/v1/characters`
-- **故事板**: `POST /v1/video/storyboard`
+- **故事板**: `POST /v2/videos/generations` ⭐ 使用常规视频端点 + 特殊提示词格式 (2026-01-02 更新)
 
 ### 重要差异
 - **模型名称**: 聚鑫使用 `sora-2-all`，贞贞使用 `sora-2` 或 `sora-2-pro` ⭐ (2026-01-02 更新)
 - **查询端点**: 聚鑫用查询参数 `?id=`，贞贞用路径参数 `/{taskId}`
 - **响应格式**: 聚鑫返回 `{id}`, 贞贞返回 `{task_id}` ⚠️ **需要兼容处理**
 - **数据格式**: 聚鑫返回 OpenAI 格式，贞贞返回统一格式
+- **故事板端点**: ⭐ 重要差异 (2026-01-02 更新)
+  - **聚鑫平台**: 专用端点 `POST /v1/videos` (multipart/form-data)
+  - **贞贞平台**: 常规端点 `POST /v2/videos/generations` (application/json) + 特殊提示词格式
 
 ## API 规范
 
@@ -504,6 +507,101 @@ const insertCharacterAtCursor = (username, alias) => {
 - **无输出端口**: 纯展示节点
 - **剪贴板 API**: 优先使用 `navigator.clipboard`，降级到 `execCommand`
 - **复制反馈**: 点击后显示 "✓ 已复制" 2 秒
+
+### 平台专用故事板节点 ⭐ 新增 (2026-01-02)
+
+**设计目标**:
+- 分离聚鑫和贞贞平台的故事板功能，避免平台差异混淆
+- 每个节点内置API配置，无需连接APISettingsNode
+- 保留角色和参考图协作功能
+
+**节点类型**:
+1. **JuxinStoryboardNode** (聚鑫故事板)
+2. **ZhenzhenStoryboardNode** (贞贞故事板)
+
+**核心功能**:
+- **内置API配置**: 可折叠的API配置区（平台固定为对应平台）
+- **镜头管理**: 添加/删除/编辑镜头，每个镜头独立设置时长（1-25秒）
+- **总时长显示**: 自动计算所有镜头总时长，超过25秒警告
+- **角色协作**: 支持从CharacterLibraryNode接收候选角色
+- **参考图协作**: 支持全局参考图 + 镜头独立图片
+- **双显示功能**: 场景输入框显示别名，API使用真实ID
+
+**聚鑫 vs 贞贞 差异**:
+
+| 特性 | 聚鑫故事板 | 贞贞故事板 |
+|------|-----------|-----------|
+| **平台标识** | `juxin` | `zhenzhen` |
+| **API端点** | `/v1/videos` (专用) | `/v2/videos/generations` (常规) |
+| **Content-Type** | `multipart/form-data` | `application/json` |
+| **提示词格式** | 拼接为字符串数组 | 直接传递多行文本 |
+| **时长参数** | `seconds: "15"` | `duration: "15"` |
+| **画面方向** | `orientation: 'landscape'/'portrait'` | `aspect_ratio: '16:9'/'9:16'` |
+| **高清选项** | 无 | `hd: true/false` |
+| **模型选择** | `sora-2-all` (固定) | `sora-2` / `sora-2-pro` (可选) |
+
+**API调用示例**:
+
+聚鑫故事板:
+```javascript
+// POST /v1/videos (multipart/form-data)
+const formData = new FormData();
+formData.append('model', 'sora-2-all');
+formData.append('orientation', 'landscape');
+formData.append('size', 'large');
+formData.append('watermark', 'false');
+
+// 提示词格式: 拼接镜头数组
+const prompt = shots.map((shot, index) =>
+  `Shot ${index + 1}:\nduration: ${shot.duration}sec\nScene: ${shot.scene}\n`
+).join('\n');
+
+formData.append('prompt', prompt);
+```
+
+贞贞故事板:
+```javascript
+// POST /v2/videos/generations (application/json)
+const body = {
+  model: 'sora-2',  // 或 'sora-2-pro'
+  prompt: shots.map((shot, index) =>
+    `Shot ${index + 1}:\nduration: ${shot.duration}sec\nScene: ${shot.scene}`
+  ).join('\n\n'),
+  duration: totalDuration.toString(),  // 总时长
+  aspect_ratio: '16:9',
+  hd: false,
+  watermark: false,
+};
+```
+
+**提示词格式规范**:
+```
+Shot 1:
+duration: 5sec
+Scene: 老鹰展翅高飞
+
+Shot 2:
+duration: 5sec
+Scene: 老鹰在空中盘旋
+
+Shot 3:
+duration: 5sec
+Scene: 老鹰降落在山顶
+```
+
+**关键点**:
+1. **平台隔离**: 两个节点完全分离，避免平台差异混淆
+2. **API配置内置**: 每个节点内部包含API配置，默认折叠
+3. **镜头时长独立**: 每个镜头独立设置时长，不再自动均分
+4. **总时长验证**: 自动计算总时长，超过25秒显示警告
+5. **角色引用支持**: 支持从CharacterLibraryNode选择角色
+6. **参考图支持**: 支持全局参考图 + 镜头独立图片
+7. **双显示功能**: 输入框显示易读别名，API使用真实ID
+
+**使用场景**:
+- **简单视频生成**: 使用 VideoGenerateNode（支持平台切换）
+- **聚鑫故事板**: 使用 JuxinStoryboardNode（专用优化）
+- **贞贞故事板**: 使用 ZhenzhenStoryboardNode（专用优化）
 
 ### React Flow 节点管理 ⭐ 新增
 

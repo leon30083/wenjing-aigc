@@ -25,6 +25,8 @@ import APISettingsNode from './nodes/input/APISettingsNode';
 import CharacterCreateNode from './nodes/process/CharacterCreateNode';
 import VideoGenerateNode from './nodes/process/VideoGenerateNode';
 import StoryboardNode from './nodes/process/StoryboardNode';
+import JuxinStoryboardNode from './nodes/process/JuxinStoryboardNode';
+import ZhenzhenStoryboardNode from './nodes/process/ZhenzhenStoryboardNode';
 import TaskResultNode from './nodes/output/TaskResultNode';
 import CharacterResultNode from './nodes/output/CharacterResultNode';
 
@@ -35,6 +37,8 @@ const nodeTypes = {
   characterLibraryNode: CharacterLibraryNode,
   apiSettingsNode: APISettingsNode,
   characterCreateNode: CharacterCreateNode,
+  juxinStoryboardNode: JuxinStoryboardNode,
+  zhenzhenStoryboardNode: ZhenzhenStoryboardNode,
   videoGenerateNode: VideoGenerateNode,
   storyboardNode: StoryboardNode,
   taskResultNode: TaskResultNode,
@@ -129,6 +133,8 @@ const nodeTemplates = [
   { type: 'textNode', label: '📝 文本节点', category: 'input' },
   { type: 'referenceImageNode', label: '🖼️ 参考图片', category: 'input' },
   { type: 'characterLibraryNode', label: '📊 角色库', category: 'input' },
+  { type: 'juxinStoryboardNode', label: '🎬 聚鑫故事板', category: 'process' },
+  { type: 'zhenzhenStoryboardNode', label: '🎬 贞贞故事板', category: 'process' },
   { type: 'apiSettingsNode', label: '⚙️ API 设置', category: 'input' },
   { type: 'characterCreateNode', label: '🎭 角色生成', category: 'process' },
   { type: 'videoGenerateNode', label: '🎬 视频生成', category: 'process' },
@@ -295,7 +301,9 @@ function App() {
           // ✅ 验证源节点类型
           const validVideoSourceTypes = [
             'videoGenerateNode',   // 视频生成节点
-            'storyboardNode',      // 故事板节点
+            'storyboardNode',
+            'juxinStoryboardNode',
+            'zhenzhenStoryboardNode',      // 故事板节点
             'characterCreateNode'  // 角色创建节点
           ];
 

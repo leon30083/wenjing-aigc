@@ -22,7 +22,7 @@ const PLATFORMS = {
     name: '贞贞',
     baseURL: 'https://ai.t8star.cn',
     videoEndpoint: '/v2/videos/generations',
-    storyboardEndpoint: '/v1/video/storyboard',  // ⭐ 故事板专用端点
+    storyboardEndpoint: '/v2/videos/generations',  // ⭐ 贞贞平台使用普通视频端点+特殊prompt格式
     // 贞贞使用 aspect_ratio + hd
     useAspectRatio: true,
   },
@@ -336,8 +336,9 @@ class Sora2Client {
         images = [],
       } = options;
 
-      // 根据平台设置默认模型
-      const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
+      // ⚠️ 故事板API的模型名称与普通API不同
+      // 根据API文档，故事板统一使用 sora-2
+      const finalModel = model || 'sora-2';
 
       if (!shots || !Array.isArray(shots) || shots.length === 0) {
         throw new Error('shots 是必填参数，且必须是非空数组');
@@ -361,12 +362,13 @@ class Sora2Client {
       const totalDuration = shots.reduce((sum, shot) => sum + (shot.duration || 0), 0);
 
       // 构建请求体
+      // ⚠️ 注意：API期望布尔值类型（不是字符串）
       const body = {
         model: finalModel,
         prompt,
         images: allImages,
-        watermark,
-        private: isPrivate,
+        watermark: watermark,   // ✅ 布尔值
+        private: isPrivate,     // ✅ 布尔值
       };
 
       // ⭐ 关键修复：根据平台使用不同的参数名，并转换为字符串类型
@@ -379,25 +381,15 @@ class Sora2Client {
         body.duration = String(finalDuration); // 贞贞: "15"
       }
 
-      // 转换画面方向参数
+      // ⚠️ 故事板API：聚鑫使用 size 参数（不使用 orientation）
+      // 根据 orientation 参数转换为 "16x9" 或 "9x16"
       const orientationParam = this._convertOrientationParam(orientation);
       if (this.platform.useAspectRatio) {
+        // 贞贞平台使用 aspect_ratio
         body.aspect_ratio = orientationParam;
       } else {
-        body.orientation = orientationParam;
-      }
-
-      // 转换分辨率参数
-      if (this.platform.useAspectRatio) {
-        if (typeof size === 'boolean') {
-          body.hd = size;
-        } else if (size === 'large') {
-          body.hd = true;
-        } else {
-          body.hd = false;
-        }
-      } else {
-        body.size = size === 'large' ? 'large' : 'small';
+        // 聚鑫平台使用 size (不是 orientation!)
+        body.size = (orientationParam === 'landscape') ? '16x9' : '9x16';
       }
 
       // ⭐ 调试日志：验证修复是否生效

@@ -153,7 +153,7 @@ function TaskResultNode({ data }) {
       // 获取所有节点并找到源节点，验证其类型是否有效
       const allNodes = getNodes();
       const sourceNode = allNodes.find(n => n.id === sourceNodeId);
-      const validSourceTypes = ['videoGenerateNode', 'storyboardNode', 'characterCreateNode'];
+      const validSourceTypes = ['videoGenerateNode', 'storyboardNode', 'juxinStoryboardNode', 'zhenzhenStoryboardNode', 'characterCreateNode'];
 
       // 检查：1) connectedSourceId 匹配 2) 源节点类型有效 3) newTaskId 存在且不同
       if (connectedSourceId === sourceNodeId &&

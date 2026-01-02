@@ -942,6 +942,305 @@ const taskId = result.data.id || result.data.task_id;
   - `src/client/src/App.jsx` - Lines 269-280（修复数组处理逻辑）
 - **修复日期**: 2026-01-02
 
+### 错误41: 贞贞故事板端点配置错误 ⭐ 新增 (2026-01-02)
+- **现象**: 贞贞故事板节点API调用返回 "Invalid URL (POST /v1/video/storyboard)" 错误
+- **根本原因**:
+  - 贞贞平台**没有专用故事板端点**，使用常规视频生成端点 `/v2/videos/generations`
+  - 故事板功能通过特殊的提示词格式实现（非独立API端点）
+  - 聚鑫平台有专用故事板端点 `/v1/videos`（使用 multipart/form-data）
+- **API文档说明**:
+  - **聚鑫平台**: `POST /v1/videos` - 专用故事板端点，使用 multipart/form-data
+  - **贞贞平台**: `POST /v2/videos/generations` - 常规视频端点，提示词格式启用故事板模式
+- **错误示例**:
+  ```javascript
+  // ❌ 错误：贞贞平台配置了不存在的故事板端点
+  ZHENZHEN: {
+    name: '贞贞',
+    baseURL: 'https://ai.t8star.cn',
+    videoEndpoint: '/v2/videos/generations',
+    storyboardEndpoint: '/v1/video/storyboard',  // ❌ 此端点不存在
+  }
+
+  // API调用返回错误
+  // POST /v1/video/storyboard → 404 Invalid URL
+  ```
+- **正确做法**:
+  ```javascript
+  // ✅ 正确：贞贞平台使用常规视频端点
+  ZHENZHEN: {
+    name: '贞贞',
+    baseURL: 'https://ai.t8star.cn',
+    videoEndpoint: '/v2/videos/generations',
+    storyboardEndpoint: '/v2/videos/generations',  // ✅ 与视频端点相同
+    // 贞贞使用 aspect_ratio + hd
+    useAspectRatio: true,
+  }
+
+  // 前端通过特殊提示词格式启用故事板
+  const prompt = `Shot 1:
+duration: 5sec
+Scene: 老鹰展翅高飞
+
+Shot 2:
+duration: 5sec
+Scene: 老鹰在空中盘旋
+
+Shot 3:
+duration: 5sec
+Scene: 老鹰降落在山顶`;
+  ```
+- **关键差异对比**:
+  | 特性 | 聚鑫平台 | 贞贞平台 |
+  |------|---------|---------|
+  | 故事板端点 | `/v1/videos` (专用) | `/v2/videos/generations` (常规) |
+  | Content-Type | `multipart/form-data` | `application/json` |
+  | 提示词格式 | 拼接为字符串数组 | 直接传递多行文本 |
+  | 时长参数 | `seconds: "15"` | `duration: "15"` |
+- **验证结果**: ✅ 贞贞故事板节点成功提交任务，返回 task_id: `video_fa9c0fbb-b7af-4bb2-b372-9072e4579205`
+- **修复文件**:
+  - `src/server/sora2-client.js` - Lines 21-28（贞贞端点配置）
+- **修复日期**: 2026-01-02
+
+### 错误42: CSS border 语法错误 - 颜色值多余引号 ⭐ 新增 (2026-01-02)
+- **现象**: React组件渲染报错，样式未生效
+- **根本原因**: CSS border 属性中颜色值有多余的引号，导致JavaScript对象语法错误
+- **错误示例**:
+  ```javascript
+  // ❌ 错误：颜色值周围有多余引号
+  <div style={{
+    border: '1px solid '#fcd34d',  // ❌ 语法错误
+  }} />
+
+  // 解析为: border: '1px solid ' #fcd34d
+  // 导致: Unexpected token
+  ```
+- **正确做法**:
+  ```javascript
+  // ✅ 正确：颜色值不加引号
+  <div style={{
+    border: '1px solid #fcd34d',  // ✅ 正确语法
+  }} />
+
+  // 或使用模板字符串（如果需要动态颜色）
+  <div style={{
+    border: `1px solid ${color}`,  // ✅ 动态颜色
+  }} />
+  ```
+- **关键点**:
+  1. **border语法**: `border: '宽度 样式 颜色'` - 所有值在一个字符串中
+  2. **颜色值格式**: 十六进制颜色（如 `#fcd34d`）不加引号
+  3. **字符串拼接**: 使用模板字符串 `${}` 进行动态拼接
+  4. **常见错误位置**: React内联样式、动态边框、条件样式
+- **错误位置**:
+  - `src/client/src/nodes/process/ZhenzhenStoryboardNode.jsx:349` - `border: '1px solid '#fcd34d'`
+  - `src/client/src/nodes/process/ZhenzhenStoryboardNode.jsx:541` - `border: '1px solid '#6ee7b7'`
+  - `src/client/src/nodes/process/JuxinStoryboardNode.jsx:523` - `border: '1px solid '#6ee7b7'`
+- **修复方式**: 移除颜色值周围的单引号，保持完整的border字符串
+- **修复日期**: 2026-01-02
+
+### 错误43: JavaScript TDZ错误 - const变量声明前使用 ⭐ 新增 (2026-01-02)
+- **现象**: React组件报错 "Cannot access 'updateShot' before initialization"
+- **根本原因**:
+  - JavaScript的 `const` 声明存在 Temporal Dead Zone (TDZ)
+  - 在声明之前访问变量会导致 ReferenceError
+  - Hook 调用时使用了还未声明的 `updateShot` 函数
+- **错误示例**:
+  ```javascript
+  // ❌ 错误：Hook 在 updateShot 声明之前调用
+  function StoryboardNode({ data }) {
+    const [shots, setShots] = useState([]);
+
+    // ❌ useSceneCharacterInsertion 使用 updateShot，但还未声明
+    const insertCharacterToScene = useSceneCharacterInsertion(
+      realToDisplay,
+      displayToReal,
+      updateShot  // ❌ ReferenceError: Cannot access before initialization
+    );
+
+    // updateShot 在这里声明，但已经太晚了
+    const updateShot = (shotId, field, value) => {
+      setShots((prevShots) =>
+        prevShots.map((shot) =>
+          shot.id === shotId ? { ...shot, [field]: value } : shot
+        )
+      );
+    };
+  }
+  ```
+- **正确做法**:
+  ```javascript
+  // ✅ 正确：先声明 updateShot，再调用 Hook
+  function StoryboardNode({ data }) {
+    const [shots, setShots] = useState([]);
+
+    // ✅ 先声明 updateShot
+    const updateShot = (shotId, field, value) => {
+      setShots((prevShots) =>
+        prevShots.map((shot) =>
+          shot.id === shotId ? { ...shot, [field]: value } : shot
+        )
+      );
+    };
+
+    // ✅ 后调用 Hook（updateShot 已声明）
+    const insertCharacterToScene = useSceneCharacterInsertion(
+      realToDisplay,
+      displayToReal,
+      updateShot  // ✅ 正确：updateShot 已声明
+    );
+  }
+  ```
+- **关键点**:
+  1. **TDZ规则**: `const` 和 `let` 声明在代码执行前存在"暂时性死区"
+  2. **声明顺序**: 函数必须在 Hook 调用之前声明
+  3. **函数提升**: 只有 `function` 声明会提升，`const` 箭头函数不会
+  4. **解决方案**: 将函数定义移到 Hook 调用之前
+- **错误位置**:
+  - `src/client/src/nodes/process/ZhenzhenStoryboardNode.jsx:90` - Hook调用在updateShot声明前
+  - `src/client/src/nodes/process/JuxinStoryboardNode.jsx:89` - Hook调用在updateShot声明前
+- **修复方式**: 重新排列代码，将 updateShot 函数定义移到 useSceneCharacterInsertion Hook 之前
+- **修复日期**: 2026-01-02
+
+### 错误44: React对象渲染错误 - 直接渲染对象导致崩溃 ⭐ 新增 (2026-01-02)
+- **现象**: 页面崩溃，错误 "Objects are not valid as a React child (found: object with keys {message, type, param, code})"
+- **根本原因**:
+  - React 组件直接渲染了 JavaScript 对象（而非字符串或JSX）
+  - 错误对象包含多个属性（message, type, param, code），React无法直接渲染
+  - 常见于API错误响应、异常处理场景
+- **错误示例**:
+  ```javascript
+  // ❌ 错误：直接渲染 error 对象
+  function VideoNode() {
+    const [error, setError] = useState(null);
+
+    return (
+      <div>
+        {error && <div className="error">{error}</div>}
+        {/* ❌ error 是对象，React无法渲染 */}
+      </div>
+    );
+  }
+
+  // API 返回的错误对象
+  {
+    message: 'Invalid API endpoint',
+    type: 'invalid_request_error',
+    param: 'endpoint',
+    code: 'invalid_url'
+  }
+  ```
+- **正确做法**:
+  ```javascript
+  // ✅ 正确：渲染 error.message 或 JSON.stringify
+  function VideoNode() {
+    const [error, setError] = useState(null);
+
+    // 方案1：渲染 error.message
+    const renderError = (error) => {
+      if (typeof error === 'string') return error;
+      if (error?.message) return error.message;
+      return JSON.stringify(error);
+    };
+
+    return (
+      <div>
+        {error && (
+          <div className="error">
+            {typeof error === 'string' ? error : (error?.message || JSON.stringify(error))}
+          </div>
+        )}
+        {/* ✅ 安全渲染错误信息 */}
+      </div>
+    );
+  }
+
+  // 方案2：使用 try-catch 捕获并转换
+  try {
+    // API调用
+  } catch (err) {
+    // 将错误对象转换为字符串
+    const errorMessage = err?.message || err?.toString() || 'Unknown error';
+    setError(errorMessage);
+  }
+  ```
+- **关键点**:
+  1. **React子元素规则**: 只能渲染 string, number, JSX, null, undefined, boolean, array
+  2. **对象不能渲染**: 普通对象（plain object）会报错
+  3. **错误对象处理**: 使用 `error.message` 或 `JSON.stringify(error)`
+  4. **类型检查**: `typeof error === 'string'` 判断是否可直接渲染
+- **错误位置**:
+  - `src/client/src/nodes/process/ZhenzhenStoryboardNode.jsx:772` - `{error}`
+  - `src/client/src/nodes/process/JuxinStoryboardNode.jsx:754` - `{error}`
+- **修复方式**:
+  ```javascript
+  // 修复前
+  {error}
+
+  // 修复后
+  {typeof error === 'string' ? error : (error?.message || JSON.stringify(error))}
+  ```
+- **验证结果**: ✅ 页面不再崩溃，错误信息正确显示
+- **修复日期**: 2026-01-02
+
+### 错误45: TaskResultNode 不识别新故事板节点类型 ⭐ 新增 (2026-01-02)
+- **现象**: 贞贞故事板节点成功提交任务并显示"✓ 已提交"，但TaskResultNode仍显示"连接视频生成节点以查看结果"
+- **根本原因**:
+  - TaskResultNode的`validSourceTypes`列表只包含`'storyboardNode'`
+  - 新建的节点类型是`'juxinStoryboardNode'`和`'zhenzhenStoryboardNode'`
+  - 事件虽然被接收，但类型验证失败，taskId没有被设置
+- **错误示例**:
+  ```javascript
+  // ❌ 错误：validSourceTypes 缺少新节点类型
+  const validSourceTypes = ['videoGenerateNode', 'storyboardNode', 'characterCreateNode'];
+
+  // 事件处理
+  const handleVideoTaskCreated = (event) => {
+    const { sourceNodeId, newTaskId, newPlatform } = event.detail;
+    const sourceNode = allNodes.find(n => n.id === sourceNodeId);
+
+    // ❌ zhenzhenStoryboardNode 类型不在列表中，验证失败
+    if (connectedSourceId === sourceNodeId &&
+        sourceNode &&
+        validSourceTypes.includes(sourceNode.type) &&  // ❌ 返回 false
+        newTaskId &&
+        newTaskId !== taskIdRef.current) {
+      setTaskId(newTaskId);  // 不会执行
+    }
+  };
+  ```
+- **正确做法**:
+  ```javascript
+  // ✅ 正确：添加新节点类型到 validSourceTypes
+  const validSourceTypes = [
+    'videoGenerateNode',
+    'storyboardNode',
+    'juxinStoryboardNode',      // ✅ 新增
+    'zhenzhenStoryboardNode',   // ✅ 新增
+    'characterCreateNode'
+  ];
+
+  // 现在事件处理可以正确识别新节点类型
+  if (connectedSourceId === sourceNodeId &&
+      sourceNode &&
+      validSourceTypes.includes(sourceNode.type) &&  // ✅ 返回 true
+      newTaskId &&
+      newTaskId !== taskIdRef.current) {
+    setTaskId(newTaskId);  // ✅ 成功设置 taskId
+    setPlatform(newPlatform || 'juxin');
+    setTaskStatus('idle');
+    setPolling(true);
+  }
+  ```
+- **关键点**:
+  1. **节点类型注册**: 每次新建自定义节点类型时，必须更新TaskResultNode的validSourceTypes
+  2. **类型验证**: TaskResultNode通过类型验证过滤无效的事件源
+  3. **控制台日志**: `[TaskResultNode] Match! Setting taskId: xxx platform: zhenzhen` 表示成功
+  4. **失败症状**: TaskResultNode显示"连接视频生成节点以查看结果"
+- **验证结果**: ✅ TaskResultNode正确显示任务ID并开始轮询状态
+- **修复文件**:
+  - `src/client/src/nodes/output/TaskResultNode.jsx` - Line 156（添加节点类型到validSourceTypes）
+- **修复日期**: 2026-01-02
+
 ---
 
 ## 项目简化说明 ⭐ 2026-01-01
@@ -1000,30 +1299,34 @@ git push origin feature/workflow-management
 
 ## 开发提示
 
-1. ⚠️ **聚鑫平台模型名称**: 必须使用 `sora-2-all`，不能使用 `sora-2` ⭐ 2026-01-02
-2. ⚠️ **贞贞平台模型名称**: 使用 `sora-2` 或 `sora-2-pro` ⭐ 2026-01-02
-3. ⚠️ **平台自动切换**: 后端 Sora2Client 已实现自动选择，前端默认值需同步 ⭐ 2026-01-02
-4. ⚠️ **node.data 数据类型**: selectedImages/selectedCharacters 保存为**数组**而非 Set ⭐ 2026-01-02
-5. ✅ **角色创建不传 model**: 所有平台统一，创建角色时不传 model 参数
-6. ✅ **API 调用前检查路径**: 确保包含 `/api/` 前缀
-7. ✅ **角色创建优先使用 from_task**: 比 URL 更可靠
-8. ✅ **React Flow 节点使用 useNodeId()**: data 对象不包含 id
-9. ✅ **React Flow Handle 标签布局**: Handle 和标签必须完全分离，独立定位
-10. ✅ **轮询间隔至少 30 秒**: 避免 429 错误
-11. ✅ **双平台兼容**: 同时支持聚鑫和贞贞的响应格式
-12. ✅ **每次开发后更新文档**: 遵循更新流程和检查清单
-13. ✅ **localStorage 数据必须验证**: 使用 try-catch 和默认值
-14. ✅ **导入文件验证格式**: 检查必需字段和数据类型
-15. ✅ **视频时长使用数字类型**: duration: 10 (非 "10")
-16. ✅ **Sora2 不支持 1:1 比例**: 只提供 16:9 和 9:16
-17. ✅ **图生视频提示词必须描述参考图**: 参考图片提供场景，提示词必须描述场景内容和角色活动
-18. ✅ **表单字段必须有 id/name 属性**: 满足浏览器可访问性要求
-19. ✅ **源节点直接更新目标节点**: 绕过 App.jsx，使用 getEdges() 找到连接的节点，一次 setNodes() 更新多个节点 ⭐ 2026-01-01
-20. ✅ **关键时刻手动同步 node.data**: 在 getNodes() 捕获快照前，手动调用 setNodes() 确保数据同步 ⭐ 2026-01-01
-21. ✅ **防抖 localStorage 保存**: 500ms 防抖，减少 90% 的写入次数，提升响应速度 ⭐ 2026-01-01
-22. ✅ **自动化测试是基础标准范式**: 使用 MCP 工具在浏览器中自动测试，不要总是问用户，只在做连线/拖拽时请求用户协作 ⭐ 2026-01-01
-23. ✅ **专注于核心功能**: 避免过度复杂化，保持代码简洁可维护 ⭐ 2026-01-01
-24. ✅ **任务进度百分比显示**: 从 API 响应提取 progress 字段（0-100），在状态文本中显示 "⏳ 处理中 45%" ⭐ 2026-01-01
-25. ✅ **已完成任务进度默认 100%**: 任务完成时（SUCCESS + videoUrl）自动设置 progress 为 100%，即使 API 未返回 progress 字段 ⭐ 2026-01-01
-26. ✅ **useEffect 空依赖数组防止竞态条件**: 当 useEffect 和事件监听器都管理同一状态时，useEffect 应使用空依赖数组只在挂载时运行，避免事件更新触发 useEffect 恢复旧数据 ⭐ 2026-01-01
-27. ✅ **自动检测修复缺失字段**: 从连接的源节点读取配置信息，自动修复 localStorage 中旧任务缺失的字段（如 platform），确保向后兼容 ⭐ 2026-01-01
+1. ⚠️ **聚贞贞平台故事板端点**: 贞贞使用常规视频端点 `/v2/videos/generations` + 特殊提示词格式，而非专用端点 ⭐ 2026-01-02
+2. ⚠️ **聚鑫平台模型名称**: 必须使用 `sora-2-all`，不能使用 `sora-2` ⭐ 2026-01-02
+3. ⚠️ **贞贞平台模型名称**: 使用 `sora-2` 或 `sora-2-pro` ⭐ 2026-01-02
+4. ⚠️ **平台自动切换**: 后端 Sora2Client 已实现自动选择，前端默认值需同步 ⭐ 2026-01-02
+5. ⚠️ **node.data 数据类型**: selectedImages/selectedCharacters 保存为**数组**而非 Set ⭐ 2026-01-02
+6. ⚠️ **CSS border语法**: 颜色值不加引号，如 `'1px solid #fcd34d'` ⭐ 2026-01-02
+7. ⚠️ **JavaScript TDZ**: const变量必须在声明前定义，注意函数和Hook的调用顺序 ⭐ 2026-01-02
+8. ⚠️ **React对象渲染**: 不能直接渲染对象，使用 `error?.message || JSON.stringify(error)` ⭐ 2026-01-02
+9. ✅ **角色创建不传 model**: 所有平台统一，创建角色时不传 model 参数
+10. ✅ **API 调用前检查路径**: 确保包含 `/api/` 前缀
+11. ✅ **角色创建优先使用 from_task**: 比 URL 更可靠
+12. ✅ **React Flow 节点使用 useNodeId()**: data 对象不包含 id
+13. ✅ **React Flow Handle 标签布局**: Handle 和标签必须完全分离，独立定位
+14. ✅ **轮询间隔至少 30 秒**: 避免 429 错误
+15. ✅ **双平台兼容**: 同时支持聚鑫和贞贞的响应格式
+16. ✅ **每次开发后更新文档**: 遵循更新流程和检查清单
+17. ✅ **localStorage 数据必须验证**: 使用 try-catch 和默认值
+18. ✅ **导入文件验证格式**: 检查必需字段和数据类型
+19. ✅ **视频时长使用数字类型**: duration: 10 (非 "10")
+20. ✅ **Sora2 不支持 1:1 比例**: 只提供 16:9 和 9:16
+21. ✅ **图生视频提示词必须描述参考图**: 参考图片提供场景，提示词必须描述场景内容和角色活动
+22. ✅ **表单字段必须有 id/name 属性**: 满足浏览器可访问性要求
+23. ✅ **源节点直接更新目标节点**: 绕过 App.jsx，使用 getEdges() 找到连接的节点，一次 setNodes() 更新多个节点 ⭐ 2026-01-01
+24. ✅ **关键时刻手动同步 node.data**: 在 getNodes() 捕获快照前，手动调用 setNodes() 确保数据同步 ⭐ 2026-01-01
+25. ✅ **防抖 localStorage 保存**: 500ms 防抖，减少 90% 的写入次数，提升响应速度 ⭐ 2026-01-01
+26. ✅ **自动化测试是基础标准范式**: 使用 MCP 工具在浏览器中自动测试，不要总是问用户，只在做连线/拖拽时请求用户协作 ⭐ 2026-01-01
+27. ✅ **专注于核心功能**: 避免过度复杂化，保持代码简洁可维护 ⭐ 2026-01-01
+28. ✅ **任务进度百分比显示**: 从 API 响应提取 progress 字段（0-100），在状态文本中显示 "⏳ 处理中 45%" ⭐ 2026-01-01
+29. ✅ **已完成任务进度默认 100%**: 任务完成时（SUCCESS + videoUrl）自动设置 progress 为 100%，即使 API 未返回 progress 字段 ⭐ 2026-01-01
+30. ✅ **useEffect 空依赖数组防止竞态条件**: 当 useEffect 和事件监听器都管理同一状态时，useEffect 应使用空依赖数组只在挂载时运行，避免事件更新触发 useEffect 恢复旧数据 ⭐ 2026-01-01
+31. ✅ **自动检测修复缺失字段**: 从连接的源节点读取配置信息，自动修复 localStorage 中旧任务缺失的字段（如 platform），确保向后兼容 ⭐ 2026-01-01
