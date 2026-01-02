@@ -355,18 +355,18 @@ class Sora2Client {
       });
       const prompt = promptParts.join('\n\n');
 
+      // ⭐ 计算所有镜头的总时长（用于 API duration 参数）
+      const totalDuration = shots.reduce((sum, shot) => sum + (shot.duration || 0), 0);
+
       // 构建请求体
       const body = {
         model: finalModel,
         prompt,
         images: allImages,
+        duration: duration || totalDuration, // ⭐ 关键修复：传递总时长
         watermark,
         private: isPrivate,
       };
-
-      // ⚠️ 注意：故事板模式不需要单独的 duration 参数
-      // 总时长由 prompt 中各镜头的 duration 之和决定
-      // 前端应计算每个镜头的时长，而不是发送总时长
 
       // 转换画面方向参数
       const orientationParam = this._convertOrientationParam(orientation);
