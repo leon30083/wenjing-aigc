@@ -185,8 +185,8 @@ React + React Flow
 - **双显示功能**: 场景输入框显示别名，内部存储和API使用真实ID ⭐
 - **状态简化**: 移除 `progress` 状态，只保留 `idle/generating/success/error`
 - **比例限制**: Sora2 不支持 1:1 比例，只提供 16:9 和 9:16
-- **时长类型**: duration 为数字类型（5, 10, 15, 25），不是字符串
-- **默认时长**: 故事板镜头默认时长为 5 秒（不是 10 秒）
+- **时长类型**: duration 为数字类型（10, 15, 25），不是字符串
+- **默认时长**: 故事板镜头默认时长为 15 秒（不是 5 秒） ⭐ 更新 (2026-01-02)
 
 **角色与图片混合使用**:
 - 参考图片作为场景基础
@@ -288,14 +288,14 @@ React + React Flow
   - 输出端口: `api-config`
   - 下游节点通过 `data.apiConfig` 接收配置
 - **节点特有配置**:
-  - VideoGenerateNode 保留 `duration` 配置（5, 10, 15, 25秒）
+  - VideoGenerateNode 保留 `duration` 配置（10, 15, 25秒） ⭐ 更新 (2026-01-02)
   - StoryboardNode 每个镜头独立设置时长
 - **向后兼容**:
   - 未连接 APISettingsNode 时使用默认配置
   - 默认配置: `{ platform: 'juxin', model: 'sora-2-all', aspect: '16:9', watermark: false }` ⭐ (2026-01-02 更新)
 
 **时长参数**:
-- **有效值**: 5, 10, 15, 25（秒）
+- **有效值**: 10, 15, 25（秒） ⭐ 更新 (2026-01-02)
 - **类型**: `number`（非字符串）
 - **API 对应**: Sora2 API 的 `duration` 参数
 

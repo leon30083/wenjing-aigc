@@ -3606,7 +3606,6 @@ function StoryboardNode({ data }) {
             onChange={(e) => setTotalDuration(Number(e.target.value))}
             style={{ flex: 1, padding: '4px', fontSize: '11px' }}
           >
-            <option value={5}>5 秒</option>
             <option value={10}>10 秒</option>
             <option value={15}>15 秒</option>
             <option value={25}>25 秒</option>

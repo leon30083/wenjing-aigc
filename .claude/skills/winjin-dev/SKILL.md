@@ -1330,3 +1330,5 @@ git push origin feature/workflow-management
 29. ✅ **已完成任务进度默认 100%**: 任务完成时（SUCCESS + videoUrl）自动设置 progress 为 100%，即使 API 未返回 progress 字段 ⭐ 2026-01-01
 30. ✅ **useEffect 空依赖数组防止竞态条件**: 当 useEffect 和事件监听器都管理同一状态时，useEffect 应使用空依赖数组只在挂载时运行，避免事件更新触发 useEffect 恢复旧数据 ⭐ 2026-01-01
 31. ✅ **自动检测修复缺失字段**: 从连接的源节点读取配置信息，自动修复 localStorage 中旧任务缺失的字段（如 platform），确保向后兼容 ⭐ 2026-01-01
+32. ⚠️ **Windows 后端重启**: 修改后端代码后必须 Ctrl+C 停止服务器，重新运行 `npm run server`（Node.js 模块缓存导致修改不生效）⭐ 2026-01-02
+33. ⚠️ **Windows 端口占用**: 如遇 EADDRINUSE 错误，删除 nul 文件（`del nul`）或运行 `taskkill /F /IM node.exe` 强制结束进程 ⭐ 2026-01-02

@@ -328,6 +328,60 @@ const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sor
 
 ---
 
+### 问题 13: Windows 特定问题 (nul 文件、端口占用) ⭐ 新增 (2026-01-02)
+
+**症状**:
+- `EADDRINUSE: address already in use :::9000`
+- Git 提交时报错: `error: short read while indexing nul`
+- 后端服务器无法启动
+
+**诊断**:
+```bash
+# 检查 nul 文件
+dir nul
+
+# 检查端口占用
+netstat -ano | findstr :9000
+
+# 查找占用端口的进程
+tasklist | findstr node
+```
+
+**根本原因**:
+1. Windows 保留设备名 `nul` 被意外创建为文件
+2. Node.js 进程未完全退出,导致端口占用
+3. Git 索引损坏 (nul 文件导致)
+
+**解决方案**:
+```bash
+# 1. 删除 nul 文件
+del nul
+
+# 2. 强制结束所有 Node 进程
+taskkill /F /IM node.exe
+
+# 3. 或结束特定 PID
+netstat -ano | findstr :9000
+# 找到 PID (例如: 12345)
+taskkill /F /PID 12345
+
+# 4. 如果 Git 索引损坏
+git reset
+del .git\index
+git checkout HEAD -- .
+git add -A
+```
+
+**预防措施**:
+1. 定期清理 `nul` 文件
+2. 使用 `Ctrl+C` 正常停止服务器
+3. 避免 `taskkill` 强制结束 (除非必要)
+4. 修改代码后先停止服务器再重启
+
+**相关错误**: 无 (Windows 特定问题)
+
+---
+
 ## 角色系统问题
 
 ### 问题 9: 角色插入替换全部内容
