@@ -245,6 +245,9 @@ function StoryboardNode({ data }) {
         duration: s.duration || 5, // 使用镜头自身的 duration，默认 5 秒
       }));
 
+      // ⭐ 计算总时长（用于 API duration 参数）
+      const totalDuration = shotsWithDuration.reduce((sum, shot) => sum + shot.duration, 0);
+
       // ⭐ 关键修复：先同步 shots 和 useGlobalImages 到节点 data，确保工作流快照包含完整数据
       setNodes((nds) =>
         nds.map((node) =>
@@ -259,6 +262,7 @@ function StoryboardNode({ data }) {
         platform: apiConfig.platform,
         model: apiConfig.model.toLowerCase(),
         shots: shotsWithDuration,
+        duration: totalDuration, // ⭐ 关键修复：传递总时长
         images: allImages,
         aspect_ratio: apiConfig.aspect,
         watermark: apiConfig.watermark,
