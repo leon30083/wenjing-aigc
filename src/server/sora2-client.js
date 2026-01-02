@@ -363,10 +363,19 @@ class Sora2Client {
         model: finalModel,
         prompt,
         images: allImages,
-        duration: duration || totalDuration, // ⭐ 关键修复：传递总时长
         watermark,
         private: isPrivate,
       };
+
+      // ⭐ 关键修复：根据平台使用不同的参数名，并转换为字符串类型
+      // - 聚鑫平台使用 seconds (字符串类型)
+      // - 贞贞平台使用 duration (字符串类型)
+      const finalDuration = duration || totalDuration;
+      if (this.platformType === 'JUXIN') {
+        body.seconds = String(finalDuration);  // 聚鑫: "15"
+      } else {
+        body.duration = String(finalDuration); // 贞贞: "15"
+      }
 
       // 转换画面方向参数
       const orientationParam = this._convertOrientationParam(orientation);
