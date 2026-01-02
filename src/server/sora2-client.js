@@ -14,6 +14,7 @@ const PLATFORMS = {
     name: '聚鑫',
     baseURL: 'https://api.jxincm.cn',
     videoEndpoint: '/v1/video/create',
+    storyboardEndpoint: '/v1/videos',  // ⭐ 故事板专用端点
     // 聚鑫使用 orientation + size
     useAspectRatio: false,
   },
@@ -21,6 +22,7 @@ const PLATFORMS = {
     name: '贞贞',
     baseURL: 'https://ai.t8star.cn',
     videoEndpoint: '/v2/videos/generations',
+    storyboardEndpoint: '/v1/video/storyboard',  // ⭐ 故事板专用端点
     // 贞贞使用 aspect_ratio + hd
     useAspectRatio: true,
   },
@@ -398,7 +400,16 @@ class Sora2Client {
         body.size = size === 'large' ? 'large' : 'small';
       }
 
-      const response = await this.client.post(this.platform.videoEndpoint, body, {
+      // ⭐ 调试日志：验证修复是否生效
+      console.log('[Sora2Client] Storyboard API Request:', {
+        platform: this.platformType,
+        endpoint: this.platform.storyboardEndpoint,  // ⭐ 使用故事板专用端点
+        bodyKeys: Object.keys(body),
+        secondsOrDuration: body.seconds || body.duration,
+        body: JSON.stringify(body, null, 2)
+      });
+
+      const response = await this.client.post(this.platform.storyboardEndpoint, body, {
         headers: this._getAuthHeaders(),
       });
 
