@@ -1,11 +1,12 @@
 # Sora2 API 开发最佳实践
 
-**更新日期**: 2025-12-29
+**更新日期**: 2026-01-02
 **项目**: WinJin AIGC
 **支持平台**: 聚鑫 (api.jxincm.cn) / 贞贞 (ai.t8star.cn)
 **参考文档**: `D:\user\github\winjin\reference\用户输入文件夹/`
 
 **更新记录**:
+- 2026-01-02: 新增模型名称差异说明（聚鑫 sora-2-all，贞贞 sora-2/sora-2-pro）⭐
 - 2025-12-29: 新增历史记录管理功能（单条删除、清空全部）⭐
 - 2025-12-29: 新增参考图片功能、图生视频模式、角色与图片混合使用 ⭐
 - 2025-12-29: 新增双平台响应格式差异处理、角色引用语法、后台轮询服务、角色库增强功能
@@ -23,6 +24,10 @@
 - **端点**: `POST /sora/v1/characters`
 - **必填**: `url` (视频链接) 或 `from_task` (任务ID) **二选一** + `timestamps` (时间范围 "1,3")
 - **禁止**: **不要传递 `model` 参数**，否则会导致 `channel not found` / `404`
+- **模型名称注意事项** (2026-01-02 更新):
+  - 聚鑫平台: 自动使用 `sora-2-all` 模型
+  - 贞贞平台: 自动使用 `sora-2` 或 `sora-2-pro` 模型
+  - 创建角色时不传 `model` 参数，由后端自动选择
 
 ### 1.3 双平台响应格式差异 ⚠️ 重要
 
@@ -75,7 +80,7 @@ if (taskId) {
 **聚鑫平台**:
 ```javascript
 const response = await axios.post('https://api.jxincm.cn/v1/video/create', {
-  model: 'sora-2',
+  model: 'sora-2-all',  // ⭐ 聚鑫平台使用 sora-2-all (2026-01-02 更新)
   prompt: 'A cat sleeping on a windowsill',
   orientation: 'landscape',  // 或 'portrait'
   duration: 10,
@@ -88,7 +93,7 @@ const response = await axios.post('https://api.jxincm.cn/v1/video/create', {
 });
 ```
 
-**贞贞平台**: 使用相同的端点和参数（支持统一格式）
+**贞贞平台**: 使用 `sora-2` 或 `sora-2-pro` 模型 ⭐ (2026-01-02 更新)
 
 **⚠️ 保存历史记录时注意**:
 ```javascript
@@ -1088,7 +1093,7 @@ const response = await fetch(`${API_BASE}/video/create`, {
   body: JSON.stringify({
     platform: currentPlatform,
     prompt: prompt,
-    model: 'sora-2',
+    model: currentPlatform === 'juxin' ? 'sora-2-all' : 'sora-2',  // ⭐ 根据平台选择 (2026-01-02 更新)
     orientation: 'landscape',
     duration: 10,
     size: 'small',
@@ -1172,7 +1177,7 @@ document.getElementById('storyboard-create-btn').addEventListener('click', async
     body: JSON.stringify({
       platform: currentPlatform,
       shots: shots,
-      model: 'sora-2',
+      model: currentPlatform === 'juxin' ? 'sora-2-all' : 'sora-2',  // ⭐ 根据平台选择 (2026-01-02 更新)
       orientation: 'landscape',
       size: 'small',
       watermark: false,

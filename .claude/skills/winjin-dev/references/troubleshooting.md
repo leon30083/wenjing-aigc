@@ -281,6 +281,53 @@ const prompt = '@6f2dbf2b3.zenwhisper 在工地上干活';
 
 ---
 
+### 问题 12: 聚鑫平台模型名称不匹配 ⭐ 新增 (2026-01-02)
+
+**症状**:
+- API 调用返回 400 Bad Request 或 422 Unprocessable Entity
+- 错误信息: "Invalid model" 或 "model not supported"
+- 聚鑫平台视频生成失败
+
+**诊断**:
+1. 检查 API 请求体中的 `model` 字段
+2. 确认 `platform` 参数为 `juxin`
+3. 验证 `model` 值是否为 `sora-2-all`
+
+**根本原因**:
+聚鑫平台的模型名称与贞贞平台不同：
+- 聚鑫: `sora-2-all`
+- 贞贞: `sora-2`, `sora-2-pro`
+
+**解决方案**:
+```javascript
+// ❌ 错误示例
+{
+  platform: 'juxin',
+  model: 'sora-2',  // ❌ 聚鑫不支持
+  prompt: '...'
+}
+
+// ✅ 正确示例
+{
+  platform: 'juxin',
+  model: 'sora-2-all',  // ✅ 聚鑫正确模型
+  prompt: '...'
+}
+
+// ✅ 后端自动选择（推荐）
+const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
+```
+
+**关键点**:
+1. 聚鑫平台必须使用 `sora-2-all`
+2. 后端已实现平台自动选择逻辑
+3. 前端默认值应设置为 `sora-2-all`（聚鑫平台）
+4. 用户手动选择时应限制选项
+
+**相关错误**: 错误39 - 聚鑫平台模型名称错误
+
+---
+
 ## 角色系统问题
 
 ### 问题 9: 角色插入替换全部内容

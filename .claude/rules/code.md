@@ -1707,7 +1707,7 @@ function VideoGenerateNode({ data }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         platform: 'juxin',
-        model: 'sora-2',
+        model: 'sora-2-all',  // ⭐ 聚鑫平台使用 sora-2-all (2026-01-02 更新)
         prompt: manualPrompt,
         duration: 10,
         aspect_ratio: '16:9',
@@ -2838,7 +2838,7 @@ const response = await fetch(`${API_BASE}/api/video/storyboard`, {
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     platform: 'juxin',
-    model: 'sora-2',
+    model: 'sora-2-all',  // ⭐ 聚鑫平台使用 sora-2-all (2026-01-02 更新)
     shots: validShots,  // ✅ 传递完整的 shots 数组
     images: allImages,  // ✅ 收集所有图片（全局 + 镜头）
     aspect_ratio: config.aspect,
@@ -2853,7 +2853,10 @@ const taskId = result.data.id || result.data.task_id;  // ✅ 单个 taskId
 **后端实现**（sora2-client.js - createStoryboardVideo）:
 ```javascript
 async createStoryboardVideo(options) {
-  const { shots, model = 'sora-2', orientation, size, watermark, images = [] } = options;
+  const { shots, model, orientation, size, watermark, images = [] } = options;
+
+  // 根据平台设置默认模型 ⭐ 关键逻辑 (2026-01-02 更新)
+  const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
 
   // 收集所有镜头的参考图片
   const allImages = [...images];
@@ -2967,7 +2970,7 @@ const response = await fetch(`${API_BASE}/api/video/storyboard`, {
   method: 'POST',
   body: JSON.stringify({
     platform: 'juxin',
-    model: 'sora-2',
+    model: 'sora-2-all',  // ⭐ 聚鑫平台使用 sora-2-all (2026-01-02 更新)
     shots: shotsWithDuration,
     images: allImages,
     duration: String(totalDuration), // ❌ 导致 400 错误
@@ -2980,7 +2983,7 @@ const response = await fetch(`${API_BASE}/api/video/storyboard`, {
   method: 'POST',
   body: JSON.stringify({
     platform: 'juxin',
-    model: 'sora-2',
+    model: 'sora-2-all',  // ⭐ 聚鑫平台使用 sora-2-all (2026-01-02 更新)
     shots: shotsWithDuration,
     images: allImages,
     // duration: String(totalDuration), // ⚠️ 已移除
@@ -3448,7 +3451,7 @@ function VideoGenerateNode({ data }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         platform: 'juxin',
-        model: 'sora-2',
+        model: 'sora-2-all',  // ⭐ 聚鑫平台使用 sora-2-all (2026-01-02 更新)
         prompt: manualPrompt,
         duration: 10,
         aspect_ratio: '16:9',
@@ -3549,7 +3552,7 @@ function StoryboardNode({ data }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         platform: 'juxin',
-        model: 'sora-2',
+        model: 'sora-2-all',  // ⭐ 聚鑫平台使用 sora-2-all (2026-01-02 更新)
         shots: shotsWithDuration,
         images: allImages,
         duration: totalDuration, // ⭐ 传递总时长给后端
@@ -3714,13 +3717,16 @@ async createStoryboardVideo(options) {
     const {
       shots,
       duration, // ⭐ 新增：总时长参数（可选）
-      model = 'sora-2',
+      model,
       orientation = 'landscape',
       size = 'small',
       watermark = false,
       private: isPrivate = true,
       images = [],
     } = options;
+
+    // 根据平台设置默认模型 ⭐ 关键逻辑 (2026-01-02 更新)
+    const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
 
     if (!shots || !Array.isArray(shots) || shots.length === 0) {
       throw new Error('shots 是必填参数，且必须是非空数组');
@@ -4477,6 +4483,85 @@ useEffect(() => {
 
 **相关文档**:
 - SKILL.md: 错误模式 38
+
+---
+
+### 错误39: 聚鑫平台模型名称错误 ⭐ 新增 (2026-01-02)
+```javascript
+// ❌ 错误：聚鑫平台使用 sora-2
+const response = await fetch(`${API_BASE}/api/video/create`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    platform: 'juxin',
+    model: 'sora-2',  // ❌ 聚鑫不支持此模型
+    prompt: '一只可爱的小猫',
+    duration: 10,
+    aspect_ratio: '16:9',
+    watermark: false,
+  }),
+});
+
+// ✅ 正确：聚鑫平台使用 sora-2-all
+const response = await fetch(`${API_BASE}/api/video/create`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    platform: 'juxin',
+    model: 'sora-2-all',  // ✅ 聚鑫正确的模型名称
+    prompt: '一只可爱的小猫',
+    duration: 10,
+    aspect_ratio: '16:9',
+    watermark: false,
+  }),
+});
+
+// ✅ 正确：后端自动选择
+// src/server/sora2-client.js
+class Sora2Client {
+  async createVideo(options) {
+    const { prompt, model, orientation, size, watermark, private: isPrivate = true, images = [] } = options;
+
+    // 根据平台设置默认模型 ⭐ 关键逻辑
+    const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
+
+    // 验证模型名称
+    const validModels = ['sora-2-all', 'sora-2', 'sora-2-pro'];
+    if (!validModels.includes(finalModel)) {
+      throw new Error(`Invalid model: ${finalModel}. Must be one of ${validModels.join(', ')}`);
+    }
+
+    // 发送 API 请求
+    const body = {
+      model: finalModel,
+      prompt,
+      images,
+      watermark,
+      private: isPrivate,
+    };
+
+    return await this.client.post('/v1/video/create', body);
+  }
+}
+```
+
+**问题**: 聚鑫平台使用 `sora-2-all` 模型名称，贞贞平台使用 `sora-2` 或 `sora-2-pro`
+**解决方案**:
+1. 后端根据平台自动选择默认模型
+2. 前端默认值设置为正确的模型名称
+3. 用户手动选择时限制选项范围
+**修复日期**: 2026-01-02
+
+**修复文件**:
+- `src/server/sora2-client.js` - Lines 132-144, 228, 323（添加平台自动切换）
+- `src/client/src/nodes/input/APISettingsNode.jsx` - Lines 9-15, 95-100（更新默认值和自动切换）
+- `src/client/src/nodes/process/VideoGenerateNode.jsx` - Lines 36-41（更新默认值）
+- `src/client/src/nodes/process/StoryboardNode.jsx` - Lines 16-21（更新默认值）
+- `src/renderer/public/index.html` - Lines 666-669, 746-750（添加模型选项）
+
+**相关文档**:
+- SKILL.md: 错误模式 39
+- troubleshooting.md: 问题 12
 
 ---
 

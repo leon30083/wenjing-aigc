@@ -72,7 +72,17 @@ const response = await fetch(`${API_BASE}/api/task/${taskId}`);
 
 **规则**: 所有前端 API 调用必须使用完整路径 `/api/{endpoint}`
 
-### 2. Sora2 API 注意事项
+### 2. Sora2 API 注意事项 ⭐ 重要 (2026-01-02 更新)
+
+#### 模型名称差异 ⭐ 重要
+- **聚鑫平台**: 只支持 `sora-2-all` 一个模型
+- **贞贞平台**: 支持 `sora-2` 和 `sora-2-pro` 两个模型
+- **自动选择**: 后端根据平台自动选择默认模型
+  ```javascript
+  // 后端自动选择逻辑
+  const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
+  ```
+- **手动覆盖**: 前端可以手动指定模型名称（需确保平台支持）
 
 #### 角色创建
 ```javascript
@@ -808,6 +818,89 @@ const taskId = result.data.id || result.data.task_id;
   - `src/client/src/nodes/output/TaskResultNode.jsx` - Lines 118-140 (useEffect 1.5)
 - **修复日期**: 2026-01-01
 
+### 错误39: 聚鑫平台模型名称错误 ⭐ 新增 (2026-01-02)
+- **现象**: API 调用返回 400/422 错误，错误信息 "model not supported" 或 "Invalid model"
+- **根本原因**:
+  - 聚鑫平台使用 `sora-2-all` 模型名称（而非 `sora-2`）
+  - 贞贞平台使用 `sora-2` 和 `sora-2-pro` 模型名称
+  - 代码未根据平台选择正确的默认模型
+- **错误尝试**:
+  - ❌ 在聚鑫平台使用 `sora-2` 模型（API 拒绝）
+  - ❌ 在贞贞平台使用 `sora-2-all` 模型（API 拒绝）
+  - ❌ 硬编码 `model: 'sora-2'` 作为默认值（不适用聚鑫）
+- **正确做法**:
+  ```javascript
+  // ❌ 错误：聚鑫平台使用 sora-2
+  const response = await fetch(`${API_BASE}/api/video/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      platform: 'juxin',
+      model: 'sora-2',  // ❌ 聚鑫不支持此模型
+      prompt: '一只可爱的小猫',
+      duration: 10,
+      aspect_ratio: '16:9',
+      watermark: false,
+    }),
+  });
+
+  // ✅ 正确：聚鑫平台使用 sora-2-all
+  const response = await fetch(`${API_BASE}/api/video/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      platform: 'juxin',
+      model: 'sora-2-all',  // ✅ 聚鑫正确的模型名称
+      prompt: '一只可爱的小猫',
+      duration: 10,
+      aspect_ratio: '16:9',
+      watermark: false,
+    }),
+  });
+
+  // ✅ 正确：后端自动选择（推荐）
+  // src/server/sora2-client.js
+  class Sora2Client {
+    async createVideo(options) {
+      const { prompt, model, orientation, size, watermark, private: isPrivate = true, images = [] } = options;
+
+      // 根据平台设置默认模型 ⭐ 关键逻辑
+      const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
+
+      // 验证模型名称
+      const validModels = ['sora-2-all', 'sora-2', 'sora-2-pro'];
+      if (!validModels.includes(finalModel)) {
+        throw new Error(`Invalid model: ${finalModel}. Must be one of ${validModels.join(', ')}`);
+      }
+
+      // 发送 API 请求
+      const body = {
+        model: finalModel,
+        prompt,
+        images,
+        watermark,
+        private: isPrivate,
+      };
+
+      return await this.client.post('/v1/video/create', body);
+    }
+  }
+  ```
+- **关键点**:
+  1. **聚鑫平台模型**: 必须使用 `sora-2-all`（唯一支持的模型）
+  2. **贞贞平台模型**: 使用 `sora-2` 或 `sora-2-pro`
+  3. **后端自动选择**: `model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2')`
+  4. **前端默认值**: APISettingsNode 默认模型应为 `sora-2-all`（聚鑫平台）
+  5. **用户手动选择**: 根据平台限制可选模型范围
+- **验证结果**: ✅ 聚鑫平台 API 成功返回任务ID，视频生成正常
+- **修复文件**:
+  - `src/server/sora2-client.js` - Lines 132-144, 228, 323（添加平台自动切换）
+  - `src/client/src/nodes/input/APISettingsNode.jsx` - Lines 9-15, 95-100（更新默认值和自动切换）
+  - `src/client/src/nodes/process/VideoGenerateNode.jsx` - Lines 36-41（更新默认值）
+  - `src/client/src/nodes/process/StoryboardNode.jsx` - Lines 16-21（更新默认值）
+  - `src/renderer/public/index.html` - Lines 666-669, 746-750（添加模型选项）
+- **修复日期**: 2026-01-02
+
 ---
 
 ---
@@ -868,25 +961,29 @@ git push origin feature/workflow-management
 
 ## 开发提示
 
-1. ✅ **API 调用前检查路径**: 确保包含 `/api/` 前缀
-2. ✅ **角色创建优先使用 from_task**: 比 URL 更可靠
-3. ✅ **React Flow 节点使用 useNodeId()**: data 对象不包含 id
-4. ✅ **React Flow Handle 标签布局**: Handle 和标签必须完全分离，独立定位
-5. ✅ **轮询间隔至少 30 秒**: 避免 429 错误
-6. ✅ **双平台兼容**: 同时支持聚鑫和贞贞的响应格式
-7. ✅ **每次开发后更新文档**: 遵循更新流程和检查清单
-8. ✅ **localStorage 数据必须验证**: 使用 try-catch 和默认值
-9. ✅ **导入文件验证格式**: 检查必需字段和数据类型
-10. ✅ **视频时长使用数字类型**: duration: 10 (非 "10")
-11. ✅ **Sora2 不支持 1:1 比例**: 只提供 16:9 和 9:16
-12. ✅ **图生视频提示词必须描述参考图**: 参考图片提供场景，提示词必须描述场景内容和角色活动
-13. ✅ **表单字段必须有 id/name 属性**: 满足浏览器可访问性要求
-14. ✅ **源节点直接更新目标节点**: 绕过 App.jsx，使用 getEdges() 找到连接的节点，一次 setNodes() 更新多个节点 ⭐ 2026-01-01
-15. ✅ **关键时刻手动同步 node.data**: 在 getNodes() 捕获快照前，手动调用 setNodes() 确保数据同步 ⭐ 2026-01-01
-16. ✅ **防抖 localStorage 保存**: 500ms 防抖，减少 90% 的写入次数，提升响应速度 ⭐ 2026-01-01
-17. ✅ **自动化测试是基础标准范式**: 使用 MCP 工具在浏览器中自动测试，不要总是问用户，只在做连线/拖拽时请求用户协作 ⭐ 2026-01-01
-18. ✅ **专注于核心功能**: 避免过度复杂化，保持代码简洁可维护 ⭐ 2026-01-01
-19. ✅ **任务进度百分比显示**: 从 API 响应提取 progress 字段（0-100），在状态文本中显示 "⏳ 处理中 45%" ⭐ 2026-01-01
-20. ✅ **已完成任务进度默认 100%**: 任务完成时（SUCCESS + videoUrl）自动设置 progress 为 100%，即使 API 未返回 progress 字段 ⭐ 2026-01-01
-21. ✅ **useEffect 空依赖数组防止竞态条件**: 当 useEffect 和事件监听器都管理同一状态时，useEffect 应使用空依赖数组只在挂载时运行，避免事件更新触发 useEffect 恢复旧数据 ⭐ 2026-01-01
-22. ✅ **自动检测修复缺失字段**: 从连接的源节点读取配置信息，自动修复 localStorage 中旧任务缺失的字段（如 platform），确保向后兼容 ⭐ 2026-01-01
+1. ⚠️ **聚鑫平台模型名称**: 必须使用 `sora-2-all`，不能使用 `sora-2` ⭐ 2026-01-02
+2. ⚠️ **贞贞平台模型名称**: 使用 `sora-2` 或 `sora-2-pro` ⭐ 2026-01-02
+3. ⚠️ **平台自动切换**: 后端 Sora2Client 已实现自动选择，前端默认值需同步 ⭐ 2026-01-02
+4. ✅ **角色创建不传 model**: 所有平台统一，创建角色时不传 model 参数
+5. ✅ **API 调用前检查路径**: 确保包含 `/api/` 前缀
+6. ✅ **角色创建优先使用 from_task**: 比 URL 更可靠
+7. ✅ **React Flow 节点使用 useNodeId()**: data 对象不包含 id
+8. ✅ **React Flow Handle 标签布局**: Handle 和标签必须完全分离，独立定位
+9. ✅ **轮询间隔至少 30 秒**: 避免 429 错误
+10. ✅ **双平台兼容**: 同时支持聚鑫和贞贞的响应格式
+11. ✅ **每次开发后更新文档**: 遵循更新流程和检查清单
+12. ✅ **localStorage 数据必须验证**: 使用 try-catch 和默认值
+13. ✅ **导入文件验证格式**: 检查必需字段和数据类型
+14. ✅ **视频时长使用数字类型**: duration: 10 (非 "10")
+15. ✅ **Sora2 不支持 1:1 比例**: 只提供 16:9 和 9:16
+16. ✅ **图生视频提示词必须描述参考图**: 参考图片提供场景，提示词必须描述场景内容和角色活动
+17. ✅ **表单字段必须有 id/name 属性**: 满足浏览器可访问性要求
+18. ✅ **源节点直接更新目标节点**: 绕过 App.jsx，使用 getEdges() 找到连接的节点，一次 setNodes() 更新多个节点 ⭐ 2026-01-01
+19. ✅ **关键时刻手动同步 node.data**: 在 getNodes() 捕获快照前，手动调用 setNodes() 确保数据同步 ⭐ 2026-01-01
+20. ✅ **防抖 localStorage 保存**: 500ms 防抖，减少 90% 的写入次数，提升响应速度 ⭐ 2026-01-01
+21. ✅ **自动化测试是基础标准范式**: 使用 MCP 工具在浏览器中自动测试，不要总是问用户，只在做连线/拖拽时请求用户协作 ⭐ 2026-01-01
+22. ✅ **专注于核心功能**: 避免过度复杂化，保持代码简洁可维护 ⭐ 2026-01-01
+23. ✅ **任务进度百分比显示**: 从 API 响应提取 progress 字段（0-100），在状态文本中显示 "⏳ 处理中 45%" ⭐ 2026-01-01
+24. ✅ **已完成任务进度默认 100%**: 任务完成时（SUCCESS + videoUrl）自动设置 progress 为 100%，即使 API 未返回 progress 字段 ⭐ 2026-01-01
+25. ✅ **useEffect 空依赖数组防止竞态条件**: 当 useEffect 和事件监听器都管理同一状态时，useEffect 应使用空依赖数组只在挂载时运行，避免事件更新触发 useEffect 恢复旧数据 ⭐ 2026-01-01
+26. ✅ **自动检测修复缺失字段**: 从连接的源节点读取配置信息，自动修复 localStorage 中旧任务缺失的字段（如 platform），确保向后兼容 ⭐ 2026-01-01

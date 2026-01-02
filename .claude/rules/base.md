@@ -53,6 +53,7 @@ React + React Flow
 
 ### 聚鑫平台 (api.jxincm.cn)
 - **Base URL**: `https://api.jxincm.cn`
+- **模型**: `sora-2-all` ⭐ 唯一支持 (2026-01-02 更新)
 - **创建视频**: `POST /v1/video/create`
 - **查询任务**: `GET /v1/video/query?id={taskId}` ⚠️ 查询参数
 - **创建角色**: `POST /sora/v1/characters`
@@ -60,12 +61,14 @@ React + React Flow
 
 ### 贞贞平台 (ai.t8star.cn)
 - **Base URL**: `https://ai.t8star.cn`
+- **模型**: `sora-2`, `sora-2-pro` ⭐ 两个可选 (2026-01-02 更新)
 - **创建视频**: `POST /v1/video/create`
 - **查询任务**: `GET /v2/videos/generations/{taskId}` ⚠️ 路径参数
 - **创建角色**: `POST /sora/v1/characters`
 - **故事板**: `POST /v1/video/storyboard`
 
 ### 重要差异
+- **模型名称**: 聚鑫使用 `sora-2-all`，贞贞使用 `sora-2` 或 `sora-2-pro` ⭐ (2026-01-02 更新)
 - **查询端点**: 聚鑫用查询参数 `?id=`，贞贞用路径参数 `/{taskId}`
 - **响应格式**: 聚鑫返回 `{id}`, 贞贞返回 `{task_id}` ⚠️ **需要兼容处理**
 - **数据格式**: 聚鑫返回 OpenAI 格式，贞贞返回统一格式
@@ -106,6 +109,10 @@ React + React Flow
 - **必填**: `timestamps` (格式: "1,3"，范围差值必须是 1-3 秒)
 - **⚠️ 禁止**: **不要传递 `model` 参数**，否则会导致 404 错误
 - **✅ 推荐**: 优先使用 `from_task` 参数（从已完成的视频任务创建）
+- **⚠️ 模型名称注意事项** (2026-01-02):
+  - 聚鑫平台: 使用 `sora-2-all` 模型（自动）
+  - 贞贞平台: 使用 `sora-2` 或 `sora-2-pro` 模型（自动）
+  - 创建角色时不传 `model` 参数，由后端自动选择
 
 ### 角色管理 API ⭐ 新增
 
@@ -268,7 +275,9 @@ React + React Flow
 - **设计目标**: 将通用 API 配置提取到独立节点，避免重复配置
 - **APISettingsNode**: 输入节点（蓝色系），包含以下配置：
   - `platform`: 聚鑫 / 贞贞
-  - `model`: sora-2 / sora-2-pro
+  - `model`:
+    - 聚鑫: `sora-2-all` ⭐ 唯一选项 (2026-01-02 更新)
+    - 贞贞: `sora-2` / `sora-2-pro`
   - `aspect`: 16:9 / 9:16
   - `watermark`: true / false
 - **数据传递**:
@@ -280,7 +289,7 @@ React + React Flow
   - StoryboardNode 每个镜头独立设置时长
 - **向后兼容**:
   - 未连接 APISettingsNode 时使用默认配置
-  - 默认配置: `{ platform: 'juxin', model: 'sora-2', aspect: '16:9', watermark: false }`
+  - 默认配置: `{ platform: 'juxin', model: 'sora-2-all', aspect: '16:9', watermark: false }` ⭐ (2026-01-02 更新)
 
 **时长参数**:
 - **有效值**: 5, 10, 15, 25（秒）
@@ -295,7 +304,7 @@ React + React Flow
 ```javascript
 {
   platform: 'juxin',
-  model: 'sora-2',           // 注意: API 传递小写
+  model: 'sora-2-all',       // 注意: 聚鑫平台使用 sora-2-all ⭐ (2026-01-02 更新)
   prompt: '一只可爱的猫咪',
   duration: 10,              // 数字类型
   aspect_ratio: '16:9',      // 横屏/竖屏
