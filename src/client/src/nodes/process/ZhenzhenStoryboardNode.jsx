@@ -709,8 +709,8 @@ function ZhenzhenStoryboardNode({ data }) {
               className="nodrag"
               ref={(el) => sceneRefs.current[index] = el}
               type="text"
-              value={shot.scene}
-              onChange={(e) => updateShot(shot.id, 'scene', e.target.value)}
+              value={realToDisplay(shot.scene)}
+              onChange={(e) => updateShot(shot.id, 'scene', displayToReal(e.target.value))}
               onFocus={() => lastFocusedSceneIndex.current = index}
               placeholder="场景描述..."
               style={{
