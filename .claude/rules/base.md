@@ -671,6 +671,236 @@ Scene: 老鹰降落在山顶
 - **❌ 错误模式**: App.jsx 中转（只监听 edges，节点内部状态变化不传递）
 - **✅ 正确模式**: 源节点直接更新（绕过 App.jsx 的数据传递陷阱）
 
+### 节点连接验证机制 ⭐ 新增 (2026-01-03)
+
+**设计目标**:
+- 防止错误的节点连接导致数据混乱
+- 确保只有特定类型的源节点才能连接到特定输入端口
+- 提供清晰的错误反馈（数据清除而非报错）
+
+**验证位置**: `src/client/src/App.jsx` (useEffect 监听 edges 变化)
+
+**输入端口到源节点类型的映射**:
+
+| 目标端口 | 允许的源节点类型 | 用途 |
+|---------|----------------|------|
+| `prompt-input` | `textNode` | 文本提示词输入 |
+| `character-input` | `characterLibraryNode` | 角色库数据传递 |
+| `images-input` | `referenceImageNode` | 参考图片传递 |
+| `task-input` | `videoGenerateNode`, `storyboardNode`, `juxinStoryboardNode`, `zhenzhenStoryboardNode`, `characterCreateNode` | 任务结果监听 |
+
+**验证机制** (App.jsx useEffect):
+```javascript
+useEffect(() => {
+  setNodes((nds) =>
+    nds.map((node) => {
+      // 获取所有输入到当前节点的连线
+      const incomingEdges = edges.filter((e) => e.target === node.id);
+
+      const newData = { ...node.data };
+
+      // 验证 character-input 连接
+      const characterEdge = incomingEdges.find((e) => e.targetHandle === 'character-input');
+      if (characterEdge) {
+        const sourceNode = nds.find((n) => n.id === characterEdge.source);
+
+        // ✅ 定义允许的源节点类型
+        const validCharacterSourceTypes = ['characterLibraryNode'];
+
+        if (sourceNode && validCharacterSourceTypes.includes(sourceNode.type)) {
+          // 源节点类型有效，传递数据
+          newData.connectedCharacters = sourceNode.data.connectedCharacters;
+        } else {
+          // ❌ 源节点类型无效，清除数据（静默失败）
+          newData.connectedCharacters = undefined;
+        }
+      }
+
+      // 验证 images-input 连接
+      const imagesEdge = incomingEdges.find((e) => e.targetHandle === 'images-input');
+      if (imagesEdge) {
+        const sourceNode = nds.find((n) => n.id === imagesEdge.source);
+
+        // ✅ 只有 referenceImageNode 可以连接
+        if (sourceNode?.type === 'referenceImageNode') {
+          newData.connectedImages = sourceNode.data.selectedImages;
+        } else {
+          // ❌ 源节点类型无效，清除数据
+          newData.connectedImages = undefined;
+        }
+      }
+
+      // 验证 task-input 连接
+      const videoEdge = incomingEdges.find((e) => e.targetHandle === 'task-input');
+      if (videoEdge) {
+        const sourceNode = nds.find((n) => n.id === videoEdge.source);
+
+        // ✅ 定义允许的源节点类型
+        const validVideoSourceTypes = [
+          'videoGenerateNode',
+          'storyboardNode',
+          'juxinStoryboardNode',
+          'zhenzhenStoryboardNode',
+          'characterCreateNode'
+        ];
+
+        if (sourceNode && validVideoSourceTypes.includes(sourceNode.type)) {
+          // 源节点类型有效，传递数据
+          newData.taskId = sourceNode.data.taskId;
+          newData.connectedSourceId = videoEdge.source;
+        } else {
+          // ❌ 源节点类型无效，清除数据
+          newData.taskId = undefined;
+          newData.connectedSourceId = undefined;
+        }
+      }
+
+      // 只有当 data 真正变化时才返回新对象（避免无限循环）
+      const dataChanged = /* 比较关键属性 */;
+      return dataChanged ? { ...node, data: newData } : node;
+    })
+  );
+}, [edges, setNodes]);
+```
+
+**防止的问题**:
+1. **错误26（节点连接验证缺失）**: 防止错误的节点类型连接导致数据混乱
+2. **数据污染**: 防止无效连接传递错误数据
+3. **状态不一致**: 防止断开连接后数据残留
+
+**关键点**:
+1. **类型白名单**: 使用数组定义允许的源节点类型
+2. **静默失败**: 无效连接时清除数据，不抛出错误
+3. **实时验证**: useEffect 监听 edges 变化，自动验证所有连接
+4. **性能优化**: 只在数据真正变化时才更新节点（避免无限循环）
+
+**新增节点时的注意事项**:
+- 如果新节点有输入端口，必须在 App.jsx 添加对应的验证逻辑
+- 定义允许的源节点类型白名单
+- 测试无效连接时数据是否正确清除
+
+### 平台专用故事板节点 ⭐ 新增 (2026-01-03)
+
+**设计目标**:
+- 分离聚鑫和贞贞平台的故事板功能，避免平台差异混淆
+- 每个节点内置API配置，无需连接APISettingsNode
+- 保留角色和参考图协作功能
+
+**节点类型**:
+1. **JuxinStoryboardNode** (聚鑫故事板) - `src/client/src/nodes/process/JuxinStoryboardNode.jsx`
+2. **ZhenzhenStoryboardNode** (贞贞故事板) - `src/client/src/nodes/process/ZhenzhenStoryboardNode.jsx`
+
+**核心差异**:
+
+| 特性 | 聚鑫故事板 | 贞贞故事板 |
+|------|-----------|-----------|
+| **平台标识** | `juxin` | `zhenzhen` |
+| **API端点** | `/v1/video/create` (普通视频API) | `/v2/videos/generations` (故事板专用API) |
+| **Content-Type** | `application/json` | `application/json` |
+| **模型选择** | `sora-2-all` (固定) | `sora-2` / `sora-2-pro` (可选) |
+| **提示词格式** | 故事板格式拼接 | 故事板格式拼接 |
+| **参考图片支持** | 支持 (images数组) | 支持 (images数组) |
+| **时长参数** | 单个总时长 (所有镜头之和) | 单个总时长 (所有镜头之和) |
+
+**⚠️ 重要区别**:
+- **聚鑫平台**: 没有专门的故事板API端点，使用普通视频API + 特殊格式的提示词实现故事板功能
+- **贞贞平台**: 有专门的故事板API端点，支持更复杂的故事板配置
+
+**API调用示例**:
+
+聚鑫故事板 (使用普通视频API):
+```javascript
+// POST /v1/video/create
+const response = await sora2Client.createVideo({
+  model: 'sora-2-all',
+  prompt: shots.map((shot, index) =>
+    `Shot ${index + 1}:\nduration: ${shot.duration}sec\nScene: ${shot.scene}\n`
+  ).join('\n'),
+  orientation: 'landscape',  // 或 'portrait'
+  size: 'small',             // 或 'large'
+  duration: totalDuration,   // 所有镜头时长之和
+  watermark: false,
+  images: allImages,         // 参考图片数组
+});
+```
+
+贞贞故事板 (使用故事板专用API):
+```javascript
+// POST /v2/videos/generations
+const response = await sora2Client.createStoryboardVideo({
+  model: 'sora-2',  // 或 'sora-2-pro'
+  prompt: shots.map((shot, index) =>
+    `Shot ${index + 1}:\nduration: ${shot.duration}sec\nScene: ${shot.scene}`
+  ).join('\n\n'),
+  duration: totalDuration.toString(),
+  aspect_ratio: '16:9',  // 或 '9:16'
+  hd: false,
+  watermark: false,
+  images: allImages,
+});
+```
+
+**提示词格式规范** (两个平台通用):
+```
+Shot 1:
+duration: 5sec
+Scene: 老鹰展翅高飞
+
+Shot 2:
+duration: 5sec
+Scene: 老鹰在空中盘旋
+
+Shot 3:
+duration: 5sec
+Scene: 老鹰降落在山顶
+```
+
+**关键点**:
+1. **平台隔离**: 两个节点完全分离，避免平台差异混淆
+2. **API配置内置**: 每个节点内部包含API配置，默认折叠
+3. **镜头时长独立**: 每个镜头独立设置时长，不再自动均分
+4. **总时长验证**: 自动计算总时长，超过25秒显示警告
+5. **角色引用支持**: 支持从CharacterLibraryNode选择角色
+6. **参考图支持**: 支持全局参考图 + 镜头独立图片
+7. **双显示功能**: 输入框显示易读别名，API使用真实ID
+
+**使用场景**:
+- **简单视频生成**: 使用 VideoGenerateNode（支持平台切换）
+- **聚鑫故事板**: 使用 JuxinStoryboardNode（专用优化）
+- **贞贞故事板**: 使用 ZhenzhenStoryboardNode（专用优化）
+
+**后端实现** (src/server/sora2-client.js):
+```javascript
+// ⚠️ 重要：聚鑫平台没有专门的故事板API
+// - 聚鑫：使用普通视频API (createVideo) + 特殊格式提示词
+// - 贞贞：使用故事板专用API (createStoryboardVideo)
+let result;
+if (this.platformType === 'JUXIN') {
+  // 聚鑫平台：使用普通视频API
+  console.log('[Sora2Client] 聚鑫使用普通视频API（非故事板端点）');
+  result = await this.createVideo({
+    model: finalModel,
+    prompt,  // 故事板格式的提示词
+    orientation,
+    size,
+    duration: finalDuration,
+    watermark,
+    private: isPrivate,
+    images: allImages,
+  });
+} else {
+  // 贞贞平台：使用故事板专用API
+  console.log('[Sora2Client] 贞贞使用故事板API');
+  const response = await this.client.post(this.platform.storyboardEndpoint, body, {
+    headers: this._getAuthHeaders(),
+  });
+  result = {
+    success: true,
+    data: response.data,
+  };
+}
+```
+
 ## 轮询策略
 
 ### 后台自动轮询服务

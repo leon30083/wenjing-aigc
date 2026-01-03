@@ -336,9 +336,8 @@ class Sora2Client {
         images = [],
       } = options;
 
-      // ⚠️ 故事板API的模型名称与普通API不同
-      // 根据API文档，故事板统一使用 sora-2
-      const finalModel = model || 'sora-2';
+      // 根据平台设置默认模型（与createVideo保持一致）
+      const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
 
       if (!shots || !Array.isArray(shots) || shots.length === 0) {
         throw new Error('shots 是必填参数，且必须是非空数组');
@@ -366,10 +365,22 @@ class Sora2Client {
       const body = {
         model: finalModel,
         prompt,
-        images: allImages,
         watermark: watermark,   // ✅ 布尔值
         private: isPrivate,     // ✅ 布尔值
       };
+
+      // ⭐ 关键修复：根据平台使用不同的图片字段名
+      // - 聚鑫平台使用 input_reference (单个字符串)
+      // - 贞贞平台使用 images (字符串数组)
+      if (this.platformType === 'JUXIN') {
+        // 聚鑫故事板：只使用第一张图片
+        if (allImages.length > 0) {
+          body.input_reference = allImages[0];  // 单个字符串，不是数组
+        }
+      } else {
+        // 贞贞故事板：支持多张图片
+        body.images = allImages;
+      }
 
       // ⭐ 关键修复：根据平台使用不同的参数名，并转换为字符串类型
       // - 聚鑫平台使用 seconds (字符串类型)
@@ -381,34 +392,61 @@ class Sora2Client {
         body.duration = String(finalDuration); // 贞贞: "15"
       }
 
-      // ⚠️ 故事板API：聚鑫使用 size 参数（不使用 orientation）
-      // 根据 orientation 参数转换为 "16x9" 或 "9x16"
+      // 转换画面方向参数（与createVideo保持一致）
       const orientationParam = this._convertOrientationParam(orientation);
       if (this.platform.useAspectRatio) {
         // 贞贞平台使用 aspect_ratio
         body.aspect_ratio = orientationParam;
       } else {
-        // 聚鑫平台使用 size (不是 orientation!)
-        body.size = (orientationParam === 'landscape') ? '16x9' : '9x16';
+        // 聚鑫平台使用 orientation (portrait/landscape)
+        body.orientation = orientationParam;
       }
 
-      // ⭐ 调试日志：验证修复是否生效
-      console.log('[Sora2Client] Storyboard API Request:', {
-        platform: this.platformType,
-        endpoint: this.platform.storyboardEndpoint,  // ⭐ 使用故事板专用端点
-        bodyKeys: Object.keys(body),
-        secondsOrDuration: body.seconds || body.duration,
-        body: JSON.stringify(body, null, 2)
-      });
+      // 转换分辨率参数（与createVideo保持一致）
+      if (this.platform.useAspectRatio) {
+        // 贞贞平台使用 hd (boolean)
+        if (typeof size === 'boolean') {
+          body.hd = size;
+        } else if (size === 'large') {
+          body.hd = true;
+        } else {
+          body.hd = false;
+        }
+      } else {
+        // 聚鑫平台使用 size (small/large)
+        body.size = size === 'large' ? 'large' : 'small';
+      }
 
-      const response = await this.client.post(this.platform.storyboardEndpoint, body, {
-        headers: this._getAuthHeaders(),
-      });
+      // ⚠️ 重要：聚鑫平台没有专门的故事板API
+      // - 聚鑫：使用普通视频API + 特殊格式提示词
+      // - 贞贞：使用故事板专用API
+      let result;
+      if (this.platformType === 'JUXIN') {
+        // 聚鑫平台：使用普通视频API（createVideo）
+        console.log('[Sora2Client] 聚鑫使用普通视频API（非故事板端点）');
+        result = await this.createVideo({
+          model: finalModel,
+          prompt,
+          orientation,
+          size,
+          duration: finalDuration,  // 使用总时长
+          watermark,
+          private: isPrivate,
+          images: allImages,  // 聚鑫普通API支持images数组
+        });
+      } else {
+        // 贞贞平台：使用故事板专用API
+        console.log('[Sora2Client] 贞贞使用故事板API');
+        const response = await this.client.post(this.platform.storyboardEndpoint, body, {
+          headers: this._getAuthHeaders(),
+        });
+        result = {
+          success: true,
+          data: response.data,
+        };
+      }
 
-      return {
-        success: true,
-        data: response.data,
-      };
+      return result;
     } catch (error) {
       // 打印详细错误信息用于调试
       console.error('[Sora2Client] Storyboard API Error:', {

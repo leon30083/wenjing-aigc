@@ -210,17 +210,40 @@ http://localhost:5173/  ← 这才是工作流画布！
 | **前端无法连接 API** | 只启动了 Vite，没启动后端 | 同时运行 `npm run server` 和 `npm run dev` |
 | 端口被占用 | 9000 端口已被使用 | 修改 `.env` 中的 PORT 配置 |
 
-### 后端代码修改不生效 ⭐ 新增 (2026-01-02)
+### 后端代码修改不生效 ⭐ 更新 (2026-01-03)
 
 | 问题 | 原因 | 解决方案 |
 |------|------|----------|
 | 修改后端代码后无效果 | Node.js 模块缓存 | 1. 终端按 Ctrl+C 停止服务器<br>2. 重新运行 `npm run server` |
 | Windows 端口被占用 | nul 文件或僵尸进程 | 1. 删除 nul 文件 (`del nul`)<br>2. 或运行 `taskkill /F /IM node.exe` |
 | EADDRINUSE 错误 | 进程未完全退出 | 1. `netstat -ano \| findstr :9000` 查找 PID<br>2. `taskkill /F /PID <PID>` 强制结束 |
+| PowerShell 无法停止进程 | 进程在子shell运行 | 1. 关闭并重新打开终端<br>2. 或使用 `Get-Process node \| Stop-Process -Force` |
+
+**完整重启流程** (推荐):
+```bash
+# 步骤1: 停止后端服务器
+# 在终端按 Ctrl+C，如果无响应：
+taskkill /F /IM node.exe
+
+# 步骤2: 清理 nul 文件 (Windows)
+del nul
+
+# 步骤3: 重新启动后端
+npm run server
+
+# 步骤4: 验证重启成功
+# 检查日志显示调试信息，确认新代码已加载
+```
 
 **重启验证**:
-- ✅ 后端启动时显示调试日志
-- ✅ 代码修改后日志有变化
+- ✅ 后端启动时显示调试日志（如 `[Sora2Client]` 日志）
+- ✅ 代码修改后日志有变化（如新增的 console.log 输出）
+- ✅ API 请求参数符合预期（使用 list_network_requests 检查）
+
+**⚠️ 常见错误**:
+1. **忘记停止服务器**: 直接修改代码后刷新浏览器，看到的是旧代码
+2. **端口占用显示假启动**: 服务器启动失败但终端无错误提示
+3. **Vite 热重载混淆**: 前端热重载生效误以为后端也生效（后端需要手动重启）
 
 ---
 
