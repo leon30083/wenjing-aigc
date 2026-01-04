@@ -1,5 +1,5 @@
 import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNodeResize } from '../../hooks/useNodeResize';
 
 const API_BASE = 'http://localhost:9000';
@@ -36,63 +36,145 @@ function CharacterLibraryNode({ data }) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [characterToDelete, setCharacterToDelete] = useState(null);
 
-  // ⭐ 关键修复：当 data.selectedCharacters 变化时（加载工作流），恢复选中状态
-  useEffect(() => {
-    if (data.selectedCharacters && Array.isArray(data.selectedCharacters)) {
-      const newSet = new Set(data.selectedCharacters);
-      // 只在实际变化时更新（避免无限循环）
-      if (newSet.size !== selectedCharacters.size ||
-          ![...newSet].every(id => selectedCharacters.has(id))) {
-        setSelectedCharacters(newSet);
-      }
-    }
-  }, [data.selectedCharacters]);
+  // ⭐ 关键修复：使用 ref 存储所有数据，避免依赖数组触发无限循环
+  const selectedCharacterObjectsRef = useRef([]);
+  const selectedArrayRef = useRef([]);
+  const lastUpdateDataRef = useRef(null); // ⭐ 记录上次更新的数据，防止重复更新
+  const charactersRef = useRef(characters);
+  const selectedCharactersRef = useRef(selectedCharacters); // ⭐ 存储 Set，避免依赖触发
+  const setNodesRef = useRef(setNodes); // ⭐ 存储 setNodes，避免依赖触发
 
-  // ⭐ 合并后的 useEffect：同时更新自己和目标节点的 connectedCharacters
+  // ⭐ 更新 setNodes ref
   useEffect(() => {
-    if (nodeId && characters.length > 0) {
-      // 获取选中的角色完整对象
-      const characterObjects = characters.filter(c =>
-        selectedCharacters.has(c.id)
-      );
-      const selectedArray = Array.from(selectedCharacters);
+    setNodesRef.current = setNodes;
+  }, [setNodes]);
+
+  // ⭐ 更新 ref（不触发主 useEffect）
+  useEffect(() => {
+    charactersRef.current = characters;
+    selectedCharacterObjectsRef.current = characters.filter(c => selectedCharacters.has(c.id));
+    selectedArrayRef.current = Array.from(selectedCharacters);
+    selectedCharactersRef.current = selectedCharacters;
+  }, [characters, selectedCharacters]);
+
+  // ⭐ 关键修复：只在数据真正变化时才更新（使用签名比较，避免依赖触发）
+  useEffect(() => {
+    if (nodeId) {
+      // ⚡ 使用 ref 中的数据，避免依赖 useMemo
+      const characterObjects = selectedCharacterObjectsRef.current;
+      const selectedArray = selectedArrayRef.current;
+      const selectedSet = selectedCharactersRef.current;
+
+      // ⭐ 比较签名，只在变化时才继续
+      const currentSetSignature = JSON.stringify(Array.from(selectedSet || []).sort());
+      const lastSetSignature = lastUpdateDataRef.current?.setSignature;
+
+      if (currentSetSignature === lastSetSignature) {
+        console.log('[CharacterLibraryNode] Skipping - selectedCharacters unchanged');
+        return; // ⭐ 没有变化，直接返回
+      }
+
+      console.log('[CharacterLibraryNode] selectedCharacters changed, updating...');
+
+      // ⭐ 更新签名记录
+      lastUpdateDataRef.current = {
+        ...lastUpdateDataRef.current,
+        setSignature: currentSetSignature
+      };
 
       // 获取连接的目标节点
       const edges = getEdges();
       const outgoingEdges = edges.filter(e => e.source === nodeId);
 
-      // ⚡ 一次 setNodes 调用同时更新自己和目标节点
-      setNodes((nds) =>
-        nds.map((node) => {
-          // 更新自己的 connectedCharacters 和 selectedCharacters
+      // ⚡ 优化：只在数据真正变化时才更新（使用 ref 中的 setNodes）
+      setNodesRef.current((nds) => {
+        let needsUpdate = false;
+        let skipUpdate = true; // ⭐ 默认跳过，除非发现数据变化
+
+        // 先检查是否需要更新
+        const updatedNodes = nds.map((node) => {
           if (node.id === nodeId) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                connectedCharacters: characterObjects,
-                selectedCharacters: selectedArray
-              }
-            };
-          }
+            // ⭐ 创建当前数据的签名（在 node 可用的作用域内）
+            const currentSignature = JSON.stringify({
+              selected: node.data.selectedCharacters,
+              connected: node.data.connectedCharacters?.map(c => c.id)
+            });
+            const newSignature = JSON.stringify({
+              selected: selectedArray,
+              connected: characterObjects.map(c => c.id)
+            });
 
-          // ⭐ 关键修复：直接更新目标节点的 connectedCharacters（绕过 App.jsx）
-          const isConnected = outgoingEdges.some(e => e.target === node.id);
-          if (isConnected) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                connectedCharacters: characterObjects
-              }
-            };
-          }
+            console.log('[CharacterLibraryNode] Checking self node', {
+              nodeId,
+              currentSelected: node.data.selectedCharacters,
+              newSelected: selectedArray,
+              currentConnected: node.data.connectedCharacters?.map(c => c.id),
+              newConnected: characterObjects.map(c => c.id),
+              currentSignature,
+              newSignature,
+              shouldUpdate: currentSignature !== newSignature
+            });
 
+            // ⭐ 只有当数据真正变化时才更新
+            if (currentSignature !== newSignature) {
+              skipUpdate = false; // ⭐ 有变化，需要更新
+
+              // 检查数据是否真的变化了
+              const currentData = node.data;
+              const selectedChanged = !arraysEqual(currentData.selectedCharacters, selectedArray);
+              const connectedChanged = !arraysEqual(currentData.connectedCharacters, characterObjects);
+
+              if (selectedChanged || connectedChanged) {
+                needsUpdate = true;
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    connectedCharacters: characterObjects,
+                    selectedCharacters: selectedArray
+                  }
+                };
+              }
+            }
+          } else {
+            const isConnected = outgoingEdges.some(e => e.target === node.id);
+            if (isConnected) {
+              const currentData = node.data;
+              const connectedChanged = !arraysEqual(currentData.connectedCharacters, characterObjects);
+
+              if (connectedChanged) {
+                needsUpdate = true;
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    connectedCharacters: characterObjects
+                  }
+                };
+              }
+            }
+          }
           return node;
-        })
-      );
+        });
+
+        // ⚡ 关键：只有在数据真正变化时才更新节点
+        console.log('[CharacterLibraryNode] setNodes result', { needsUpdate });
+        return needsUpdate ? updatedNodes : nds;
+      });
     }
-  }, [selectedCharacters, nodeId, setNodes, characters, getEdges, edges]); // ⭐ 添加 edges
+  }, [nodeId, selectedCharacters.size]); // ⭐ 移除 setNodes 依赖，使用 ref 避免循环
+
+  // ⚠️ 辅助函数：深度比较两个数组（按 id 比较）
+  function arraysEqual(a, b) {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
+    return a.every((item, index) => {
+      const aItem = item;
+      const bItem = b[index];
+      return aItem && bItem && aItem.id === bItem.id;
+    });
+  }
 
   useEffect(() => {
     loadCharacters();
@@ -306,8 +388,8 @@ function CharacterLibraryNode({ data }) {
     return '1px solid #a5f3fc';
   };
 
-  // Filter characters
-  const getFilteredCharacters = () => {
+  // Filter characters (使用 useMemo 避免引用变化)
+  const filteredCharacters = React.useMemo(() => {
     let filtered = [...characters];
 
     if (filterType === 'favorites') {
@@ -330,9 +412,7 @@ function CharacterLibraryNode({ data }) {
     }
 
     return filtered;
-  };
-
-  const filteredCharacters = getFilteredCharacters();
+  }, [characters, filterType, recentCharacters, searchQuery]);
 
   return (
     <div style={{
@@ -631,6 +711,9 @@ function CharacterLibraryNode({ data }) {
                   borderRadius: '50%',
                   objectFit: 'cover',
                   marginBottom: '4px',
+                  // ⭐ 防止图片加载导致的布局抖动
+                  display: 'block',
+                  flexShrink: 0,
                 }}
                 onError={(e) => {
                   e.target.src = '/default-avatar.svg';
@@ -843,4 +926,4 @@ function CharacterLibraryNode({ data }) {
   );
 }
 
-export default CharacterLibraryNode;
+export default React.memo(CharacterLibraryNode);
