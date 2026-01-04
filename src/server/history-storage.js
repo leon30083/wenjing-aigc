@@ -1,6 +1,13 @@
 /**
  * 历史记录存储模块
  * 使用 JSON 文件永久保存所有视频生成记录
+ *
+ * 任务状态定义:
+ * - 'queued': 已提交，等待处理
+ * - 'processing': 正在处理中
+ * - 'completed': 已完成
+ * - 'failed': 失败
+ * - 'stale': 超过24小时未完成的任务（不再自动轮询）
  */
 
 const fs = require('fs');

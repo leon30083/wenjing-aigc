@@ -1241,6 +1241,133 @@ Scene: 老鹰降落在山顶`;
   - `src/client/src/nodes/output/TaskResultNode.jsx` - Line 156（添加节点类型到validSourceTypes）
 - **修复日期**: 2026-01-02
 
+### 错误46: 后台轮询服务优化（添加24小时时间限制） ⭐ 2026-01-04 新增
+- **现象**: 服务器启动后一直轮询旧任务（超过24小时），浪费API配额和服务器资源
+- **根本原因**:
+  - 后台轮询服务启动时检查所有 `queued` 和 `processing` 状态的任务
+  - 没有时间限制，旧任务无限轮询
+  - 用户反馈："后台服务器一直在轮询3个任务"
+- **错误尝试**:
+  - ❌ 简单粗暴禁用轮询（会导致任务状态无法自动更新）
+  - ❌ 手动删除旧任务（不现实，用户无法操作）
+  - ❌ 降低轮询频率（治标不治本，旧任务仍然被轮询）
+- **正确做法**: 添加时间限制和 stale 状态
+  ```javascript
+  // ✅ 正确：添加 MAX_POLLING_AGE 常量和时间检查
+  const MAX_POLLING_AGE = 24 * 60 * 60 * 1000; // 24小时
+
+  async function checkAndUpdateTask(taskId, platform, createdAt) {
+    // ⭐ 时间检查：超过24小时的任务标记为 stale
+    if (createdAt) {
+      const age = Date.now() - new Date(createdAt).getTime();
+      if (age > MAX_POLLING_AGE) {
+        historyStorage.updateRecord(taskId, { status: 'stale' });
+        console.log(`[轮询] 任务超时（${Math.floor(age / (60 * 60 * 1000))}小时前），标记为 stale: ${taskId}`);
+        return;
+      }
+    }
+    // 继续正常轮询逻辑...
+  }
+
+  function startPollingService() {
+    // ⭐ 启动时清理旧任务（超过24小时的标记为 stale）
+    const staleThreshold = Date.now() - MAX_POLLING_AGE;
+    const allRecords = historyStorage.getAllRecords();
+
+    let staleCount = 0;
+    allRecords.forEach(record => {
+      if ((record.status === 'queued' || record.status === 'processing') &&
+          record.createdAt &&
+          new Date(record.createdAt).getTime() < staleThreshold) {
+        historyStorage.updateRecord(record.taskId, { status: 'stale' });
+        staleCount++;
+      }
+    });
+
+    if (staleCount > 0) {
+      console.log(`[轮询] 已标记 ${staleCount} 个旧任务为 stale（超过24小时）`);
+    }
+
+    setInterval(async () => {
+      const queuedTasks = historyStorage.getAllRecords({ status: 'queued' });
+      const processingTasks = historyStorage.getAllRecords({ status: 'processing' });
+      const allPendingTasks = [...queuedTasks, ...processingTasks];
+
+      for (const record of allPendingTasks) {
+        // ⭐ 传入 createdAt 参数进行时间检查
+        await checkAndUpdateTask(record.taskId, record.platform, record.createdAt);
+      }
+    }, POLL_INTERVAL);
+  }
+  ```
+- **关键点**:
+  1. **时间限制**: 只轮询最近 24 小时内的任务
+  2. **Stale 状态**: 超过时间的任务标记为 `stale`，不再轮询
+  3. **启动清理**: 服务器启动时自动清理旧任务
+  4. **前端/后台职责分离**: 前端轮询更新节点UI，后台轮询更新历史记录持久化存储
+  5. **符合 Sora2 特点**: 视频生成需要 3-5 分钟，24小时限制足够
+- **验证结果**: ✅ 服务器成功标记 3 个旧任务为 stale
+- **修复文件**:
+  - `src/server/index.js` - Lines 689, 691, 694-701, 746-762, 777
+  - `src/server/history-storage.js` - Lines 5-10（添加 stale 状态说明）
+- **修复日期**: 2026-01-04
+
+---
+
+## 二阶段优化方案：事件驱动轮询 ⭐ 规划中
+
+**方案描述**: 动态启动/停止轮询服务，根据任务提交和完成自动管理
+
+**核心机制**:
+```javascript
+let pollingTimer = null;
+
+function startPollingService() {
+  if (pollingTimer) return; // ✅ 防止重复启动
+
+  pollingTimer = setInterval(async () => {
+    const allPendingTasks = [...queuedTasks, ...processingTasks];
+
+    // ✅ 无任务时自动停止
+    if (allPendingTasks.length === 0) {
+      stopPollingService();
+      return;
+    }
+    // ... 轮询逻辑
+  }, POLL_INTERVAL);
+}
+
+function stopPollingService() {
+  if (pollingTimer) {
+    clearInterval(pollingTimer);
+    pollingTimer = null;
+  }
+}
+
+// ✅ 任务提交时自动启动
+app.post('/api/video/create', async (req, res) => {
+  const result = await client.createVideo(req.body);
+  if (result.success) {
+    historyStorage.addRecord({ taskId, status: 'queued' });
+    if (!pollingTimer) {
+      startPollingService();
+    }
+  }
+  res.json(result);
+});
+```
+
+**优势**:
+- ✅ 智能化：有任务时自动启动，无任务时自动停止
+- ✅ 资源节约：没有待处理任务时不运行轮询
+- ✅ 实时响应：任务提交立即开始轮询，任务完成立即停止
+
+**实施计划**: 二阶段开发（当前未实施，仅做规划）
+
+**相关文件**:
+- `src/server/index.js` - 轮询服务逻辑
+- `.claude/rules/code.md` - 后台轮询服务实现章节
+
 ---
 
 ## 项目简化说明 ⭐ 2026-01-01

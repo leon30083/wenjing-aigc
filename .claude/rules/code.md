@@ -137,9 +137,20 @@ const POLL_INTERVAL = 5000;   // 太短！
 ```javascript
 // 后台轮询服务：每30秒检查所有 queued 和 processing 状态的任务
 const POLL_INTERVAL = 30000; // 30秒
+const MAX_POLLING_AGE = 24 * 60 * 60 * 1000; // 24小时 - 超过此时间的任务不再轮询
 
-async function checkAndUpdateTask(taskId, platform) {
+async function checkAndUpdateTask(taskId, platform, createdAt) {
   try {
+    // ⭐ 时间检查：超过24小时的任务标记为 stale
+    if (createdAt) {
+      const age = Date.now() - new Date(createdAt).getTime();
+      if (age > MAX_POLLING_AGE) {
+        historyStorage.updateRecord(taskId, { status: 'stale' });
+        console.log(`[轮询] 任务超时（${Math.floor(age / (60 * 60 * 1000))}小时前），标记为 stale: ${taskId}`);
+        return;
+      }
+    }
+
     const client = getClient(platform);
     const result = await client.getTaskStatus(taskId);
 
@@ -164,6 +175,24 @@ async function checkAndUpdateTask(taskId, platform) {
 }
 
 function startPollingService() {
+  // ⭐ 启动时清理旧任务（超过24小时的标记为 stale）
+  const staleThreshold = Date.now() - MAX_POLLING_AGE;
+  const allRecords = historyStorage.getAllRecords();
+
+  let staleCount = 0;
+  allRecords.forEach(record => {
+    if ((record.status === 'queued' || record.status === 'processing') &&
+        record.createdAt &&
+        new Date(record.createdAt).getTime() < staleThreshold) {
+      historyStorage.updateRecord(record.taskId, { status: 'stale' });
+      staleCount++;
+    }
+  });
+
+  if (staleCount > 0) {
+    console.log(`[轮询] 已标记 ${staleCount} 个旧任务为 stale（超过24小时）`);
+  }
+
   setInterval(async () => {
     try {
       const queuedTasks = historyStorage.getAllRecords({ status: 'queued' });
@@ -175,14 +204,14 @@ function startPollingService() {
       }
 
       for (const record of allPendingTasks) {
-        await checkAndUpdateTask(record.taskId, record.platform);
+        await checkAndUpdateTask(record.taskId, record.platform, record.createdAt);
       }
     } catch (error) {
       console.error('[轮询] 服务错误:', error.message);
     }
   }, POLL_INTERVAL);
 
-  console.log(`[轮询] 服务已启动，间隔 ${POLL_INTERVAL / 1000} 秒`);
+  console.log(`[轮询] 服务已启动，间隔 ${POLL_INTERVAL / 1000} 秒（最大轮询时间: 24小时）`);
 }
 
 // 在服务器启动时调用
@@ -190,6 +219,13 @@ app.listen(PORT, () => {
   startPollingService();
 });
 ```
+
+**任务状态定义**:
+- `'queued'`: 已提交，等待处理
+- `'processing'`: 正在处理中
+- `'completed'`: 已完成
+- `'failed'`: 失败
+- `'stale'`: 超过24小时未完成的任务（不再自动轮询）⭐ 新增 (2026-01-04)
 
 ### 角色创建规范 ⭐
 
