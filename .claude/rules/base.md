@@ -57,7 +57,7 @@ React + React Flow
 - **创建视频**: `POST /v1/video/create`
 - **查询任务**: `GET /v1/video/query?id={taskId}` ⚠️ 查询参数
 - **创建角色**: `POST /sora/v1/characters`
-- **故事板**: `POST /v1/video/storyboard`
+- **故事板**: `POST /v1/videos` ⭐ 故事板专用端点 (multipart/form-data)
 
 ### 贞贞平台 (ai.t8star.cn)
 - **Base URL**: `https://ai.t8star.cn`
@@ -65,7 +65,7 @@ React + React Flow
 - **创建视频**: `POST /v2/videos/generations`
 - **查询任务**: `GET /v2/videos/generations/{taskId}` ⚠️ 路径参数
 - **创建角色**: `POST /sora/v1/characters`
-- **故事板**: `POST /v2/videos/generations` ⭐ 使用常规视频端点 + 特殊提示词格式 (2026-01-02 更新)
+- **故事板**: `POST /v2/videos/generations` ⭐ 使用常规视频端点 + 特殊提示词格式 (application/json)
 
 ### 重要差异
 - **模型名称**: 聚鑫使用 `sora-2-all`，贞贞使用 `sora-2` 或 `sora-2-pro` ⭐ (2026-01-02 更新)
@@ -234,6 +234,129 @@ React + React Flow
 **获取备份信息**:
 - **端点**: `GET /api/backup/info`
 - **响应**: `{ success: true, data: { characterCount: N, historyCount: M, version: "1.0" } }`
+
+### 提示词优化API ⭐ 新增 (2026-01-05)
+
+**端点**: `POST /api/openai/optimize`
+
+**请求格式**:
+```javascript
+{
+  base_url: "https://api.deepseek.com",
+  api_key: "sk-xxx",
+  model: "deepseek-chat",
+  prompt: "简单描述",
+  style: "picture-book",  // picture-book | documentary | animation | cinematic
+  context: {
+    target_duration: 10,
+    characters: [{ username, alias, profilePictureUrl }]
+  }
+}
+```
+
+**响应格式**:
+```javascript
+{
+  success: true,
+  data: {
+    optimized_prompt: "优化后的详细提示词",
+    meta: {
+      model_used: "deepseek-chat",
+      style: "picture-book",
+      tokens_used: 778
+    }
+  }
+}
+```
+
+**功能说明**:
+- 使用 OpenAI API (DeepSeek) 将简单描述优化成详细的 Sora2 提示词
+- ⚠️ **当前状态**: 仅 `picture-book` 风格有完整的系统提示词实现，其他风格使用通用提示词
+- 支持角色上下文（从 CharacterLibraryNode 获取）
+- 保留 `@username` 格式（变量引用，不展开描述）
+
+**风格支持** (2026-01-05):
+- `picture-book`: ✅ 完整支持（三层扩展模型、拟人化角色、鲜艳色彩）
+- `documentary`: ⚠️ 基础支持（使用通用提示词）
+- `animation`: ⚠️ 基础支持（使用通用提示词）
+- `cinematic`: ⚠️ 基础支持（使用通用提示词）
+
+**后端实现** (src/server/services/openaiClient.js):
+
+系统提示词构建（仅 picture-book 有详细实现）:
+```javascript
+_buildSystemPrompt(style, context) {
+  if (style === 'picture-book') {
+    return `你是专业的动画绘本提示词专家。
+
+任务：将简单的绘本旁白优化成 Sora 2 视频生成提示词。
+
+三层扩展模型：
+1. Layer 1 (核心层 30%)：保持旁白的核心动作，不偏离故事主线
+2. Layer 2 (丰富层 40%)：添加视觉细节、环境、氛围
+3. Layer 3 (动态层 30%)：留出 AI 自然发挥空间，不要写死每个瞬间
+
+绘本风格要求：
+- ✅ 拟人化角色设计（大眼睛、表情、友好姿态）
+- ✅ 鲜艳明亮的色彩（非写实、柔和）
+- ✅ 简化的环境（适合儿童理解）
+- ✅ 温暖友好的氛围
+- ✅ 旁白感（暗示有配音、互动性）
+
+输出格式：
+卡通风格的绘本动画。
+
+角色设计：[拟人化描述]
+场景：[简化环境 + 色彩]
+核心动作：[旁白中的关键动作]
+细节与氛围：[3-5 个视觉细节]
+Cinematography: [镜头类型]
+Animation style: [运动风格描述]
+视频时长：${context.target_duration || 10}秒`;
+  }
+
+  // 其他风格使用通用提示词
+  return `你是视频提示词优化专家，请将简单描述优化成详细的 Sora 2 提示词。`;
+}
+```
+
+用户提示词构建（包含角色引用保留）:
+```javascript
+_buildUserPrompt(prompt, style, context) {
+  let characterContext = '';
+  let characterMapping = '';
+
+  // 添加角色上下文
+  if (context.characters && context.characters.length > 0) {
+    const characterList = context.characters.map(c => {
+      const alias = c.alias || c.username;
+      return `  - @${c.username} (${alias})`;
+    }).join('\n');
+
+    characterMapping = `\n\n可用角色列表（必须使用 @username 格式引用）：\n${characterList}`;
+
+    characterContext = `\n\n重要：当提示词需要描述角色时，必须使用 @username 格式引用角色，不要直接描述角色的外貌特征。`;
+  }
+
+  return `请将以下绘本旁白优化成 Sora 2 视频生成提示词：${characterMapping}
+
+旁白原文：${prompt}${characterContext}
+
+要求：
+1. 保持核心动作不变
+2. 添加丰富的视觉细节
+3. 使用绘本/卡通风格
+4. 包含摄影指导和动画风格描述
+5. 适合${context.target_duration || 10}秒视频时长
+6. 如果提供了角色上下文，必须使用 @username 格式引用角色，不要直接描述角色
+
+请直接输出优化后的提示词，不要解释。`;
+}
+```
+
+**⚠️ 注意**:
+- 用户提示词中硬编码了"绘本/卡通风格"，选择其他风格时不会改变系统行为
+- 如需支持其他风格，需要扩展 `_buildSystemPrompt` 和 `_buildUserPrompt` 方法
 
 ## 前端架构 - 工作流管理 ⭐ 新增
 
@@ -871,9 +994,9 @@ Scene: 老鹰降落在山顶
 
 **后端实现** (src/server/sora2-client.js):
 ```javascript
-// ⚠️ 重要：聚鑫平台没有专门的故事板API
+// ⚠️ 重要：平台差异处理
 // - 聚鑫：使用普通视频API (createVideo) + 特殊格式提示词
-// - 贞贞：使用故事板专用API (createStoryboardVideo)
+// - 贞贞：使用常规视频端点 + 特殊格式提示词
 let result;
 if (this.platformType === 'JUXIN') {
   // 聚鑫平台：使用普通视频API
@@ -889,8 +1012,8 @@ if (this.platformType === 'JUXIN') {
     images: allImages,
   });
 } else {
-  // 贞贞平台：使用故事板专用API
-  console.log('[Sora2Client] 贞贞使用故事板API');
+  // 贞贞平台：使用常规视频端点 + 故事板格式提示词
+  console.log('[Sora2Client] 贞贞使用常规视频端点（特殊格式）');
   const response = await this.client.post(this.platform.storyboardEndpoint, body, {
     headers: this._getAuthHeaders(),
   });

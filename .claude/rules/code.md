@@ -4661,6 +4661,62 @@ if (imagesEdge) {
 
 ---
 
+### 错误41: 贞贞故事板端点配置错误 ⭐ 新增 (2026-01-05)
+
+```javascript
+// ❌ 错误：贞贞平台使用专用端点
+const response = await axios.post('https://ai.t8star.cn/v1/video/storyboard', {
+  model: 'sora-2',
+  prompt: storyboardPrompt,
+  shots: validShots,
+});
+
+// ✅ 正确：贞贞平台使用常规视频端点 + 特殊提示词格式
+const prompt = shots.map((shot, index) =>
+  `Shot ${index + 1}:\nduration: ${shot.duration}sec\nScene: ${shot.scene}\n`
+).join('\n');
+
+const response = await axios.post('https://ai.t8star.cn/v2/videos/generations', {
+  model: 'sora-2',
+  prompt: prompt,  // 故事板格式的提示词
+  duration: totalDuration.toString(),
+  aspect_ratio: '16:9',
+});
+```
+
+**问题**: 贞贞平台没有专门的故事板API端点，应使用常规视频API + 特殊提示词格式
+**解决方案**: 使用 `POST /v2/videos/generations` 端点，将故事板信息拼接为提示词
+**相关文档**: base.md - "Sora2 API 支持平台" 章节
+
+---
+
+### 错误45: TaskResultNode不识别新节点类型 ⭐ 新增 (2026-01-05)
+
+```javascript
+// ❌ 错误：validVideoSourceTypes 缺少新节点类型
+const validVideoSourceTypes = [
+  'videoGenerateNode',
+  'storyboardNode',
+  'characterCreateNode'
+  // ❌ 缺少: juxinStoryboardNode, zhenzhenStoryboardNode
+];
+
+// ✅ 正确：包含所有平台专用故事板节点
+const validVideoSourceTypes = [
+  'videoGenerateNode',
+  'storyboardNode',        // 通用故事板节点（已废弃）
+  'juxinStoryboardNode',   // 聚鑫故事板节点 ⭐ 新增
+  'zhenzhenStoryboardNode', // 贞贞故事板节点 ⭐ 新增
+  'characterCreateNode'
+];
+```
+
+**问题**: App.jsx的节点连接验证缺少新增的平台专用故事板节点类型
+**解决方案**: 添加juxinStoryboardNode和zhenzhenStoryboardNode到有效源节点类型列表
+**相关文档**: base.md - "平台专用故事板节点" 章节
+
+---
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：
