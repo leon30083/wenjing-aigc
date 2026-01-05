@@ -173,7 +173,7 @@ app.post('/api/video/storyboard', async (req, res) => {
  */
 app.post('/api/character/create', async (req, res) => {
   try {
-    const { platform = 'zhenzhen', url, timestamps, from_task } = req.body;
+    const { platform = 'zhenzhen', url, timestamps, from_task, alias } = req.body;
     const client = getClient(platform);
     const result = await client.createCharacter({ url, timestamps, from_task });
 
@@ -188,6 +188,7 @@ app.post('/api/character/create', async (req, res) => {
         platform: platform,
         timestamps: timestamps,
         fromTask: from_task,
+        alias: alias || '',  // ⭐ 修复：传递别名参数
       });
     }
 

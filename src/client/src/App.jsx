@@ -164,6 +164,10 @@ function App() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(savedWorkflow.edges);
   const { executionState, progress, executeWorkflow, resetExecution } = useWorkflowExecution();
   const [showAddMenu, setShowAddMenu] = useState(false);
+
+  // ⚠️ 存储 edges 的历史引用，用于内容比较（避免抖动）
+  const lastEdgesRef = useRef([]);
+
   const [nextNodeId, setNextNodeId] = useState(() => {
     // Find the highest node ID from saved workflow
     if (savedWorkflow.nodes.length > 0) {
@@ -210,16 +214,39 @@ function App() {
     );
   }, [setNodes]);
 
+  // ⚠️ 辅助函数：比较两个 edges 数组的内容是否相同（避免抖动）
+  const edgesEqual = (edgesA, edgesB) => {
+    if (edgesA.length !== edgesB.length) return false;
+
+    return edgesA.every((edge, index) => {
+      const other = edgesB[index];
+      return edge.source === other.source &&
+             edge.target === other.target &&
+             edge.sourceHandle === other.sourceHandle &&
+             edge.targetHandle === other.targetHandle;
+    });
+  };
+
   // Update node data when connections change or when execution state changes
   useEffect(() => {
-    // For each node, check incoming connections and update data
-    setNodes((nds) =>
-      nds.map((node) => {
+    // ⭐ 只在 edges 内容真正变化时才更新节点（避免抖动）
+    if (!edgesEqual(lastEdgesRef.current, edges)) {
+      console.log('[App] Edges content changed, updating nodes', {
+        oldCount: lastEdgesRef.current.length,
+        newCount: edges.length
+      });
+      lastEdgesRef.current = edges;
+
+      // For each node, check incoming connections and update data
+      setNodes((nds) =>
+        nds.map((node) => {
         const incomingEdges = edges.filter((e) => e.target === node.id);
         const newData = { ...node.data };
 
-        // Add onSizeChange callback for resizable nodes (use stable reference)
-        newData.onSizeChange = handleNodeSizeChange;
+        // ⭐ 优化：只在必要时设置 onSizeChange（避免不必要的 data 变化）
+        if (node.data.onSizeChange !== handleNodeSizeChange) {
+          newData.onSizeChange = handleNodeSizeChange;
+        }
 
         // Check for prompt input from text node
         const promptEdge = incomingEdges.find((e) => e.targetHandle === 'prompt-input');
@@ -347,6 +374,7 @@ function App() {
         return node;
       })
     );
+    }
   }, [edges, setNodes, handleNodeSizeChange]);
 
   // Save workflow to localStorage whenever nodes or edges change (with 500ms debounce)
