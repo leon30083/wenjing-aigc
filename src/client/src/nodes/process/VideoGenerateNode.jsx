@@ -1,5 +1,8 @@
 import { Handle, Position, useNodeId, useReactFlow } from 'reactflow';
 import React, { useState, useEffect, useRef } from 'react';
+import { usePromptOptimizer } from '../../hooks/usePromptOptimizer.js';
+import { PromptOptimizer } from '../../components/prompt/PromptOptimizer.jsx';
+import { GENERATION_MODES } from '../../utils/prompt/constants.js';
 
 const API_BASE = 'http://localhost:9000';
 const MIN_WIDTH = 260;
@@ -75,6 +78,13 @@ function VideoGenerateNode({ data }) {
   const [status, setStatus] = useState(data.taskId ? 'success' : 'idle'); // ⭐ 如果有 taskId 则设置为成功状态
   const [taskId, setTaskId] = useState(data.taskId || null); // ⭐ 从 data.taskId 初始化
   const [error, setError] = useState(null);
+
+  // ⭐ 提示词优化器 Hook
+  const [showOptimizer, setShowOptimizer] = useState(false); // 控制优化器面板显示
+  const promptOptimizer = usePromptOptimizer({
+    defaultMode: connectedImages.length > 0 ? GENERATION_MODES.IMAGE_TO_VIDEO : GENERATION_MODES.TEXT_TO_VIDEO,
+    autoEvaluate: true,
+  });
 
   // ⭐ 关键修复：当 data.taskId 变化时（加载工作流），同步到内部状态
   useEffect(() => {
@@ -302,6 +312,90 @@ function VideoGenerateNode({ data }) {
       setStatus('error');
       setError(err.message || '网络错误');
     }
+  };
+
+  // ⭐ 提示词优化处理函数
+  const handleGeneratePrompt = async () => {
+    // 如果没有提示词，提示用户
+    const currentPrompt = connectedPrompt || manualPrompt;
+    if (!currentPrompt || !currentPrompt.trim()) {
+      setError('请先输入提示词');
+      return;
+    }
+
+    // 使用当前提示词作为场景描述
+    const sceneDescription = currentPrompt.trim();
+
+    // 调用提示词生成器
+    const result = await promptOptimizer.generatePrompt(sceneDescription, {
+      characters: connectedCharacters,
+      images: connectedImages,
+      variables: {
+        cinematography: true,
+        cameraShot: 'medium shot, eye level',
+        mood: 'cinematic',
+      },
+    });
+
+    if (result.success) {
+      // 更新提示词
+      setManualPrompt(result.prompt);
+      setShowOptimizer(true); // 显示优化器面板
+    } else {
+      setError(result.error || '生成提示词失败');
+    }
+  };
+
+  const handleEvaluatePrompt = async () => {
+    const currentPrompt = connectedPrompt || manualPrompt;
+    if (!currentPrompt || !currentPrompt.trim()) {
+      setError('请先输入提示词');
+      return;
+    }
+
+    // 评估当前提示词
+    await promptOptimizer.evaluatePrompt(currentPrompt, {
+      characters: connectedCharacters,
+      images: connectedImages,
+    });
+
+    setShowOptimizer(true); // 显示优化器面板
+  };
+
+  const handleAutoComplete = async () => {
+    const currentPrompt = connectedPrompt || manualPrompt;
+    if (!currentPrompt || !currentPrompt.trim()) {
+      setError('请先输入提示词');
+      return;
+    }
+
+    // 智能补全
+    const result = await promptOptimizer.autoComplete(currentPrompt, {
+      characters: connectedCharacters,
+      images: connectedImages,
+    });
+
+    if (result.success) {
+      setManualPrompt(result.completedPrompt);
+      setShowOptimizer(true); // 显示优化器面板
+    }
+  };
+
+  const handleApplySuggestion = async (suggestion) => {
+    const currentPrompt = connectedPrompt || manualPrompt;
+    if (!currentPrompt) {
+      setError('没有可优化的提示词');
+      return;
+    }
+
+    const result = await promptOptimizer.applySuggestion(suggestion.type);
+    if (result.success) {
+      setManualPrompt(result.prompt);
+    }
+  };
+
+  const handleSelectTemplate = (templateId) => {
+    promptOptimizer.updateTemplate(templateId);
   };
 
   return (
@@ -630,6 +724,61 @@ function VideoGenerateNode({ data }) {
           </div>
         </div>
       )}
+
+      {/* ⭐ 提示词优化器面板 */}
+      <div className="nodrag" style={{ marginBottom: '8px' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '6px',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '11px',
+              fontWeight: 'bold',
+              color: '#7c3aed',
+            }}
+          >
+            🎨 提示词优化器
+          </div>
+          <button
+            onClick={() => setShowOptimizer(!showOptimizer)}
+            className="nodrag"
+            style={{
+              padding: '2px 8px',
+              fontSize: '9px',
+              backgroundColor: showOptimizer ? '#f3e8ff' : '#e9d5ff',
+              color: '#7c3aed',
+              border: '1px solid #a78bfa',
+              borderRadius: '3px',
+              cursor: 'pointer',
+            }}
+            title={showOptimizer ? '隐藏优化器' : '显示优化器'}
+          >
+            {showOptimizer ? '▲' : '▼'}
+          </button>
+        </div>
+
+        {showOptimizer && (
+          <PromptOptimizer
+            evaluationResult={promptOptimizer.evaluationResult}
+            templates={promptOptimizer.getAvailableTemplates()}
+            selectedTemplateId={promptOptimizer.templateId}
+            onGeneratePrompt={handleGeneratePrompt}
+            onEvaluatePrompt={handleEvaluatePrompt}
+            onAutoComplete={handleAutoComplete}
+            onApplySuggestion={handleApplySuggestion}
+            onSelectTemplate={handleSelectTemplate}
+            isGenerating={promptOptimizer.isGenerating}
+            isEvaluating={promptOptimizer.isEvaluating}
+            error={promptOptimizer.error}
+            compact={true}
+          />
+        )}
+      </div>
 
       {/* Generate Button */}
       <button
