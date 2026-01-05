@@ -83,7 +83,9 @@
       "Bash(cmd /c \"taskkill /F /PID 25244\")",
       "Bash(cmd /c \"dir /b \"\"D:\\\\user\\\\github\\\\winjin\\\\用户输入文件夹\\\\聚鑫sora2\\\\OpenAI官方视频格式\\\\openai\"\"\")",
       "Bash(cmd /c \"taskkill /F /PID 22116\")",
-      "Bash(del nul)"
+      "Bash(del nul)",
+      "Bash(cmd /c \"taskkill /F /PID 23652\")",
+      "Bash(cmd /c:*)"
     ]
   }
 }

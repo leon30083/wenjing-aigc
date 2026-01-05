@@ -22,11 +22,13 @@ import TextNode from './nodes/input/TextNode';
 import ReferenceImageNode from './nodes/input/ReferenceImageNode';
 import CharacterLibraryNode from './nodes/input/CharacterLibraryNode';
 import APISettingsNode from './nodes/input/APISettingsNode';
+import OpenAIConfigNode from './nodes/input/OpenAIConfigNode';
 import CharacterCreateNode from './nodes/process/CharacterCreateNode';
 import VideoGenerateNode from './nodes/process/VideoGenerateNode';
 import StoryboardNode from './nodes/process/StoryboardNode';
 import JuxinStoryboardNode from './nodes/process/JuxinStoryboardNode';
 import ZhenzhenStoryboardNode from './nodes/process/ZhenzhenStoryboardNode';
+import PromptOptimizerNode from './nodes/process/PromptOptimizerNode';
 import TaskResultNode from './nodes/output/TaskResultNode';
 import CharacterResultNode from './nodes/output/CharacterResultNode';
 
@@ -36,11 +38,13 @@ const nodeTypes = {
   referenceImageNode: ReferenceImageNode,
   characterLibraryNode: CharacterLibraryNode,
   apiSettingsNode: APISettingsNode,
+  openaiConfigNode: OpenAIConfigNode,
   characterCreateNode: CharacterCreateNode,
   juxinStoryboardNode: JuxinStoryboardNode,
   zhenzhenStoryboardNode: ZhenzhenStoryboardNode,
   videoGenerateNode: VideoGenerateNode,
   storyboardNode: StoryboardNode,
+  promptOptimizerNode: PromptOptimizerNode,
   taskResultNode: TaskResultNode,
   characterResultNode: CharacterResultNode,
 };
@@ -293,6 +297,22 @@ function App() {
           newData.connectedImages = undefined;
         }
 
+        // Check for OpenAI config input (for prompt optimizer node)
+        const openaiConfigEdge = incomingEdges.find((e) => e.targetHandle === 'openai-config');
+        if (openaiConfigEdge) {
+          const sourceNode = nds.find((n) => n.id === openaiConfigEdge.source);
+          // ✅ 只有 OpenAIConfigNode 可以连接到 openai-config
+          if (sourceNode?.type === 'openaiConfigNode') {
+            newData.openaiConfig = sourceNode.data.openaiConfig || null;
+          } else {
+            // ❌ 源节点类型无效，清除配置
+            newData.openaiConfig = undefined;
+          }
+        } else {
+          // 没有连线时，清除配置
+          newData.openaiConfig = undefined;
+        }
+
         // Check for video input (for task result node)
         const videoEdge = incomingEdges.find((e) => e.targetHandle === 'task-input');
         if (videoEdge) {
@@ -338,7 +358,8 @@ function App() {
           oldData.images !== newData.images ||
           oldData.shots !== newData.shots ||
           oldData.useGlobalImages !== newData.useGlobalImages ||
-          oldData.connectedSourceId !== newData.connectedSourceId // ⭐ 新增：修复 TaskResultNode 连接检测
+          oldData.connectedSourceId !== newData.connectedSourceId || // ⭐ 新增：修复 TaskResultNode 连接检测
+          oldData.openaiConfig !== newData.openaiConfig // ⭐ 新增：OpenAI 配置连接检测
         );
 
         if (dataChanged) {

@@ -14,6 +14,7 @@ const Sora2Client = require('./sora2-client');
 const BatchQueue = require('./batch-queue');
 const HistoryStorage = require('./history-storage');
 const CharacterStorage = require('./character-storage');
+const openaiRoutes = require('./routes/openai');
 
 const app = express();
 const PORT = 9000;
@@ -670,6 +671,10 @@ app.get('/api/backup/info', (req, res) => {
     res.json({ success: false, error: error.message });
   }
 });
+
+// ==================== OpenAI API 集成 ====================
+
+app.use('/api/openai', openaiRoutes);
 
 // ==================== 错误处理 ====================
 
