@@ -114,10 +114,18 @@ function TaskResultNode({ data }) {
     }
   }, []); // ⭐ 空依赖数组：只在挂载时运行一次
 
+  // ⭐ 新增：存储 platform 的历史记录，避免循环更新
+  const platformRef = useRef(platform);
+
+  // ⭐ 同步 platform 到 ref
+  useEffect(() => {
+    platformRef.current = platform;
+  }, [platform]);
+
   // ⭐ useEffect 1.5: 从连接的 VideoGenerateNode 读取 platform（修复旧数据）
   useEffect(() => {
     const sourceId = data.connectedSourceId || connectedSourceIdRef.current;
-    if (sourceId && (!platform || platform === 'juxin')) {
+    if (sourceId) {
       // 查找连接的源节点
       const allNodes = getNodes();
       const sourceNode = allNodes.find(n => n.id === sourceId);
@@ -126,15 +134,26 @@ function TaskResultNode({ data }) {
       if (sourceNode && sourceNode.type === 'videoGenerateNode' && sourceNode.data?.apiConfig?.platform) {
         const sourcePlatform = sourceNode.data.apiConfig.platform;
 
-        // 更新内部状态和 node.data
-        setPlatform(sourcePlatform);
-        setNodes((nds) =>
-          nds.map((node) =>
-            node.id === nodeId
-              ? { ...node, data: { ...node.data, platform: sourcePlatform } }
-              : node
-          )
-        );
+        // ⭐ 签名比较：只在 platform 真正变化时才更新
+        const lastPlatform = platformRef.current;
+        if (lastPlatform !== sourcePlatform && node.data?.platform !== sourcePlatform) {
+          console.log('[TaskResultNode] Updating platform from source node:', {
+            old: lastPlatform,
+            new: sourcePlatform
+          });
+
+          // 更新内部状态和 node.data
+          setPlatform(sourcePlatform);
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === nodeId
+                ? { ...node, data: { ...node.data, platform: sourcePlatform } }
+                : node
+            )
+          );
+        } else {
+          console.log('[TaskResultNode] Skipping platform update (unchanged)');
+        }
       }
     }
   }, [data.connectedSourceId]); // ⭐ 当连接变化时运行

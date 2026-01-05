@@ -1,6 +1,9 @@
 import { Handle, Position, useNodeId, useReactFlow } from 'reactflow';
 import React, { useState, useEffect, useRef } from 'react';
 import { useCharacterAliasMapping, useSceneCharacterInsertion } from '../../hooks';
+import { usePromptOptimizer } from '../../hooks/usePromptOptimizer.js';
+import { PromptOptimizer } from '../../components/prompt/PromptOptimizer.jsx';
+import { GENERATION_MODES } from '../../utils/prompt/constants.js';
 
 const API_BASE = 'http://localhost:9000';
 const MIN_WIDTH = 340;
@@ -78,6 +81,14 @@ function JuxinStoryboardNode({ data }) {
   const [taskId, setTaskId] = useState(data.taskId || null);
   const [error, setError] = useState(null);
 
+  // ⭐ 提示词优化器状态
+  const [showOptimizer, setShowOptimizer] = useState(false);
+  const [optimizingShotIndex, setOptimizingShotIndex] = useState(null); // 当前正在优化的镜头索引
+  const promptOptimizer = usePromptOptimizer({
+    defaultMode: GENERATION_MODES.STORYBOARD,
+    autoEvaluate: true,
+  });
+
   // 场景输入框 refs
   const sceneRefs = useRef([]);
   const lastFocusedSceneIndex = useRef(null);
@@ -96,6 +107,103 @@ function JuxinStoryboardNode({ data }) {
 
   // ⭐ 使用共享 Hook 进行场景角色插入
   const insertCharacterToScene = useSceneCharacterInsertion(realToDisplay, displayToReal, updateShot);
+
+  // ⭐ 提示词优化处理函数（针对单个镜头）
+  const handleOptimizeShot = async (shotIndex) => {
+    const shot = shots[shotIndex];
+    if (!shot.scene || !shot.scene.trim()) {
+      setError('镜头场景描述不能为空');
+      return;
+    }
+
+    setOptimizingShotIndex(shotIndex);
+    setShowOptimizer(true);
+
+    // 使用当前镜头场景作为基础
+    const result = await promptOptimizer.generatePrompt(shot.scene, {
+      characters: connectedCharacters,
+      images: [...(useGlobalImages ? connectedImages : []), shot.image].filter(Boolean),
+      variables: {
+        cinematography: true,
+        cameraShot: 'medium shot',
+        mood: 'cinematic',
+      },
+    });
+
+    if (result.success) {
+      updateShot(shot.id, 'scene', result.prompt);
+      setShowOptimizer(false);
+    } else {
+      setError(result.error || '生成失败');
+    }
+
+    setOptimizingShotIndex(null);
+  };
+
+  const handleEvaluateShot = async (shotIndex) => {
+    const shot = shots[shotIndex];
+    if (!shot.scene || !shot.scene.trim()) {
+      setError('镜头场景描述不能为空');
+      return;
+    }
+
+    setOptimizingShotIndex(shotIndex);
+    setShowOptimizer(true);
+
+    // 评估当前镜头提示词质量
+    const result = await promptOptimizer.evaluatePrompt(shot.scene, {
+      characters: connectedCharacters,
+      images: [...(useGlobalImages ? connectedImages : []), shot.image].filter(Boolean),
+    });
+
+    if (result.success) {
+      // 评估结果会自动更新到 promptOptimizer.evaluationResult
+    } else {
+      setError(result.error || '评估失败');
+    }
+
+    setOptimizingShotIndex(null);
+  };
+
+  const handleAutoCompleteShot = async (shotIndex) => {
+    const shot = shots[shotIndex];
+
+    setOptimizingShotIndex(shotIndex);
+
+    // 智能补全当前镜头提示词
+    const result = await promptOptimizer.autoComplete(shot.scene || '', {
+      characters: connectedCharacters,
+      images: [...(useGlobalImages ? connectedImages : []), shot.image].filter(Boolean),
+      variables: {
+        cinematography: true,
+        cameraShot: 'medium shot',
+        mood: 'cinematic',
+      },
+    });
+
+    if (result.success) {
+      updateShot(shot.id, 'scene', result.prompt);
+    } else {
+      setError(result.error || '补全失败');
+    }
+
+    setOptimizingShotIndex(null);
+  };
+
+  const handleApplySuggestion = (suggestion) => {
+    if (optimizingShotIndex !== null) {
+      const shot = shots[optimizingShotIndex];
+      const result = promptOptimizer.applySuggestion(suggestion);
+
+      if (result.success) {
+        updateShot(shot.id, 'scene', result.prompt);
+      }
+    }
+  };
+
+  const handleSelectTemplate = (templateId) => {
+    promptOptimizer.updateTemplate(templateId);
+  };
 
   // 同步 taskId 到 node.data
   useEffect(() => {
@@ -667,6 +775,24 @@ function JuxinStoryboardNode({ data }) {
               >
                 📷
               </button>
+              {/* ⭐ 提示词优化按钮 */}
+              <button
+                className="nodrag"
+                onClick={() => handleOptimizeShot(index)}
+                disabled={optimizingShotIndex === index}
+                style={{
+                  padding: '2px 6px',
+                  fontSize: '9px',
+                  backgroundColor: optimizingShotIndex === index ? '#9ca3af' : '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '3px',
+                  cursor: optimizingShotIndex === index ? 'not-allowed' : 'pointer',
+                }}
+                title="优化此镜头提示词"
+              >
+                {optimizingShotIndex === index ? '⏳' : '✨'}
+              </button>
               {shots.length > 1 && (
                 <button
                   className="nodrag"
@@ -706,6 +832,28 @@ function JuxinStoryboardNode({ data }) {
             {shot.image && (
               <div style={{ marginTop: '2px', fontSize: '9px', color: '#6b21a8' }}>
                 📷 {shot.image.substring(0, 40)}...
+              </div>
+            )}
+            {/* ⭐ 提示词优化器面板（单个镜头） */}
+            {showOptimizer && optimizingShotIndex === index && promptOptimizer.evaluationResult && (
+              <div style={{ marginTop: '6px' }}>
+                <PromptOptimizer
+                  evaluationResult={promptOptimizer.evaluationResult}
+                  templates={promptOptimizer.templates}
+                  selectedTemplateId={promptOptimizer.templateId}
+                  onGeneratePrompt={() => handleOptimizeShot(index)}
+                  onEvaluatePrompt={() => handleEvaluateShot(index)}
+                  onAutoComplete={() => handleAutoCompleteShot(index)}
+                  onApplySuggestion={handleApplySuggestion}
+                  onSelectTemplate={handleSelectTemplate}
+                  isGenerating={optimizingShotIndex === index}
+                  isEvaluating={optimizingShotIndex === index}
+                  error={error}
+                  compact={true}
+                  showTemplateSelector={true}
+                  showSuggestions={true}
+                  style={{ fontSize: '10px' }}
+                />
               </div>
             )}
           </div>
