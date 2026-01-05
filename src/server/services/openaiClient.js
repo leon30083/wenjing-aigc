@@ -25,20 +25,31 @@ class OpenAIClient {
    * @param {Object} options - 优化选项
    * @param {string} options.prompt - 简单描述
    * @param {string} options.style - 风格 (picture-book, documentary, animation, etc.)
+   * @param {string} options.customStyleDescription - 自定义风格描述
    * @param {Object} options.context - 上下文信息
    * @returns {Promise<Object>} 优化结果
    */
   async optimizePrompt(options) {
-    const { prompt, style = 'picture-book', context = {} } = options;
+    const {
+      prompt,
+      style = 'picture-book',
+      customStyleDescription,
+      context = {}
+    } = options;
 
     try {
-      console.log('[OpenAIClient] 开始优化提示词:', { prompt, style, context });
+      console.log('[OpenAIClient] 开始优化提示词:', {
+        prompt,
+        style,
+        customStyleDescription,
+        context
+      });
 
       // 构建系统提示词
-      const systemPrompt = this._buildSystemPrompt(style, context);
+      const systemPrompt = this._buildSystemPrompt(style, context, customStyleDescription);
 
       // 构建用户提示词
-      const userPrompt = this._buildUserPrompt(prompt, style, context);
+      const userPrompt = this._buildUserPrompt(prompt, style, context, customStyleDescription);
 
       // 调用 API
       const response = await this.client.post(
@@ -151,7 +162,7 @@ class OpenAIClient {
    * 构建系统提示词
    * @private
    */
-  _buildSystemPrompt(style, context) {
+  _buildSystemPrompt(style, context, customStyleDescription) {
     if (style === 'picture-book') {
       return `你是专业的动画绘本提示词专家。
 
@@ -198,25 +209,174 @@ Animation style:
 视频时长：${context.target_duration || 10}秒`;
     }
 
-    // 可以添加更多风格...
-    return `你是视频提示词优化专家，请将简单描述优化成详细的 Sora 2 提示词。`;
+    if (style === 'cinematic') {
+      return `你是专业的电影风格视频提示词专家。
+
+任务：将简单描述优化成 Sora 2 视频生成提示词。
+
+电影风格要求：
+- ✅ 电影级画质（高分辨率、细节丰富）
+- ✅ 专业摄影构图（黄金分割、引导线）
+- ✅ 戏剧性光影（高对比度、明暗对比）
+- ✅ 电影感色调（根据场景情绪调整）
+- ✅ 流畅的镜头运动（推拉摇移跟）
+
+输出格式：
+电影风格的视频。
+
+场景描述：[详细环境描述]
+
+摄影风格：
+- 镜头类型：[广角/标准/长焦]
+- 景深：[浅景深/深景深]
+- 光线：[自然光/人工光及方向]
+- 构图：[构图法则]
+
+氛围与色调：
+- 色彩倾向：[冷暖色调]
+- 情绪氛围：[紧张/温馨/神秘]
+
+视频时长：${context.target_duration || 10}秒`;
+    }
+
+    if (style === 'documentary') {
+      return `你是专业的纪录片风格视频提示词专家。
+
+任务：将简单描述优化成 Sora 2 视频生成提示词。
+
+纪录片风格要求：
+- ✅ 写实风格（真实感、自然感）
+- ✅ 观察者视角（不干预、客观记录）
+- ✅ 自然光线（避免过度修饰）
+- ✅ 真实环境（不过度美化）
+- ✅ 纪实性叙事（信息传达优先）
+
+输出格式：
+纪录片风格的视频。
+
+场景记录：
+- 环境：[真实环境描述]
+- 活动：[自然活动记录]
+
+拍摄风格：
+- 视角：[旁观/跟随]
+- 光线：[自然光]
+- 构图：[平衡、稳重]
+
+信息传达：
+- 核心内容：[主要信息]
+- 细节补充：[辅助信息]
+
+视频时长：${context.target_duration || 10}秒`;
+    }
+
+    if (style === 'animation') {
+      return `你是专业的动画风格视频提示词专家。
+
+任务：将简单描述优化成 Sora 2 视频生成提示词。
+
+动画风格要求：
+- ✅ 流畅的动作（夸张、弹性）
+- ✅ 鲜明的角色设计（独特外观、表情丰富）
+- ✅ 丰富的环境细节（背景、道具）
+- ✅ 适合动画的色彩（饱和、明快）
+- ✅ 节奏感（动作与音乐配合）
+
+输出格式：
+动画风格的视频。
+
+角色设计：
+- 外观：[视觉特征]
+- 动作：[运动风格]
+
+场景设计：
+- 背景：[环境描述]
+- 色调：[色彩风格]
+
+动画风格：
+- 动作类型：[夸张/写实/弹性]
+- 节奏：[快/中/慢]
+- 效果：[特效/粒子]
+
+视频时长：${context.target_duration || 10}秒`;
+    }
+
+    // 自定义风格：在系统提示词中包含风格描述
+    const styleText = customStyleDescription || '自定义风格';
+    return `你是视频提示词优化专家。
+
+任务：将简单描述优化成 Sora 2 视频生成提示词。
+
+**核心风格要求：必须使用 ${styleText} 风格！**
+
+输出格式：
+${styleText}风格的视频。
+
+场景描述：[详细环境描述，符合 ${styleText} 风格]
+
+视觉风格：
+- 色彩：[根据 ${styleText} 描述色彩倾向]
+- 氛围：[根据 ${styleText} 描述整体氛围]
+- 质感：[根据 ${styleText} 描述材质和质感]
+
+摄影指导：
+- 镜头：[适合 ${styleText} 的镜头类型]
+- 光影：[符合 ${styleText} 的光线处理]
+
+视频时长：${context.target_duration || 10}秒`;
   }
 
   /**
    * 构建用户提示词
    * @private
    */
-  _buildUserPrompt(prompt, style, context) {
-    return `请将以下绘本旁白优化成 Sora 2 视频生成提示词：
+  _buildUserPrompt(prompt, style, context, customStyleDescription) {
+    let characterContext = '';
+    let characterMapping = '';
+    let characterInstruction = '';
 
-旁白原文：${prompt}
+    // 添加角色上下文
+    if (context.characters && context.characters.length > 0) {
+      const characterList = context.characters.map(c => {
+        const alias = c.alias || c.username;
+        return `  - @${c.username} (${alias})`;
+      }).join('\n');
+
+      characterMapping = `\n\n可用角色列表（必须使用 @username 格式引用）：\n${characterList}`;
+
+      characterContext = `\n\n重要：当提示词需要描述角色时，必须使用 @username 格式引用角色，不要直接描述角色的外貌特征。`;
+
+      characterInstruction = '6. 如果提供了角色上下文，必须使用 @username 格式引用角色，不要直接描述角色';
+    } else {
+      // ⭐ 关键修复：明确告知不要使用 @username 格式
+      characterInstruction = '6. 不要使用 @username 格式引用角色（未提供角色上下文），直接描述主体即可';
+    }
+
+    // 动态生成风格指令（不再硬编码）
+    let styleInstruction = '';
+    if (style === 'picture-book') {
+      styleInstruction = '使用绘本/卡通风格（拟人化、鲜艳、友好）';
+    } else if (style === 'cinematic') {
+      styleInstruction = '使用电影风格（高画质、专业构图、戏剧性光影）';
+    } else if (style === 'documentary') {
+      styleInstruction = '使用纪录片风格（写实、自然、客观）';
+    } else if (style === 'animation') {
+      styleInstruction = '使用动画风格（流畅动作、鲜明角色、丰富细节）';
+    } else if (style === 'custom' && customStyleDescription) {
+      styleInstruction = `使用自定义风格：${customStyleDescription}`;
+    }
+
+    return `请将以下简单描述优化成 Sora 2 视频生成提示词：${characterMapping}
+
+原文：${prompt}${characterContext}
 
 要求：
 1. 保持核心动作不变
 2. 添加丰富的视觉细节
-3. 使用绘本/卡通风格
+3. ${styleInstruction}
 4. 包含摄影指导和动画风格描述
 5. 适合${context.target_duration || 10}秒视频时长
+${characterInstruction}
 
 请直接输出优化后的提示词，不要解释。`;
   }

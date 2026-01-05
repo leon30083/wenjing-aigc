@@ -1,79 +1,271 @@
- EOF
-  \)")": Use ":*" for prefix matching, not just "*". Change to "Bash(git -C "D:\user\github\winjin" commit -m "$(cat
-  <<''EOF''
-  feat: add character result node and node management enhancements
+# WinJin AIGC 项目问题列表
 
-  :*:*New Features:*:*:
-  - CharacterResultNode: Display character creation results with detailed info
-    - Show character ID, username, alias, and profile picture
-    - Copy-to-clipboard buttons for ID and username (with fallback)
-    - Event-based data flow from CharacterCreateNode
-    - "Character saved to library" success message
+> **最后更新**: 2026-01-05
+> **状态**: 活跃维护中
 
-  :*:*Node Management Enhancements:*:*:
-  - Right-click delete: Delete only the right-clicked node (not all selected)
-  - Right-click create: New nodes appear at mouse position
-  - Added ReactFlowProvider to main.jsx (required for useReactFlow Hook)
-  - Context menu: Copy node, delete node for individual nodes
+---
 
-  :*:*Bug Fixes:*:*:
-  - Fixed duplicate variable declaration (characterEdge) in App.jsx
-  - Fixed node position calculation (use screenToFlowPosition instead of project)
-  - Merged character edge handling logic (single declaration with conditional logic)
+## 🔴 高优先级问题
 
-  :*:*Documentation Updates:*:*:
-  - base.md: Added character result node and React Flow node management specs
-  - code.md: Added errors 20-22 (Provider, duplicate declaration, delete logic)
-  - 开发交接书.md: Updated to v2.3, added items 19-21
+### 问题 1: 优化后的提示词无法编辑 ⚠️ NEW
+**状态**: 待修复
+**影响**: 用户体验
 
-  :*:*Technical Details:*:*:
-  - Event system: ''character-created'' event with sourceNodeId verification
-  - Clipboard API: navigator.clipboard with execCommand fallback
-  - Copy feedback: "✓ 已复制" for 2 seconds
-  - Input port: character-input (left side)
-  - No output port (display-only node)
+**问题描述**:
+- 优化后的提示词从 PromptOptimizerNode 传递到 VideoGenerateNode
+- 用户无法在 VideoGenerateNode 中编辑优化后的提示词来满足自己的需求
+- 当前优化后的提示词是只读的，传递后无法修改
 
-  :*:*Tested:*:*:
-  - ✅ Character creation API returns success (200 OK)
-  - ✅ CharacterResultNode displays character info correctly
-  - ✅ Copy buttons work with visual feedback
-  - ✅ Right-click delete removes only the clicked node (16→14 nodes)
-  - ✅ All features verified in browser
-  EOF
-  )")" for prefix matching. Examples: Bash(npm run:*), Bash(git:*)
-      └ "Bash(git -C "D:\\user\\github\\winjin" commit -m "$\(cat <<''EOF''
-  fix: CharacterLibraryNode dropdown text color visibility
+**影响范围**:
+- 使用提示词优化节点的所有工作流
+- 用户需要重新优化才能修改提示词
 
-  **Problem**:
-  - Filter dropdown text was not visible
-  - Missing color property on select element
+**期望功能**:
+- VideoGenerateNode 中的"最终提示词"应该可编辑
+- 或者提供"编辑优化结果"的功能
+- 允许用户在 AI 优化的基础上微调
 
-  **Fix**:
-  - Added `color: ''#0e7490''` to filter dropdown
-  - Added `cursor: ''pointer''` for better UX
+---
 
-  **Impact**: Visual improvement - dropdown text now visible
-  EOF
-  \)")": Use ":*" for prefix matching, not just "*". Change to "Bash(git -C "D:\user\github\winjin" commit -m "$(cat
-  <<''EOF''
-  fix: CharacterLibraryNode dropdown text color visibility
+### 问题 2: HMR (热模块替换) 不工作 ⚠️
+**状态**: 待修复
+**影响**: 开发效率
 
-  :*:*Problem:*:*:
-  - Filter dropdown text was not visible
-  - Missing color property on select element
+**问题描述**:
+- 前端代码修改后需要手动刷新浏览器才能看到效果
+- Vite HMR 配置存在问题，导致修改不自动生效
 
-  :*:*Fix:*:*:
-  - Added `color: ''#0e7490''` to filter dropdown
-  - Added `cursor: ''pointer''` for better UX
+**影响范围**:
+- 所有前端组件修改
+- 每次修改代码后需要手动刷新浏览器（Ctrl+R）
 
-  :*:*Impact:*:*: Visual improvement - dropdown text now visible
-  EOF
-  )")" for prefix matching. Examples: Bash(npm run:*), Bash(git:*)
+**临时解决方案**:
+1. 修改前端代码后，手动刷新浏览器（Ctrl+R 或 F5）
+2. 清除浏览器缓存后刷新（Ctrl+Shift+R）
 
- Files with errors are skipped entirely, not just the invalid settings.
+**根本原因分析**:
+- Vite 配置可能需要调整 `optimizeDeps.exclude` 或 HMR 设置
+- React Fast Refresh 可能未正确配置
 
- ❯ 1. Exit and fix manually
-   2. Continue without these settings
+**需要修复的文件**:
+- `src/client/vite.config.js` - 检查 HMR 配置
+- `src/client/src/main.jsx` - 检查 React Fast Refresh 设置
 
- Enter to confirm · Esc to cancel
+**预期效果**:
+- 修改前端代码后自动热重载，无需手动刷新
+- 保持组件状态（避免刷新后状态丢失）
 
+---
+
+## 🟢 已修复问题 ✅
+
+### ✅ 问题 2: 输入框滚动缩放画布 ⭐ 已修复
+**状态**: 已修复 ✅
+**修复日期**: 2026-01-05
+
+**问题描述**:
+- 鼠标滚轮在 textarea/input 元素上滚动时，会缩放 React Flow 画布而不是滚动输入内容
+- 影响所有节点：CharacterLibraryNode、ReferenceImageNode、PromptOptimizerNode、VideoGenerateNode 等
+
+**已修复节点** ✅:
+1. `PromptOptimizerNode.jsx` - 3 个输入元素（simplePrompt textarea, customStyleDescription input, optimizedPrompt textarea）
+2. `CharacterLibraryNode.jsx` - 2 个输入元素（searchQuery input, editAlias input）
+3. `ReferenceImageNode.jsx` - 1 个输入元素（imageUrl input）
+4. `VideoGenerateNode.jsx` - 1 个输入元素（manualPrompt textarea）
+5. `StoryboardNode.jsx` - 2 个输入元素（scene input, duration input，每个镜头循环渲染）
+6. `APISettingsNode.jsx` - 5 个输入元素（platform select, model select, aspect select, watermark checkbox, apiKey input）
+7. `OpenAIConfigNode.jsx` - 3 个输入元素（base_url input, api_key input, model input）
+
+**修复方法**:
+```javascript
+// ❌ 错误：没有 onWheel 处理器
+<textarea
+  className="nodrag"
+  value={value}
+  onChange={(e) => setValue(e.target.value)}
+/>
+
+// ✅ 正确：添加 onWheel 事件处理器
+<textarea
+  className="nodrag"
+  value={value}
+  onChange={(e) => setValue(e.target.value)}
+  onWheel={(e) => e.stopPropagation()}  // ⭐ 阻止事件冒泡到画布
+/>
+```
+
+**修复文件列表**:
+1. `src/client/src/nodes/process/PromptOptimizerNode.jsx`
+2. `src/client/src/nodes/input/CharacterLibraryNode.jsx`
+3. `src/client/src/nodes/input/ReferenceImageNode.jsx`
+4. `src/client/src/nodes/process/VideoGenerateNode.jsx`
+5. `src/client/src/nodes/process/StoryboardNode.jsx`
+6. `src/client/src/nodes/input/APISettingsNode.jsx`
+7. `src/client/src/nodes/input/OpenAIConfigNode.jsx`
+
+**测试验证**:
+- ✅ 所有输入框滚动时不再缩放画布
+- ✅ 画布空白处滚动时正常缩放
+
+---
+
+### ✅ 问题 3: 角色引用逻辑错误
+**状态**: 已修复 ✅
+**修复日期**: 2026-01-05
+
+**问题描述**:
+- 当用户未提供角色时（`context.characters: []`），优化后的提示词仍然包含 `@username` 格式
+- 示例：输入 "一只狗在海边散步"，输出 "一只金毛犬（@dog_character）在黄昏时分的海滩上..."
+
+**根本原因**:
+- `_buildUserPrompt` 方法没有明确告知 AI 在没有角色时不使用 `@username` 格式
+- AI 可能"幻觉"出角色引用
+
+**修复内容**:
+- 添加 `characterInstruction` 变量，根据角色上下文动态生成指令
+- 有角色时："如果提供了角色上下文，必须使用 @username 格式引用角色"
+- 无角色时："不要使用 @username 格式引用角色（未提供角色上下文），直接描述主体即可"
+
+**修复文件**:
+- `src/server/services/openaiClient.js` - Lines 319-368
+
+**测试验证**:
+- 输入: "一只狗在海边散步"（无角色）
+- 预期输出: 不包含 `@username` 格式
+- 状态: 待测试验证
+
+---
+
+### ✅ 问题 4: 自定义风格未生效 ⭐ 已修复
+**状态**: 已修复 ✅
+**修复日期**: 2026-01-05
+
+**问题描述**:
+- 用户选择"✏️ 自定义风格..."并输入风格描述（如"废土风格"）
+- 优化后的提示词仍然使用"绘本风格动画"，完全忽略自定义风格描述
+
+**用户输入**:
+- 简单描述: "一只猫在花园游玩"
+- 风格选择: "✏️ 自定义风格..."
+- 风格描述: "废土风格"
+
+**错误输出**:
+```
+绘本风格动画，一只橘白相间的短毛猫在阳光明媚的花园中悠闲游玩...
+```
+
+**根本原因**:
+- `_buildSystemPrompt` 的 custom 分支（Lines 304-313）只说"根据用户提供的风格描述调整提示词"
+- **没有把 `customStyleDescription` 的值包含进系统提示词**
+- AI 收到的 system 消息太通用，没有具体的风格信息
+- AI 可能优先使用默认的"绘本风格"，忽略了 user 中的风格描述
+
+**修复前代码**:
+```javascript
+// ❌ 自定义风格使用通用提示词
+return `你是视频提示词优化专家，请将简单描述优化成详细的 Sora 2 提示词。
+
+要求：
+1. 保持核心动作不变
+2. 添加丰富的视觉细节
+3. 根据用户提供的风格描述调整提示词  // ⚠️ 没有具体的风格值
+4. 包含摄影指导和动画风格描述
+5. 适合${context.target_duration || 10}秒视频时长`;
+```
+
+**修复后代码**:
+```javascript
+// ✅ 自定义风格：在系统提示词中包含风格描述
+const styleText = customStyleDescription || '自定义风格';
+return `你是视频提示词优化专家。
+
+任务：将简单描述优化成 Sora 2 视频生成提示词。
+
+**核心风格要求：必须使用 ${styleText} 风格！**  // ⭐ 强调风格要求
+
+输出格式：
+${styleText}风格的视频。
+
+场景描述：[详细环境描述，符合 ${styleText} 风格]
+
+视觉风格：
+- 色彩：[根据 ${styleText} 描述色彩倾向]
+- 氛围：[根据 ${styleText} 描述整体氛围]
+- 质感：[根据 ${styleText} 描述材质和质感]
+
+摄影指导：
+- 镜头：[适合 ${styleText} 的镜头类型]
+- 光影：[符合 ${styleText} 的光线处理]
+
+视频时长：${context.target_duration || 10}秒`;
+```
+
+**正确输出** (修复后):
+```
+废土风格风格的视频。
+
+场景描述：一只瘦骨嶙峋、皮毛沾满尘土的猫，在曾经是花园的废墟中穿行...
+视觉风格：
+- 色彩：以土黄、铁锈红、灰褐色和褪色的暗绿为主...
+- 氛围：孤寂、荒凉、坚韧，弥漫着文明消逝后的宁静与淡淡的哀伤...
+```
+
+**修复文件**:
+- `src/server/services/openaiClient.js` - Lines 304-327
+
+**测试验证**:
+- ✅ 输入: "废土风格"
+- ✅ 输出: 完整的废土风格描述（土黄、铁锈红、孤寂、荒凉）
+- ✅ 验证时间: 2026-01-05
+
+**关键点**:
+1. **System 消息优先级高于 User 消息**: AI 更信任 system 角色
+2. **必须把风格值包含在 system 提示词中**: 不能只在 user 提示词中提到
+3. **使用粗体强调**: `**核心风格要求：必须使用 ${styleText} 风格！**`
+
+---
+
+## 📝 问题追踪模板
+
+### 问题 N: [标题]
+**状态**: 🔴待修复 / 🟡修复中 / 🟢已修复 / ⚪已关闭
+**优先级**: 🔴高 / 🟡中 / 🟢低
+**发现日期**: YYYY-MM-DD
+**修复日期**: YYYY-MM-DD
+
+**问题描述**:
+- [描述 1]
+- [描述 2]
+
+**影响范围**:
+- [影响的文件/功能]
+
+**修复方案**:
+- [方案描述]
+
+**修复文件**:
+- `文件路径` - Lines X-Y
+
+**测试验证**:
+- [ ] 测试通过
+- [ ] 代码已提交
+
+---
+
+## 📊 问题统计
+
+| 状态 | 数量 |
+|-----|------|
+| 🔴 待修复 | 2 |
+| 🟡 修复中 | 0 |
+| 🟢 已修复 | 3 |
+| ⚪ 已关闭 | 0 |
+| **总计** | **5** |
+
+---
+
+**维护说明**:
+- 修复问题后，将问题移动到 "🟢 已修复问题" 部分
+- 更新 "📊 问题统计" 表格
+- 记录修复日期和测试结果
+- 修复完成后提交代码时引用此文件
