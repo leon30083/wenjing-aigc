@@ -193,33 +193,45 @@
 
 ---
 
-### 问题 4: HMR (热模块替换) 不工作 ⚠️
-**状态**: 待修复
-**影响**: 开发效率
+### 问题 4: HMR (热模块替换) 不工作 ⭐ 已修复
+**状态**: 已修复 ✅
+**修复日期**: 2026-01-06
 
 **问题描述**:
 - 前端代码修改后需要手动刷新浏览器才能看到效果
 - Vite HMR 配置存在问题，导致修改不自动生效
 
-**影响范围**:
-- 所有前端组件修改
-- 每次修改代码后需要手动刷新浏览器（Ctrl+R）
+**根本原因**:
+1. React 19.2.0 与 React Fast Refresh 不完全兼容
+2. 缺少 jsconfig.json（Vite 无法正确识别模块路径）
+3. StrictMode 导致组件双重挂载，HMR 过程中状态管理混乱
+4. Vite 配置缺少 HMR 优化（文件监听、协议配置）
 
-**临时解决方案**:
-1. 修改前端代码后，手动刷新浏览器（Ctrl+R 或 F5）
-2. 清除浏览器缓存后刷新（Ctrl+Shift+R）
+**修复方案**:
+1. **降级 React**: 19.2.0 → 18.3.1（Fast Refresh 稳定性）
+2. **优化 vite.config.js**:
+   - 添加轮询间隔优化（100ms）
+   - 忽略 node_modules 等不必要文件
+   - 明确配置 HMR 协议（ws, localhost:5173）
+   - 添加 @xyflow/react 到预构建依赖
+3. **移除 StrictMode**: 提高HMR 稳定性
+4. **创建 jsconfig.json**: 模块路径配置
+5. **优化 App.jsx**: nodeTypes 使用 useMemo 包装
 
-**根本原因分析**:
-- Vite 配置可能需要调整 `optimizeDeps.exclude` 或 HMR 设置
-- React Fast Refresh 可能未正确配置
+**修复文件**:
+- `src/client/package.json` - React 版本降级
+- `src/client/vite.config.js` - 完整 HMR 配置
+- `src/client/src/main.jsx` - 移除 StrictMode
+- `src/client/jsconfig.json` - 新建
+- `src/client/src/App.jsx` - nodeTypes 优化
 
-**需要修复的文件**:
-- `src/client/vite.config.js` - 检查 HMR 配置
-- `src/client/src/main.jsx` - 检查 React Fast Refresh 设置
+**测试验证**:
+- ✅ Vite 日志显示 "hmr update /src/nodes/input/TextNode.jsx"
+- ✅ 修改组件后浏览器自动更新
+- ✅ 无需手动刷新（Ctrl+R）
+- ✅ 节点位置和状态保持不变
 
-**预期效果**:
-- 修改前端代码后自动热重载，无需手动刷新
-- 保持组件状态（避免刷新后状态丢失）
+**Git 提交**: `973f480 fix: 修复 HMR（热模块替换）不工作问题`
 
 ---
 
@@ -422,9 +434,9 @@ ${styleText}风格的视频。
 
 | 状态 | 数量 |
 |-----|------|
-| 🔴 待修复 | 1 |
+| 🔴 待修复 | 0 |
 | 🟡 修复中 | 0 |
-| 🟢 已修复 | 4 |
+| 🟢 已修复 | 5 |
 | ⚪ 已关闭 | 0 |
 | **总计** | **5** |
 
