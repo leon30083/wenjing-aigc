@@ -3,7 +3,7 @@
  * 使用 OpenAI API (DeepSeek) 将简单描述优化成详细的 Sora 2 提示词
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position, useNodeId, useReactFlow } from 'reactflow';
 
 function PromptOptimizerNode({ data }) {
@@ -24,6 +24,62 @@ function PromptOptimizerNode({ data }) {
   const [lastOptimization, setLastOptimization] = useState(null);
   const [connectedCharacters, setConnectedCharacters] = useState(data.connectedCharacters || []);
   const [statusMessage, setStatusMessage] = useState({ type: '', message: '' }); // ⭐ 新增：状态提示
+
+  // ⭐ 新增：引用 simplePrompt textarea（用于角色插入）
+  const promptInputRef = useRef(null);
+
+  // ⭐ 创建用户名到别名的映射
+  const usernameToAlias = React.useMemo(() => {
+    const map = {};
+    connectedCharacters.forEach(char => {
+      map[char.username] = char.alias || char.username;
+    });
+    return map;
+  }, [connectedCharacters]);
+
+  // ⭐ 将真实提示词转换为显示提示词（用户看：别名）
+  const realToDisplay = (text) => {
+    if (!text) return '';
+    let result = text;
+    Object.entries(usernameToAlias).forEach(([username, alias]) => {
+      const regex = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|@)`, 'g');
+      result = result.replace(regex, `@${alias}`);
+    });
+    return result;
+  };
+
+  // ⭐ 将显示提示词转换为真实提示词（API用：真实ID）
+  const displayToReal = (text) => {
+    if (!text) return '';
+    let result = text;
+    const sortedAliases = Object.entries(usernameToAlias)
+      .sort((a, b) => b[1].length - a[1].length);
+    sortedAliases.forEach(([username, alias]) => {
+      const regex = new RegExp(`@${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|@)`, 'g');
+      result = result.replace(regex, `@${username}`);
+    });
+    return result;
+  };
+
+  // ⭐ 在光标位置插入角色引用
+  const insertCharacterAtCursor = (username, alias) => {
+    const promptElement = promptInputRef.current;
+    if (!promptElement) return;
+
+    const start = promptElement.selectionStart;
+    const end = promptElement.selectionEnd;
+    const displayText = realToDisplay(simplePrompt);
+    const refText = `@${alias} `;
+
+    const newDisplayText = displayText.substring(0, start) + refText + displayText.substring(end);
+    const newRealText = displayToReal(newDisplayText);
+    setSimplePrompt(newRealText);
+
+    setTimeout(() => {
+      promptElement.setSelectionRange(start + refText.length, start + refText.length);
+      promptElement.focus();
+    }, 0);
+  };
 
   // 从 data 接收 OpenAI 配置
   useEffect(() => {
@@ -256,40 +312,63 @@ function PromptOptimizerNode({ data }) {
         {openaiConfig ? '✅ OpenAI 配置已连接' : '⚠️ 未连接配置节点'}
       </div>
 
-      {/* 已连接角色显示 */}
-      {connectedCharacters.length > 0 ? (
-        <div style={{ marginTop: '12px', padding: '8px', backgroundColor: '#f3f4f6', borderRadius: '4px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', color: '#4b5563' }}>
-            👥 已连接角色 ({connectedCharacters.length})
-          </div>
-          {connectedCharacters.map((char) => (
-            <div
-              key={char.username}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                margin: '2px',
-                padding: '2px 6px',
-                backgroundColor: '#dbeafe',
-                borderRadius: '3px',
-                fontSize: '10px',
-                color: '#1e40af'
-              }}
-            >
-              {char.alias || char.username}
-            </div>
-          ))}
+      {/* ⭐ 候选角色显示（可点击插入） */}
+      <div className="nodrag" style={{ marginBottom: '8px' }}>
+        <div style={{
+          fontSize: '11px',
+          fontWeight: 'bold',
+          color: '#059669',
+          marginBottom: '4px',
+        }}>
+          📊 候选角色 (点击插入到光标位置)
         </div>
-      ) : (
-        <div style={{ marginTop: '12px', padding: '8px', backgroundColor: '#fef3c7', borderRadius: '4px', textAlign: 'center' }}>
-          <div style={{ fontSize: '10px', color: '#92400e', marginBottom: '4px' }}>
-            💡 提示：连接角色库节点后，需要在角色库中点击选择角色
+
+        {connectedCharacters.length > 0 ? (
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {connectedCharacters.map((char) => (
+              <div
+                key={char.id}
+                className="nodrag"
+                onClick={() => insertCharacterAtCursor(char.username, char.alias || char.username)}
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#ecfdf5',
+                  borderRadius: '4px',
+                  border: '1px solid #6ee7b7',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'background 0.2s',
+                }}
+                title="点击插入到光标位置"
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#d1fae5'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ecfdf5'}
+              >
+                <img
+                  src={char.profilePictureUrl}
+                  alt=""
+                  style={{ width: '20px', height: '20px', borderRadius: '50%' }}
+                />
+                <span style={{ fontSize: '10px', color: '#047857' }}>
+                  {char.alias || char.username}
+                </span>
+              </div>
+            ))}
           </div>
-          <div style={{ fontSize: '9px', color: '#b45309' }}>
-            （选中的角色会显示绿色边框和 ✓ 标识）
+        ) : (
+          <div style={{
+            padding: '6px',
+            backgroundColor: '#fef3c7',
+            borderRadius: '4px',
+            fontSize: '10px',
+            color: '#92400e',
+            textAlign: 'center'
+          }}>
+            💡 提示：连接角色库节点并选择角色后，点击角色卡片插入
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* 简单描述输入 */}
       <div className="nodrag">
@@ -298,9 +377,13 @@ function PromptOptimizerNode({ data }) {
         </label>
         <textarea
           className="nodrag"
+          ref={promptInputRef}
           name="simplePrompt"
-          value={simplePrompt}
-          onChange={(e) => setSimplePrompt(e.target.value)}
+          value={realToDisplay(simplePrompt)}
+          onChange={(e) => {
+            const realText = displayToReal(e.target.value);
+            setSimplePrompt(realText);
+          }}
           onWheel={(e) => e.stopPropagation()}
           placeholder="例如: @装载机 在工地上干活"
           style={{
