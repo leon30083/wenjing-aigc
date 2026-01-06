@@ -7,6 +7,77 @@
 
 ## 🔴 高优先级问题
 
+### 问题 0: 提示词优化节点角色插入功能 ⭐ 已修复
+**状态**: 已修复 ✅
+**修复日期**: 2026-01-06
+
+**问题描述**:
+- 提示词优化节点连接角色库后，无法点击角色将引用插入到输入框
+- 用户期望像视频生成节点一样，点击角色卡片就能在光标位置插入 `@username` 引用
+
+**期望功能**:
+1. **候选角色显示**: 显示从角色库连接过来的候选角色列表
+2. **可点击卡片**: 每个角色显示为可点击的卡片（带头像、别名）
+3. **光标插入**: 点击角色卡片后，在光标位置插入 `@别名` 引用
+4. **双显示功能**: 输入框显示别名（`@测试小猫`），API 使用真实ID（`@ebfb9a758.sunnykitte`）
+
+**修复方案**:
+1. **添加 useRef 引用**: 使用 `promptInputRef` 引用 simplePrompt textarea
+2. **创建映射**: 建立 `usernameToAlias` 映射（支持别名显示）
+3. **转换函数**:
+   - `realToDisplay()`: 将真实ID转换为显示别名
+   - `displayToReal()`: 将显示别名转换为真实ID
+4. **插入函数**: `insertCharacterAtCursor()` 在光标位置插入角色引用
+5. **UI 组件**: 显示候选角色为可点击卡片（带头像、绿色背景、边框）
+
+**修复文件**:
+- `src/client/src/nodes/process/PromptOptimizerNode.jsx`
+  - Lines 6: 添加 `useRef` import
+  - Lines 28-82: 添加角色插入相关函数和状态
+  - Lines 315-371: 添加候选角色显示 UI（可点击卡片）
+  - Lines 378-400: 更新 textarea 使用 ref 和双显示
+
+**测试验证**:
+- ✅ 角色卡片正确显示（带头像、绿色背景 #ecfdf5、绿色边框 #6ee7b7）
+- ✅ 点击"测试小猫"成功插入：`一只在海边的@测试小猫 `
+- ✅ 点击"装载机"成功插入：`一只在海边的@测试小猫 玩耍@装载机 `
+- ✅ 双显示功能正常（显示别名，API使用真实ID）
+
+**关键代码片段**:
+```javascript
+// 候选角色显示（可点击卡片）
+{connectedCharacters.length > 0 ? (
+  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+    {connectedCharacters.map((char) => (
+      <div
+        key={char.id}
+        className="nodrag"
+        onClick={() => insertCharacterAtCursor(char.username, char.alias || char.username)}
+        style={{
+          padding: '4px 8px',
+          backgroundColor: '#ecfdf5',
+          borderRadius: '4px',
+          border: '1px solid #6ee7b7',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+        }}
+      >
+        <img src={char.profilePictureUrl} alt="" style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
+        <span style={{ fontSize: '10px', color: '#047857' }}>
+          {char.alias || char.username}
+        </span>
+      </div>
+    ))}
+  </div>
+) : (
+  <div>💡 提示：连接角色库节点并选择角色后，点击角色卡片插入</div>
+)}
+```
+
+---
+
 ### 问题 1: 提示词优化按钮禁用问题 ⭐ 已修复
 **状态**: 已修复 ✅
 **修复日期**: 2026-01-06
@@ -353,9 +424,9 @@ ${styleText}风格的视频。
 |-----|------|
 | 🔴 待修复 | 1 |
 | 🟡 修复中 | 0 |
-| 🟢 已修复 | 3 |
+| 🟢 已修复 | 4 |
 | ⚪ 已关闭 | 0 |
-| **总计** | **4** |
+| **总计** | **5** |
 
 ---
 
