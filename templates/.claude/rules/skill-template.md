@@ -42,12 +42,13 @@ description: [Project Name] 开发规范和最佳实践。在开发 [Project Nam
 
 | 文档 | 何时更新 | 更新内容 |
 |------|----------|----------|
-| `.claude/skills/[project]-dev/SKILL.md` | 每次开发 | 新增错误模式、API 规范 |
+| `.claude/rules/error-patterns.md` | 发现新错误 | 新增错误模式（按类型分类）⭐ 新增 |
+| `.claude/skills/[project]-dev/SKILL.md` | 每次开发 | API 规范、开发提示 |
 | `.claude/rules/base.md` | API 变更 | 技术规范、端点定义 |
-| `.claude/rules/code.md` | 代码变更 | 错误模式、最佳实践 |
+| `.claude/rules/code.md` | 代码变更 | 代码示例、最佳实践 |
 | `docs/HANDOVER.md` | 每次开发 | 版本号、功能列表 |
 
-详细更新流程参见 [references/UPDATE.md](references/UPDATE.md)
+详细更新流程参见 [references/UPDATE.md](references/UPDATE.md) 或 `.claude/rules/docs.md`
 
 ---
 
@@ -79,15 +80,47 @@ description: [Project Name] 开发规范和最佳实践。在开发 [Project Nam
 
 ---
 
-## 已知错误模式（持续更新）
+## 错误模式参考 ⭐
 
-### 错误1: [错误名称]
-- **原因**: [错误原因说明]
-- **解决**: [解决方法]
+> **重要**: 所有错误模式已统一管理到 `.claude/rules/error-patterns.md`，按类型分类便于查找。
 
-### 错误2: [错误名称]
-- **原因**: [错误原因说明]
-- **解决**: [解决方法]
+### 快速链接
+
+| 类型 | 错误数量 | 关键词 |
+|------|----------|--------|
+| [API 相关](../rules/error-patterns.md#api-相关) | N个 | [关键词] |
+| [前端框架相关](../rules/error-patterns.md#前端框架相关) | N个 | [关键词] |
+| [其他](../rules/error-patterns.md#其他) | N个 | ... |
+
+### 高频错误（必读）
+
+1. **错误1**: [高频错误1] ⭐⭐⭐
+2. **错误2**: [高频错误2] ⭐⭐⭐
+
+**查看完整错误模式**: [`.claude/rules/error-patterns.md`](../rules/error-patterns.md)
+
+---
+
+## 开发提示（精选）
+
+以下是开发过程中最重要的提示，按优先级排序：
+
+### 1. [技术领域1] 优先级 ⭐⭐⭐
+
+- 要点1
+- 要点2
+- 要点3
+
+### 2. [技术领域2] 优先级 ⭐⭐⭐
+
+- 要点1
+- 要点2
+- 要点3
+
+### 3. [技术领域3] 优先级 ⭐⭐
+
+- 要点1
+- 要点2
 
 ---
 
@@ -101,6 +134,10 @@ description: [Project Name] 开发规范和最佳实践。在开发 [Project Nam
 │   └── shared/              # 共享代码
 ├── .claude/
 │   ├── rules/              # 开发规则
+│   │   ├── base.md         # 技术栈规范
+│   │   ├── code.md         # 代码规范
+│   │   ├── error-patterns.md # 错误模式参考 ⭐
+│   │   └── docs.md         # 文档更新规范
 │   └── skills/             # Claude Code skills
 │       └── [project]-dev/  # 本 skill
 └── docs/                   # 项目文档
@@ -122,17 +159,14 @@ git commit -m "type: description"
 
 ## 参考文档
 
-- [references/UPDATE.md](references/UPDATE.md) - Skill 和文档更新流程
-- [references/troubleshooting.md](references/troubleshooting.md) - 故障排查指南
-- `.claude/rules/base.md` - 基础技术栈规则
-- `.claude/rules/code.md` - 代码规范和错误模式
-- `docs/HANDOVER.md` - 完整交接文档
-
-## 开发提示
-
-1. ✅ **提示1**: [具体建议]
-2. ✅ **提示2**: [具体建议]
-3. ✅ **提示3**: [具体建议]
+| 文档 | 位置 | 用途 |
+|------|------|------|
+| **错误模式参考** | `.claude/rules/error-patterns.md` | 所有错误模式（按类型分类）⭐ |
+| **开发流程** | `.claude/rules/quick-reference.md` | Plan-First 标准流程 |
+| **技术规范** | `.claude/rules/base.md` | 技术栈、API 规范 |
+| **代码规范** | `.claude/rules/code.md` | 代码示例、最佳实践 |
+| **文档更新规范** | `.claude/rules/docs.md` | 文档更新流程 |
+| **交接文档** | `docs/HANDOVER.md` | 项目交接文档 |
 
 ---
 

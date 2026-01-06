@@ -149,23 +149,31 @@ your-project/
 - ✅ 发现平台差异
 
 ### 4. .claude/rules/code.md
-**内容**: 代码规范、错误模式、最佳实践
+**内容**: 代码规范、最佳实践
+**更新时机**:
+- ✅ 发现新的最佳实践
+- ✅ API 实现示例
+- ⚠️ **注意**: 错误模式已移至 error-patterns.md ⭐ 新增
+
+### 5. .claude/rules/error-patterns.md ⭐ 新增
+**内容**: 所有错误模式（按类型分类）
 **更新时机**:
 - ✅ 发现新的错误模式
-- ✅ 总结最佳实践
-- ✅ API 实现示例
+- ✅ 添加到对应的类型章节
+- ✅ 更新快速索引表
+**注意**: 这是错误模式的统一存放位置
 
-### 5. .claude/rules/docs.md
+### 6. .claude/rules/docs.md
 **内容**: 文档更新规范（通用模板，无需修改）
 **使用方式**: 按照规范更新文档
 
-### 6. docs/HANDOVER.md
+### 7. docs/HANDOVER.md
 **内容**: 项目交接文档
 **更新时机**:
 - ✅ 每个功能完成
 - ✅ 版本号递增
 
-### 7. docs/BEST_PRACTICES.md
+### 8. docs/BEST_PRACTICES.md
 **内容**: 开发经验总结
 **更新时机**:
 - ✅ 解决重要问题
@@ -196,9 +204,10 @@ your-project/
    └─ 测试验证
    ↓
 5. ⭐ 更新文档
-   ├─ SKILL.md（优先）
+   ├─ error-patterns.md（新增错误模式）⭐ 新增
+   ├─ SKILL.md（开发提示）
    ├─ base.md（如有技术变更）
-   ├─ code.md（新增错误模式）
+   ├─ code.md（代码示例）
    └─ 其他文档
    ↓
 6. Git 提交
@@ -231,11 +240,12 @@ your-project/
 
 **更新顺序**:
 ```
-1. SKILL.md                    # Claude Code 核心文档 ⭐ 第一优先
-2. base.md                     # 技术规范
-3. code.md                     # 代码实现
-4. docs/BEST_PRACTICES.md      # 开发经验
-5. docs/HANDOVER.md            # 交接文档
+1. error-patterns.md           # 新增错误模式（按类型分类）⭐ 第一优先 ⭐ 新增
+2. SKILL.md                    # 开发提示、API 规范
+3. base.md                     # 技术规范
+4. code.md                     # 代码示例
+5. docs/BEST_PRACTICES.md      # 开发经验
+6. docs/HANDOVER.md            # 交接文档
 ```
 
 ## 💡 最佳实践
@@ -258,10 +268,10 @@ your-project/
    - 不完美也要先记录
    - 定期回顾和优化
 
-4. **Skill 同步** ⭐ 新增
-   - 每次开发后更新 SKILL.md
-   - 错误编号与 code.md 保持一致
-   - 同时更新 references/troubleshooting.md
+4. **Skill 同步** ⭐ 更新
+   - 每次开发后更新 SKILL.md（开发提示、API 规范）
+   - 新增错误模式到 error-patterns.md（按类型分类）⭐ 更新
+   - 确保 SKILL.md 和 error-patterns.md 的引用链接正确
 
 ### DON'T ❌
 
@@ -278,9 +288,9 @@ your-project/
    - 先查文档再开发
    - 复用已有的错误模式
 
-4. **不要让文档过时** ⭐ 新增
-   - SKILL.md 必须与 code.md 同步
-   - 错误编号必须一致
+4. **不要让文档过时** ⭐ 更新
+   - error-patterns.md 必须保持最新（新增错误时立即添加）⭐ 更新
+   - SKILL.md 必须与 error-patterns.md 的引用链接同步 ⭐ 更新
    - 每次开发后立即更新
 
 ## 🎯 模板定制建议
@@ -290,7 +300,8 @@ your-project/
 ### API 服务项目
 ```bash
 必填规则:
-- SKILL.md: API 端点、错误模式、最佳实践 ⭐ 优先
+- error-patterns.md: API 相关错误模式 ⭐ 新增
+- SKILL.md: API 端点、最佳实践 ⭐ 优先
 - base.md: API端点、数据格式、错误码
 - code.md: 错误处理、参数校验、响应格式
 ```
@@ -298,6 +309,7 @@ your-project/
 ### 前端项目
 ```bash
 必填规则:
+- error-patterns.md: 前端框架相关错误模式 ⭐ 新增
 - SKILL.md: 组件规范、状态管理、路由问题 ⭐ 优先
 - base.md: 组件库、状态管理、路由
 - code.md: 组件规范、样式管理、性能优化
@@ -306,6 +318,7 @@ your-project/
 ### 全栈项目
 ```bash
 必填规则:
+- error-patterns.md: API + 前端框架错误模式 ⭐ 新增
 - SKILL.md: 前后端联调、数据流、常见错误 ⭐ 优先
 - base.md: 前后端技术栈、通信协议
 - code.md: 前后端联调、数据流、错误处理

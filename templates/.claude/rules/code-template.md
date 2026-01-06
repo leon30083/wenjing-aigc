@@ -49,9 +49,32 @@ app.get('/api/resource', async (req, res) => {
 });
 ```
 
-## 常见错误模式
+## 错误模式参考 ⭐
 
-### 错误1: 未验证输入参数
+> **重要**: 所有错误模式已统一管理到 `.claude/rules/error-patterns.md`，按类型分类便于查找。
+
+### 快速链接
+
+| 类型 | 错误数量 | 关键词 |
+|------|----------|--------|
+| [API 相关](error-patterns.md#api-相关) | N个 | 端点、参数、响应 |
+| [异步处理](error-patterns.md#异步处理) | N个 | promise、async/await |
+| [配置管理](error-patterns.md#配置管理) | N个 | 环境变量、硬编码 |
+| [其他](error-patterns.md#其他) | N个 | ... |
+
+### 高频错误（必读）
+
+1. **错误1**: [高频错误1] ⭐⭐⭐
+2. **错误2**: [高频错误2] ⭐⭐⭐
+
+**查看完整错误模式**: [`.claude/rules/error-patterns.md`](error-patterns.md)
+
+### 代码示例
+
+以下是一些常见问题的正确和错误对比：
+
+#### 输入验证
+
 ```javascript
 // ❌ 错误：直接使用用户输入
 app.get('/api/user/:id', async (req, res) => {
@@ -72,7 +95,8 @@ app.get('/api/user/:id', async (req, res) => {
 });
 ```
 
-### 错误2: 忽略异步错误
+#### 异步错误处理
+
 ```javascript
 // ❌ 错误：没有 await
 async function processData() {
@@ -93,7 +117,8 @@ async function processData() {
 }
 ```
 
-### 错误3: 硬编码配置
+#### 配置管理
+
 ```javascript
 // ❌ 错误：硬编码
 const API_URL = 'https://api.example.com';
