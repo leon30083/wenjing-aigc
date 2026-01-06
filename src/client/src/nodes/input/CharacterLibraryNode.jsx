@@ -469,6 +469,7 @@ function CharacterLibraryNode({ data }) {
         type="text"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
+        onWheel={(e) => e.stopPropagation()}
         placeholder="搜索角色..."
         style={{
           width: '100%',
@@ -793,6 +794,7 @@ function CharacterLibraryNode({ data }) {
               type="text"
               value={editAlias}
               onChange={(e) => setEditAlias(e.target.value)}
+              onWheel={(e) => e.stopPropagation()}
               placeholder="输入别名（可选）"
               maxLength={50}
               style={{

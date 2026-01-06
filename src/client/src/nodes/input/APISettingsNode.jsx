@@ -98,6 +98,7 @@ function APISettingsNode({ data }) {
             const newModel = newPlatform === 'juxin' ? 'sora-2-all' : 'sora-2';
             setConfig({ ...config, platform: newPlatform, model: newModel });
           }}
+          onWheel={(e) => e.stopPropagation()}
           style={{
             width: '100%',
             padding: '6px 8px',
@@ -125,6 +126,7 @@ function APISettingsNode({ data }) {
           className="nodrag"
           value={config.model}
           onChange={(e) => setConfig({ ...config, model: e.target.value })}
+          onWheel={(e) => e.stopPropagation()}
           style={{
             width: '100%',
             padding: '6px 8px',
@@ -153,6 +155,7 @@ function APISettingsNode({ data }) {
           className="nodrag"
           value={config.aspect}
           onChange={(e) => setConfig({ ...config, aspect: e.target.value })}
+          onWheel={(e) => e.stopPropagation()}
           style={{
             width: '100%',
             padding: '6px 8px',
@@ -179,6 +182,7 @@ function APISettingsNode({ data }) {
             type="checkbox"
             checked={config.watermark}
             onChange={(e) => setConfig({ ...config, watermark: e.target.checked })}
+            onWheel={(e) => e.stopPropagation()}
             style={{ cursor: 'pointer', width: '16px', height: '16px' }}
           />
           <label style={{ fontSize: '12px', color: '#1e40af', cursor: 'pointer' }}>
@@ -199,6 +203,7 @@ function APISettingsNode({ data }) {
           type="password"
           value={config.apiKey}
           onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
+          onWheel={(e) => e.stopPropagation()}
           placeholder="留空使用后端默认密钥"
           style={{
             width: '100%',

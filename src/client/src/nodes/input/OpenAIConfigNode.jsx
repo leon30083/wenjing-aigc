@@ -10,8 +10,19 @@ function OpenAIConfigNode({ data }) {
   const nodeId = useNodeId();
   const { setNodes } = useReactFlow();
 
-  // 从 data 初始化或使用默认值
+  // 从 localStorage 或 data 初始化
   const [config, setConfig] = useState(() => {
+    // 优先从 localStorage 读取（持久化存储）
+    try {
+      const local = localStorage.getItem('winjin-openai-config');
+      if (local) {
+        return JSON.parse(local);
+      }
+    } catch (error) {
+      console.error('[OpenAIConfigNode] 读取 localStorage 失败:', error);
+    }
+
+    // 降级到 node.data 初始化
     const saved = data.savedConfig || {};
     return {
       base_url: saved.base_url || 'https://api.deepseek.com',
@@ -141,6 +152,7 @@ function OpenAIConfigNode({ data }) {
             name="base_url"
             value={config.base_url}
             onChange={(e) => handleConfigChange('base_url', e.target.value)}
+            onWheel={(e) => e.stopPropagation()}
             placeholder="https://api.deepseek.com"
             style={{
               width: '100%',
@@ -164,6 +176,7 @@ function OpenAIConfigNode({ data }) {
             name="api_key"
             value={config.api_key}
             onChange={(e) => handleConfigChange('api_key', e.target.value)}
+            onWheel={(e) => e.stopPropagation()}
             placeholder="sk-xxxxx..."
             style={{
               width: '100%',
@@ -187,6 +200,7 @@ function OpenAIConfigNode({ data }) {
             name="model"
             value={config.model}
             onChange={(e) => handleConfigChange('model', e.target.value)}
+            onWheel={(e) => e.stopPropagation()}
             placeholder="deepseek-chat"
             style={{
               width: '100%',

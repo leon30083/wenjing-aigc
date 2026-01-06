@@ -137,12 +137,14 @@ const nodeTemplates = [
   { type: 'textNode', label: '📝 文本节点', category: 'input' },
   { type: 'referenceImageNode', label: '🖼️ 参考图片', category: 'input' },
   { type: 'characterLibraryNode', label: '📊 角色库', category: 'input' },
-  { type: 'juxinStoryboardNode', label: '🎬 聚鑫故事板', category: 'process' },
-  { type: 'zhenzhenStoryboardNode', label: '🎬 贞贞故事板', category: 'process' },
   { type: 'apiSettingsNode', label: '⚙️ API 设置', category: 'input' },
+  { type: 'openaiConfigNode', label: '⚙️ OpenAI 配置', category: 'input' },
   { type: 'characterCreateNode', label: '🎭 角色生成', category: 'process' },
+  { type: 'promptOptimizerNode', label: '📝 提示词优化', category: 'process' },
   { type: 'videoGenerateNode', label: '🎬 视频生成', category: 'process' },
   { type: 'storyboardNode', label: '🎞️ 故事板', category: 'process' },
+  { type: 'juxinStoryboardNode', label: '🎬 聚鑫故事板', category: 'process' },
+  { type: 'zhenzhenStoryboardNode', label: '🎬 贞贞故事板', category: 'process' },
   { type: 'taskResultNode', label: '📺 任务结果', category: 'output' },
   { type: 'characterResultNode', label: '📊 角色结果', category: 'output' },
 ];
@@ -252,13 +254,18 @@ function App() {
           newData.onSizeChange = handleNodeSizeChange;
         }
 
-        // Check for prompt input from text node
+        // Check for prompt input from text node or prompt optimizer node
         const promptEdge = incomingEdges.find((e) => e.targetHandle === 'prompt-input');
         if (promptEdge) {
           const sourceNode = nds.find((n) => n.id === promptEdge.source);
-          // ✅ 只有 TextNode 可以连接到 prompt-input
-          if (sourceNode?.type === 'textNode') {
-            newData.connectedPrompt = sourceNode.data.value || '';
+          // ✅ TextNode 和 PromptOptimizerNode 都可以连接到 prompt-input
+          const validPromptSourceTypes = ['textNode', 'promptOptimizerNode'];
+          if (sourceNode && validPromptSourceTypes.includes(sourceNode.type)) {
+            if (sourceNode.type === 'textNode') {
+              newData.connectedPrompt = sourceNode.data.value || '';
+            } else if (sourceNode.type === 'promptOptimizerNode') {
+              newData.connectedPrompt = sourceNode.data.optimizedPrompt || '';
+            }
           } else {
             // ❌ 源节点类型无效，清除连接数据
             newData.connectedPrompt = undefined;

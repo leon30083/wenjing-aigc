@@ -19,6 +19,7 @@ router.post('/optimize', async (req, res) => {
       model,
       prompt,
       style = 'picture-book',
+      customStyleDescription,
       context = {}
     } = req.body;
 
@@ -37,6 +38,16 @@ router.post('/optimize', async (req, res) => {
       });
     }
 
+    // 验证自定义风格必须提供描述
+    if (style === 'custom') {
+      if (!customStyleDescription || !customStyleDescription.trim()) {
+        return res.json({
+          success: false,
+          error: '自定义风格必须提供风格描述（customStyleDescription 参数）'
+        });
+      }
+    }
+
     // 创建客户端实例
     const client = new OpenAIClient(base_url, api_key, model);
 
@@ -44,6 +55,7 @@ router.post('/optimize', async (req, res) => {
     const result = await client.optimizePrompt({
       prompt,
       style,
+      customStyleDescription,
       context
     });
 

@@ -611,6 +611,7 @@ function StoryboardNode({ data }) {
                 const realText = displayToReal(e.target.value);
                 updateShot(shot.id, 'scene', realText);
               }}
+              onWheel={(e) => e.stopPropagation()}
               onFocus={() => handleSceneFocus(index)}
               placeholder="场景描述..."
               disabled={status === 'generating'}
@@ -643,6 +644,7 @@ function StoryboardNode({ data }) {
                     const val = Math.min(25, Math.max(1, parseInt(e.target.value) || 5));
                     updateShot(shot.id, 'duration', val);
                   }}
+                  onWheel={(e) => e.stopPropagation()}
                   disabled={status === 'generating'}
                   style={{
                     width: '50px',

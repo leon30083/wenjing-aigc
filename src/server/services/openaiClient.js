@@ -26,6 +26,7 @@ class OpenAIClient {
    * @param {string} options.prompt - 简单描述
    * @param {string} options.style - 风格 (picture-book, documentary, animation, etc.)
    * @param {string} options.customStyleDescription - 自定义风格描述
+   * @param {string} options.optimizationDirection - 优化方向（更详细、更简洁、更生动、更专业等）⭐ 新增
    * @param {Object} options.context - 上下文信息
    * @returns {Promise<Object>} 优化结果
    */
@@ -34,6 +35,7 @@ class OpenAIClient {
       prompt,
       style = 'picture-book',
       customStyleDescription,
+      optimizationDirection, // ⭐ 新增：优化方向
       context = {}
     } = options;
 
@@ -42,14 +44,18 @@ class OpenAIClient {
         prompt,
         style,
         customStyleDescription,
+        optimizationDirection, // ⭐ 新增
         context
       });
 
-      // 构建系统提示词
-      const systemPrompt = this._buildSystemPrompt(style, context, customStyleDescription);
+      // ⭐ 获取优化方向指令
+      const directionInstruction = this._getDirectionInstruction(optimizationDirection);
 
-      // 构建用户提示词
-      const userPrompt = this._buildUserPrompt(prompt, style, context, customStyleDescription);
+      // 构建系统提示词（包含优化方向）
+      const systemPrompt = this._buildSystemPrompt(style, context, customStyleDescription, directionInstruction);
+
+      // 构建用户提示词（包含优化方向）
+      const userPrompt = this._buildUserPrompt(prompt, style, context, customStyleDescription, directionInstruction);
 
       // 调用 API
       const response = await this.client.post(
@@ -162,11 +168,14 @@ class OpenAIClient {
    * 构建系统提示词
    * @private
    */
-  _buildSystemPrompt(style, context, customStyleDescription) {
+  _buildSystemPrompt(style, context, customStyleDescription, directionInstruction) {
+    // ⭐ 新增：优化方向指令（如果有）
+    const directionText = directionInstruction ? `\n\n优化方向要求：\n${directionInstruction}` : '';
+
     if (style === 'picture-book') {
       return `你是专业的动画绘本提示词专家。
 
-任务：将简单的绘本旁白优化成 Sora 2 视频生成提示词。
+任务：将简单的绘本旁白优化成 Sora 2 视频生成提示词。${directionText}
 
 三层扩展模型：
 1. Layer 1 (核心层 30%)：保持旁白的核心动作，不偏离故事主线
@@ -212,7 +221,7 @@ Animation style:
     if (style === 'cinematic') {
       return `你是专业的电影风格视频提示词专家。
 
-任务：将简单描述优化成 Sora 2 视频生成提示词。
+任务：将简单描述优化成 Sora 2 视频生成提示词。${directionText}
 
 电影风格要求：
 - ✅ 电影级画质（高分辨率、细节丰富）
@@ -242,7 +251,7 @@ Animation style:
     if (style === 'documentary') {
       return `你是专业的纪录片风格视频提示词专家。
 
-任务：将简单描述优化成 Sora 2 视频生成提示词。
+任务：将简单描述优化成 Sora 2 视频生成提示词。${directionText}
 
 纪录片风格要求：
 - ✅ 写实风格（真实感、自然感）
@@ -273,7 +282,7 @@ Animation style:
     if (style === 'animation') {
       return `你是专业的动画风格视频提示词专家。
 
-任务：将简单描述优化成 Sora 2 视频生成提示词。
+任务：将简单描述优化成 Sora 2 视频生成提示词。${directionText}
 
 动画风格要求：
 - ✅ 流畅的动作（夸张、弹性）
@@ -305,7 +314,7 @@ Animation style:
     const styleText = customStyleDescription || '自定义风格';
     return `你是视频提示词优化专家。
 
-任务：将简单描述优化成 Sora 2 视频生成提示词。
+任务：将简单描述优化成 Sora 2 视频生成提示词。${directionText}
 
 **核心风格要求：必须使用 ${styleText} 风格！**
 
@@ -330,7 +339,7 @@ ${styleText}风格的视频。
    * 构建用户提示词
    * @private
    */
-  _buildUserPrompt(prompt, style, context, customStyleDescription) {
+  _buildUserPrompt(prompt, style, context, customStyleDescription, directionInstruction) {
     let characterContext = '';
     let characterMapping = '';
     let characterInstruction = '';
@@ -366,11 +375,14 @@ ${styleText}风格的视频。
       styleInstruction = `使用自定义风格：${customStyleDescription}`;
     }
 
+    // ⭐ 新增：优化方向指令（如果有）
+    const directionText = directionInstruction ? `\n0. ${directionInstruction}` : '';
+
     return `请将以下简单描述优化成 Sora 2 视频生成提示词：${characterMapping}
 
 原文：${prompt}${characterContext}
 
-要求：
+要求：${directionText}
 1. 保持核心动作不变
 2. 添加丰富的视觉细节
 3. ${styleInstruction}
@@ -379,6 +391,25 @@ ${styleText}风格的视频。
 ${characterInstruction}
 
 请直接输出优化后的提示词，不要解释。`;
+  }
+
+  /**
+   * 获取优化方向指令
+   * @private
+   * @param {string} direction - 优化方向（更详细、更简洁、更生动、更专业等）
+   * @returns {string} 优化方向指令
+   */
+  _getDirectionInstruction(direction) {
+    if (!direction) return '';
+
+    const instructions = {
+      '更详细': '请增加细节描述，提供更多视觉细节、环境描述和感官体验。添加具体的颜色、形状、材质、光影效果等细节。',
+      '更简洁': '请简化描述，保持核心内容，去掉冗余的修饰词和次要细节。使用简洁明了的语言表达。保留最重要的视觉元素和动作，删减不必要的描述。',
+      '更生动': '请使用更生动的语言，增强画面感和动态感。添加动态动词、拟声词、比喻等修辞手法，让描述更具活力和表现力。',
+      '更专业': '请使用专业术语和更正式的表达方式。采用行业标准词汇、技术参数描述，让提示词更具专业性和权威感。'
+    };
+
+    return instructions[direction] || `请按照以下方向优化：${direction}`;
   }
 
   /**

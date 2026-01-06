@@ -202,6 +202,7 @@ function ReferenceImageNode({ data }) {
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
+          onWheel={(e) => e.stopPropagation()}
           onKeyPress={(e) => e.key === 'Enter' && addImage()}
           placeholder="图片 URL..."
           style={{

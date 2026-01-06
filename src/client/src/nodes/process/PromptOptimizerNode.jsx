@@ -4,10 +4,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Handle, Position, useNodeId } from 'reactflow';
+import { Handle, Position, useNodeId, useReactFlow } from 'reactflow';
 
 function PromptOptimizerNode({ data }) {
   const nodeId = useNodeId();
+  const { setNodes, getEdges } = useReactFlow();
 
   // 从连接的节点获取 OpenAI 配置
   const [openaiConfig, setOpenaiConfig] = useState(data.openaiConfig || null);
@@ -16,8 +17,13 @@ function PromptOptimizerNode({ data }) {
   const [simplePrompt, setSimplePrompt] = useState(data.simplePrompt || '');
   const [optimizedPrompt, setOptimizedPrompt] = useState(data.optimizedPrompt || '');
   const [style, setStyle] = useState(data.style || 'picture-book');
+  const [customStyleDescription, setCustomStyleDescription] = useState(data.customStyleDescription || '');
+  const [optimizationDirection, setOptimizationDirection] = useState(data.optimizationDirection || ''); // ⭐ 新增：优化方向
+  const [targetDuration, setTargetDuration] = useState(data.targetDuration || 10); // ⭐ 新增：目标时长
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [lastOptimization, setLastOptimization] = useState(null);
+  const [connectedCharacters, setConnectedCharacters] = useState(data.connectedCharacters || []);
+  const [statusMessage, setStatusMessage] = useState({ type: '', message: '' }); // ⭐ 新增：状态提示
 
   // 从 data 接收 OpenAI 配置
   useEffect(() => {
@@ -26,30 +32,85 @@ function PromptOptimizerNode({ data }) {
     }
   }, [data.openaiConfig]);
 
+  // 从 data 接收角色数据
+  useEffect(() => {
+    if (data.connectedCharacters !== undefined) {
+      setConnectedCharacters(data.connectedCharacters);
+    } else {
+      setConnectedCharacters([]);
+    }
+  }, [data.connectedCharacters]);
+
   // 同步状态到 node.data
   useEffect(() => {
     if (simplePrompt !== data.simplePrompt) {
-      // 需要通过 App.jsx 的 setNodes 更新,这里暂不实现
       data.simplePrompt = simplePrompt;
     }
-  }, [simplePrompt, data.simplePrompt]);
+    if (style !== data.style) {
+      data.style = style;
+    }
+    if (customStyleDescription !== data.customStyleDescription) {
+      data.customStyleDescription = customStyleDescription;
+    }
+    if (optimizationDirection !== data.optimizationDirection) {
+      data.optimizationDirection = optimizationDirection;
+    }
+    if (targetDuration !== data.targetDuration) {
+      data.targetDuration = targetDuration;
+    }
+  }, [simplePrompt, style, customStyleDescription, optimizationDirection, targetDuration, data]);
+
+  // 自动传递优化结果到目标节点
+  useEffect(() => {
+    if (optimizedPrompt && nodeId) {
+      const edges = getEdges();
+      const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+      setNodes((nds) =>
+        nds.map((node) => {
+          // 更新源节点的 optimizedPrompt
+          if (node.id === nodeId) {
+            return { ...node, data: { ...node.data, optimizedPrompt } };
+          }
+
+          // 更新所有连接的目标节点
+          const isConnected = outgoingEdges.some(e => e.target === node.id);
+          if (isConnected) {
+            return {
+              ...node,
+              data: { ...node.data, connectedPrompt: optimizedPrompt }
+            };
+          }
+          return node;
+        })
+      );
+    }
+  }, [optimizedPrompt, nodeId, setNodes, getEdges]);
 
   // 优化提示词
   const optimizePrompt = async () => {
+    // 清空状态消息
+    setStatusMessage({ type: '', message: '' });
+
     if (!simplePrompt.trim()) {
-      alert('⚠️ 请输入要优化的简单描述');
+      setStatusMessage({ type: 'warning', message: '请输入要优化的简单描述' });
       return;
     }
 
     if (!openaiConfig) {
-      alert('⚠️ 请先连接 OpenAI 配置节点');
+      setStatusMessage({ type: 'warning', message: '请先连接 OpenAI 配置节点' });
       return;
     }
 
     const { base_url, api_key, model } = openaiConfig;
 
     if (!base_url || !api_key || !model) {
-      alert('⚠️ OpenAI 配置不完整，请检查配置节点');
+      setStatusMessage({ type: 'warning', message: 'OpenAI 配置不完整，请检查配置节点' });
+      return;
+    }
+
+    if (style === 'custom' && !customStyleDescription.trim()) {
+      setStatusMessage({ type: 'warning', message: '请输入自定义风格描述' });
       return;
     }
 
@@ -65,8 +126,15 @@ function PromptOptimizerNode({ data }) {
           model,
           prompt: simplePrompt,
           style,
+          customStyleDescription: style === 'custom' ? customStyleDescription : undefined,
+          optimizationDirection: optimizationDirection || undefined, // ⭐ 新增：优化方向
           context: {
-            target_duration: 10,
+            target_duration: targetDuration, // ⭐ 修改：使用状态变量而非硬编码
+            characters: connectedCharacters.map(char => ({
+              username: char.username,
+              alias: char.alias || char.username,
+              profilePictureUrl: char.profilePictureUrl,
+            }))
           },
         }),
       });
@@ -81,12 +149,17 @@ function PromptOptimizerNode({ data }) {
           style: result.data.meta.style,
           tokens: result.data.meta.tokens_used,
         });
-        alert(`✅ 优化成功\n\n模型: ${result.data.meta.model_used}\nToken: ${result.data.meta.tokens_used}`);
+        setStatusMessage({
+          type: 'success',
+          message: `✓ 优化成功 | Token: ${result.data.meta.tokens_used}`
+        });
+        // 3秒后自动清除成功消息
+        setTimeout(() => setStatusMessage({ type: '', message: '' }), 3000);
       } else {
-        alert(`❌ 优化失败\n\n${result.error}`);
+        setStatusMessage({ type: 'error', message: `✗ ${result.error}` });
       }
     } catch (error) {
-      alert(`❌ 网络错误: ${error.message}`);
+      setStatusMessage({ type: 'error', message: `✗ 网络错误: ${error.message}` });
     } finally {
       setIsOptimizing(false);
     }
@@ -95,7 +168,9 @@ function PromptOptimizerNode({ data }) {
   // 复制优化结果
   const copyToClipboard = () => {
     navigator.clipboard.writeText(optimizedPrompt);
-    alert('✅ 已复制到剪贴板');
+    setStatusMessage({ type: 'success', message: '✓ 已复制到剪贴板' });
+    // 2秒后自动清除消息
+    setTimeout(() => setStatusMessage({ type: '', message: '' }), 2000);
   };
 
   return (
@@ -119,6 +194,17 @@ function PromptOptimizerNode({ data }) {
         <span style={{ fontSize: '10px', color: '#8b5cf6', fontWeight: 'bold', whiteSpace: 'nowrap' }}>配置</span>
       </div>
 
+      {/* 角色输入端口 */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="character-input"
+        style={{ background: '#8b5cf6', width: 10, height: 10, top: '35%' }}
+      />
+      <div style={{ position: 'absolute', left: '18px', top: '35%', transform: 'translateY(-50%)', zIndex: 10 }}>
+        <span style={{ fontSize: '10px', color: '#8b5cf6', fontWeight: 'bold', whiteSpace: 'nowrap' }}>角色</span>
+      </div>
+
       {/* 标题 */}
       <div style={{
         fontSize: '12px',
@@ -129,6 +215,33 @@ function PromptOptimizerNode({ data }) {
       }}>
         📝 提示词优化
       </div>
+
+      {/* ⭐ 状态消息提示 */}
+      {statusMessage.message && (
+        <div style={{
+          padding: '6px 8px',
+          borderRadius: '4px',
+          marginBottom: '8px',
+          fontSize: '10px',
+          fontWeight: 'bold',
+          backgroundColor:
+            statusMessage.type === 'success' ? '#d1fae5' :
+            statusMessage.type === 'error' ? '#fee2e2' :
+            statusMessage.type === 'warning' ? '#fef3c7' : '#f3f4f6',
+          color:
+            statusMessage.type === 'success' ? '#065f46' :
+            statusMessage.type === 'error' ? '#991b1b' :
+            statusMessage.type === 'warning' ? '#92400e' : '#374151',
+          textAlign: 'center',
+          border: `1px solid ${
+            statusMessage.type === 'success' ? '#6ee7b7' :
+            statusMessage.type === 'error' ? '#fca5a5' :
+            statusMessage.type === 'warning' ? '#fcd34d' : '#d1d5db'
+          }`,
+        }}>
+          {statusMessage.message}
+        </div>
+      )}
 
       {/* 配置状态指示 */}
       <div style={{
@@ -143,6 +256,41 @@ function PromptOptimizerNode({ data }) {
         {openaiConfig ? '✅ OpenAI 配置已连接' : '⚠️ 未连接配置节点'}
       </div>
 
+      {/* 已连接角色显示 */}
+      {connectedCharacters.length > 0 ? (
+        <div style={{ marginTop: '12px', padding: '8px', backgroundColor: '#f3f4f6', borderRadius: '4px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', color: '#4b5563' }}>
+            👥 已连接角色 ({connectedCharacters.length})
+          </div>
+          {connectedCharacters.map((char) => (
+            <div
+              key={char.username}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                margin: '2px',
+                padding: '2px 6px',
+                backgroundColor: '#dbeafe',
+                borderRadius: '3px',
+                fontSize: '10px',
+                color: '#1e40af'
+              }}
+            >
+              {char.alias || char.username}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ marginTop: '12px', padding: '8px', backgroundColor: '#fef3c7', borderRadius: '4px', textAlign: 'center' }}>
+          <div style={{ fontSize: '10px', color: '#92400e', marginBottom: '4px' }}>
+            💡 提示：连接角色库节点后，需要在角色库中点击选择角色
+          </div>
+          <div style={{ fontSize: '9px', color: '#b45309' }}>
+            （选中的角色会显示绿色边框和 ✓ 标识）
+          </div>
+        </div>
+      )}
+
       {/* 简单描述输入 */}
       <div className="nodrag">
         <label style={{ fontSize: '10px', color: '#6b21a8', fontWeight: 'bold' }}>
@@ -153,6 +301,7 @@ function PromptOptimizerNode({ data }) {
           name="simplePrompt"
           value={simplePrompt}
           onChange={(e) => setSimplePrompt(e.target.value)}
+          onWheel={(e) => e.stopPropagation()}
           placeholder="例如: @装载机 在工地上干活"
           style={{
             width: '100%',
@@ -191,6 +340,91 @@ function PromptOptimizerNode({ data }) {
           <option value="documentary">📹 纪录片风格</option>
           <option value="animation">🎭 动画风格</option>
           <option value="cinematic">🎬 电影风格</option>
+          <option value="custom">✏️ 自定义风格...</option>
+        </select>
+      </div>
+
+      {/* 自定义风格输入框 */}
+      {style === 'custom' && (
+        <div className="nodrag" style={{ marginTop: '8px' }}>
+          <label style={{ fontSize: '10px', color: '#6b21a8', fontWeight: 'bold' }}>
+            风格描述
+          </label>
+          <input
+            className="nodrag"
+            type="text"
+            id="custom-style-description"
+            name="customStyleDescription"
+            value={customStyleDescription}
+            onChange={(e) => setCustomStyleDescription(e.target.value)}
+            onWheel={(e) => e.stopPropagation()}
+            placeholder="如: 科幻风格、赛博朋克、水墨画风格"
+            style={{
+              width: '100%',
+              padding: '6px 8px',
+              borderRadius: '4px',
+              border: '1px solid #c4b5fd',
+              fontSize: '10px',
+              marginTop: '2px',
+            }}
+          />
+          <div style={{ fontSize: '9px', color: '#9ca3af', marginTop: '2px' }}>
+            💡 提示: 输入简单描述，AI 会自动理解并应用风格
+          </div>
+        </div>
+      )}
+
+      {/* ⭐ 优化方向输入框（问题 1） */}
+      <div className="nodrag" style={{ marginTop: '8px' }}>
+        <label style={{ fontSize: '10px', color: '#6b21a8', fontWeight: 'bold' }}>
+          💡 优化方向（可选）
+        </label>
+        <input
+          className="nodrag"
+          type="text"
+          id="optimization-direction"
+          name="optimizationDirection"
+          value={optimizationDirection}
+          onChange={(e) => setOptimizationDirection(e.target.value)}
+          onWheel={(e) => e.stopPropagation()}
+          placeholder="例如: 更详细、更简洁、更生动、更专业..."
+          style={{
+            width: '100%',
+            padding: '6px 8px',
+            borderRadius: '4px',
+            border: '1px solid #c4b5fd',
+            fontSize: '10px',
+            marginTop: '2px',
+          }}
+        />
+        <div style={{ fontSize: '8px', color: '#9ca3af', marginTop: '2px' }}>
+          常用: 更详细 | 更简洁 | 更生动 | 更专业
+        </div>
+      </div>
+
+      {/* ⭐ 目标时长选择（问题 2） */}
+      <div className="nodrag" style={{ marginTop: '8px' }}>
+        <label style={{ fontSize: '10px', color: '#6b21a8', fontWeight: 'bold' }}>
+          ⏱️ 目标时长（秒）
+        </label>
+        <select
+          className="nodrag"
+          name="targetDuration"
+          value={targetDuration}
+          onChange={(e) => setTargetDuration(Number(e.target.value))}
+          style={{
+            width: '100%',
+            padding: '4px 6px',
+            borderRadius: '4px',
+            border: '1px solid #c4b5fd',
+            fontSize: '10px',
+            marginTop: '2px',
+          }}
+        >
+          <option value={5}>5 秒</option>
+          <option value={10}>10 秒</option>
+          <option value={15}>15 秒</option>
+          <option value={25}>25 秒</option>
         </select>
       </div>
 
@@ -268,6 +502,7 @@ function PromptOptimizerNode({ data }) {
             className="nodrag"
             readOnly
             value={optimizedPrompt}
+            onWheel={(e) => e.stopPropagation()}
             style={{
               width: '100%',
               minHeight: '120px',
@@ -276,7 +511,8 @@ function PromptOptimizerNode({ data }) {
               border: '1px solid #c4b5fd',
               fontSize: '9px',
               resize: 'vertical',
-              backgroundColor: '#f3e8ff',
+              backgroundColor: '#faf5ff',
+              color: '#1f2937',
               fontFamily: 'monospace',
             }}
           />
