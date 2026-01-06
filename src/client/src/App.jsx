@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef, useEffect } from 'react';
+import { useCallback, useState, useRef, useEffect, useMemo } from 'react';
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -31,23 +31,6 @@ import ZhenzhenStoryboardNode from './nodes/process/ZhenzhenStoryboardNode';
 import PromptOptimizerNode from './nodes/process/PromptOptimizerNode';
 import TaskResultNode from './nodes/output/TaskResultNode';
 import CharacterResultNode from './nodes/output/CharacterResultNode';
-
-// Node types configuration (moved outside component to avoid re-creation)
-const nodeTypes = {
-  textNode: TextNode,
-  referenceImageNode: ReferenceImageNode,
-  characterLibraryNode: CharacterLibraryNode,
-  apiSettingsNode: APISettingsNode,
-  openaiConfigNode: OpenAIConfigNode,
-  characterCreateNode: CharacterCreateNode,
-  juxinStoryboardNode: JuxinStoryboardNode,
-  zhenzhenStoryboardNode: ZhenzhenStoryboardNode,
-  videoGenerateNode: VideoGenerateNode,
-  storyboardNode: StoryboardNode,
-  promptOptimizerNode: PromptOptimizerNode,
-  taskResultNode: TaskResultNode,
-  characterResultNode: CharacterResultNode,
-};
 
 // Initial nodes for testing
 const initialNodes = [
@@ -150,6 +133,23 @@ const nodeTemplates = [
 ];
 
 function App() {
+  // ✅ 使用 useMemo 包装 nodeTypes，避免 HMR 时重新创建
+  const nodeTypes = useMemo(() => ({
+    textNode: TextNode,
+    referenceImageNode: ReferenceImageNode,
+    characterLibraryNode: CharacterLibraryNode,
+    apiSettingsNode: APISettingsNode,
+    openaiConfigNode: OpenAIConfigNode,
+    characterCreateNode: CharacterCreateNode,
+    juxinStoryboardNode: JuxinStoryboardNode,
+    zhenzhenStoryboardNode: ZhenzhenStoryboardNode,
+    videoGenerateNode: VideoGenerateNode,
+    storyboardNode: StoryboardNode,
+    promptOptimizerNode: PromptOptimizerNode,
+    taskResultNode: TaskResultNode,
+    characterResultNode: CharacterResultNode,
+  }), []);
+
   // Load saved workflow from localStorage or use empty arrays
   const loadSavedWorkflow = () => {
     try {
