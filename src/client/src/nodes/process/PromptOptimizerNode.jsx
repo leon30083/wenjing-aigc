@@ -8,7 +8,7 @@ import { Handle, Position, useNodeId, useReactFlow } from 'reactflow';
 
 function PromptOptimizerNode({ data }) {
   const nodeId = useNodeId();
-  const { setNodes, getEdges } = useReactFlow();
+  const { setNodes, getEdges, getNodes } = useReactFlow();
 
   // 从连接的节点获取 OpenAI 配置
   const [openaiConfig, setOpenaiConfig] = useState(data.openaiConfig || null);
@@ -47,12 +47,56 @@ function PromptOptimizerNode({ data }) {
     }, 0);
   };
 
-  // 从 data 接收 OpenAI 配置
+  // 从 data 接收 OpenAI 配置（App.jsx 中转）
   useEffect(() => {
     if (data.openaiConfig) {
       setOpenaiConfig(data.openaiConfig);
     }
   }, [data.openaiConfig]);
+
+  // ⭐ 主动从连接的 OpenAI Config Node 读取配置（使用轮询机制）
+  useEffect(() => {
+    let attempts = 0;
+    const maxAttempts = 10; // 最多尝试10次
+
+    const checkConfig = () => {
+      attempts++;
+      const edges = getEdges();
+      // 找到连接到 openai-config 端口的源节点
+      const configEdge = edges.find(e => e.target === nodeId && e.targetHandle === 'openai-config');
+
+      if (configEdge) {
+        // 读取所有节点，找到源节点
+        const allNodes = getNodes();
+        const sourceNode = allNodes.find(n => n.id === configEdge.source);
+
+        if (sourceNode?.type === 'openaiConfigNode' && sourceNode.data?.openaiConfig) {
+          const config = sourceNode.data.openaiConfig;
+          setOpenaiConfig(config);
+          // 同步到自己的 data
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === nodeId
+                ? { ...node, data: { ...node.data, openaiConfig: config } }
+                : node
+            )
+          );
+          return true; // 找到配置，停止轮询
+        }
+      }
+
+      if (attempts < maxAttempts) {
+        setTimeout(checkConfig, 100); // 100ms 后重试
+      }
+      return false;
+    };
+
+    const timer = setTimeout(checkConfig, 100); // 初始延迟100ms
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [nodeId]); // 只依赖 nodeId，避免重复执行
 
   // 从 data 接收角色数据
   useEffect(() => {
@@ -150,14 +194,32 @@ function PromptOptimizerNode({ data }) {
           style,
           customStyleDescription: style === 'custom' ? customStyleDescription : undefined,
           optimizationDirection: optimizationDirection || undefined, // ⭐ 新增：优化方向
-          context: {
-            target_duration: targetDuration, // ⭐ 修改：使用状态变量而非硬编码
-            characters: connectedCharacters.map(char => ({
-              username: char.username,
-              alias: char.alias || char.username,
-              profilePictureUrl: char.profilePictureUrl,
-            }))
-          },
+          context: (() => {
+            // ⭐ 检测提示词中实际引用的角色
+            const referencedUsernames = (simplePrompt.match(/@[\w.-]+/g) || [])
+              .map(ref => ref.substring(1)); // 移除 @ 符号
+
+            // 只包含被引用的角色
+            const referencedCharacters = connectedCharacters.filter(char =>
+              referencedUsernames.includes(char.username)
+            );
+
+            // 构建上下文对象
+            const context = {
+              target_duration: targetDuration,
+            };
+
+            // 只有在提示词中实际引用了角色时才添加 characters 字段
+            if (referencedCharacters.length > 0) {
+              context.characters = referencedCharacters.map(char => ({
+                username: char.username,
+                alias: char.alias || char.username,
+                profilePictureUrl: char.profilePictureUrl,
+              }));
+            }
+
+            return context;
+          })(),
         }),
       });
 

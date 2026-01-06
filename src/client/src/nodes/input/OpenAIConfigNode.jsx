@@ -25,9 +25,9 @@ function OpenAIConfigNode({ data }) {
     // 降级到 node.data 初始化
     const saved = data.savedConfig || {};
     return {
-      base_url: saved.base_url || 'https://api.deepseek.com',
-      api_key: saved.api_key || '',
-      model: saved.model || 'deepseek-chat',
+      base_url: saved.base_url || 'http://170.106.152.118:2999',
+      api_key: saved.api_key || 'sk-PdoHKdR3XKgiLzYRk3mxfgiYpJbC24JTLmwP0hv07nOE4QaE',
+      model: saved.model || 'gemini-2.5-pro-maxthinking',
     };
   });
 
@@ -102,10 +102,10 @@ function OpenAIConfigNode({ data }) {
     syncToData(newConfig);
   };
 
-  // 初始化时同步配置
+  // 同步配置到 node.data（初始化时同步一次）
   useEffect(() => {
     syncToData(config);
-  }, []);
+  }, []); // ⭐ 空依赖数组，只在挂载时运行一次
 
   return (
     <div style={{

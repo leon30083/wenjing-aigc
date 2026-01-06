@@ -1,7 +1,7 @@
 # WinJin AIGC - 错误模式参考
 
 > **说明**: 本文档按类型分类，包含所有已知的错误模式和解决方案。
-> **更新日期**: 2026-01-06
+> **更新日期**: 2026-01-06 (验证错误48修复)
 
 ---
 
@@ -11,7 +11,7 @@
 |------|----------|--------|
 | [API 相关](#api-相关) | 8个 | 双平台、轮询、端点、模型、故事板 |
 | [React Flow 相关](#react-flow-相关) | 6个 | 数据传递、Handle、连接、事件 |
-| [角色系统相关](#角色系统相关) | 5个 | 引用、显示、焦点、双显示 |
+| [角色系统相关](#角色系统相关) | 6个 | 引用、显示、焦点、双显示、优化 |
 | [表单/输入相关](#表单输入相关) | 2个 | id/name、验证 |
 | [存储/持久化相关](#存储持久化相关) | 4个 | localStorage、工作流 |
 | [UI/渲染相关](#ui渲染相关) | 3个 | 布局抖动、对象渲染、CSS语法 |
@@ -805,8 +805,9 @@ const insertCharacterAtCursor = (username, alias) => {
 - `src/client/src/nodes/process/PromptOptimizerNode.jsx` - Lines 28-48（移除双显示功能，直接使用真实ID）
 - `src/client/src/nodes/process/PromptOptimizerNode.jsx` - Lines 310-325（角色卡片显示别名+ID）
 - `src/client/src/nodes/process/PromptOptimizerNode.jsx` - Lines 348-350（textarea直接使用simplePrompt）
+- `src/server/services/openaiClient.js` - Lines 356-358（后端系统提示词添加空格要求）
 
-**验证结果**: ✅ AI优化结果保留角色引用
+**验证结果**: ✅ 2026-01-06 验证通过 - 优化节点使用真实ID，AI成功保留角色引用并添加空格
 
 **修复日期**: 2026-01-06
 

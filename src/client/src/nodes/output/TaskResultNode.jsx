@@ -136,7 +136,7 @@ function TaskResultNode({ data }) {
 
         // ⭐ 签名比较：只在 platform 真正变化时才更新
         const lastPlatform = platformRef.current;
-        if (lastPlatform !== sourcePlatform && node.data?.platform !== sourcePlatform) {
+        if (lastPlatform !== sourcePlatform && platform !== sourcePlatform) {
           console.log('[TaskResultNode] Updating platform from source node:', {
             old: lastPlatform,
             new: sourcePlatform

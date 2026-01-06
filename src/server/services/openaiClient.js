@@ -353,9 +353,9 @@ ${styleText}风格的视频。
 
       characterMapping = `\n\n可用角色列表（必须使用 @username 格式引用）：\n${characterList}`;
 
-      characterContext = `\n\n重要：当提示词需要描述角色时，必须使用 @username 格式引用角色，不要直接描述角色的外貌特征。`;
+      characterContext = `\n\n重要：当提示词需要描述角色时，必须使用 @username 格式引用角色（注意：username 后面必须加空格，如 @username 在...），不要直接描述角色的外貌特征。`;
 
-      characterInstruction = '6. 如果提供了角色上下文，必须使用 @username 格式引用角色，不要直接描述角色';
+      characterInstruction = '6. 如果提供了角色上下文，必须使用 @username 格式引用角色（注意：@username 后面必须加空格），不要直接描述角色';
     } else {
       // ⭐ 关键修复：明确告知不要使用 @username 格式
       characterInstruction = '6. 不要使用 @username 格式引用角色（未提供角色上下文），直接描述主体即可';
