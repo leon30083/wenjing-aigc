@@ -48,3 +48,4 @@ reference/教程/*.mp4
 # Large binary files in reference directory
 reference/temp/
 reference/20*/
+nul
