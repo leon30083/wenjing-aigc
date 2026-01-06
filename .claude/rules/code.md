@@ -4717,6 +4717,96 @@ const validVideoSourceTypes = [
 
 ---
 
+### 错误48: 优化节点错误使用双显示功能导致角色引用丢失 ⭐ 2026-01-06 新增
+
+```javascript
+// ❌ 错误：优化节点使用双显示功能
+const usernameToAlias = React.useMemo(() => {
+  const map = {};
+  connectedCharacters.forEach(char => {
+    map[char.username] = char.alias || char.username;
+  });
+  return map;
+}, [connectedCharacters]);
+
+const realToDisplay = (text) => {
+  let result = text;
+  Object.entries(usernameToAlias).forEach(([username, alias]) => {
+    const regex = new RegExp(`@${username}(?=\\s|$|@)`, 'g');
+    result = result.replace(regex, `@${alias}`);
+  });
+  return result;
+};
+
+// 输入框显示别名，AI接收别名
+<textarea
+  value={realToDisplay(simplePrompt)}  // "一只在海边的@测试小猫 玩耍"
+  onChange={(e) => {
+    const realText = displayToReal(e.target.value);
+    setSimplePrompt(realText);
+  }}
+/>
+// 问题：AI收到别名，无法识别角色引用，优化结果丢失角色
+
+// ✅ 正确：优化节点始终使用真实ID
+<textarea
+  value={simplePrompt}  // "一只在海边的@ebfb9a758.sunnykitte 玩耍"
+  onChange={(e) => {
+    setSimplePrompt(e.target.value);
+  }}
+/>
+// ✅ AI收到真实ID，识别角色引用，优化结果保留角色
+
+// ✅ 正确：角色卡片显示别名+ID，点击插入真实ID
+<div onClick={() => insertCharacterAtCursor(char.username, char.alias)}>
+  <span>{char.alias || char.username}</span>
+  <span style={{ fontSize: '8px', color: '#6b7280' }}>
+    (@{char.username})
+  </span>
+</div>
+
+// ⭐ 关键：直接插入真实ID
+const insertCharacterAtCursor = (username, alias) => {
+  const refText = `@${username} `;  // ✅ 插入真实ID
+  const newText = text.substring(0, start) + refText + text.substring(end);
+  setSimplePrompt(newText);
+};
+```
+
+**问题**:
+1. 优化节点使用双显示功能（别名显示），AI接收到别名而非真实ID
+2. AI无法识别别名为角色引用，优化结果丢失角色引用
+3. 优化结果使用通用描述"所有角色均采用拟人化设计"，丢失具体角色信息
+
+**解决方案**:
+1. **优化节点始终使用真实ID** - 输入框、状态管理、API调用都用真实ID
+2. **角色卡片显示别名+ID** - 友好但明确：`测试小猫 (@ebfb9a758.sunnykitte)`
+3. **点击插入真实ID** - 不做任何转换，直接插入 `@ebfb9a758.sunnykitte`
+4. **视频生成节点使用双显示** - 输入框显示别名，API使用真实ID（用户友好）
+
+**角色引用原则** ⭐ 核心原则:
+- **Sora2 API**: 使用真实ID调用角色（`@ebfb9a758.sunnykitte`）
+- **不描述外观**: 角色引用后，AI不需要描述角色长相、眼睛、表情等（Sora2会使用角色真实外观）
+- **只描述活动**: 重点描述角色在场景中的动作、互动、位置
+- **节点差异**:
+  - 优化节点：始终使用真实ID（发送给AI）
+  - 视频生成节点：使用双显示（用户友好的别名显示，API使用真实ID）
+
+**修复文件**:
+- `src/client/src/nodes/process/PromptOptimizerNode.jsx` - Lines 28-48（移除双显示功能）
+- `src/client/src/nodes/process/PromptOptimizerNode.jsx` - Lines 310-325（角色卡片显示别名+ID）
+- `src/client/src/nodes/process/PromptOptimizerNode.jsx` - Lines 348-350（textarea直接使用simplePrompt）
+
+**验证结果**: ✅ AI优化结果保留角色引用 `@ebfb9a758.sunnykitte` 和 `@783316a1d.diggyloade`
+
+**修复日期**: 2026-01-06
+
+**相关文档**:
+- SKILL.md: 错误模式 48
+- base.md: 角色引用原则 ⭐ 2026-01-06 重要更新
+
+---
+
 ## 开发参考
 
 原项目代码位于 `reference/` 目录，开发时可参考：

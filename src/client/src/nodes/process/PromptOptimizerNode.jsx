@@ -28,52 +28,18 @@ function PromptOptimizerNode({ data }) {
   // ⭐ 新增：引用 simplePrompt textarea（用于角色插入）
   const promptInputRef = useRef(null);
 
-  // ⭐ 创建用户名到别名的映射
-  const usernameToAlias = React.useMemo(() => {
-    const map = {};
-    connectedCharacters.forEach(char => {
-      map[char.username] = char.alias || char.username;
-    });
-    return map;
-  }, [connectedCharacters]);
-
-  // ⭐ 将真实提示词转换为显示提示词（用户看：别名）
-  const realToDisplay = (text) => {
-    if (!text) return '';
-    let result = text;
-    Object.entries(usernameToAlias).forEach(([username, alias]) => {
-      const regex = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|@)`, 'g');
-      result = result.replace(regex, `@${alias}`);
-    });
-    return result;
-  };
-
-  // ⭐ 将显示提示词转换为真实提示词（API用：真实ID）
-  const displayToReal = (text) => {
-    if (!text) return '';
-    let result = text;
-    const sortedAliases = Object.entries(usernameToAlias)
-      .sort((a, b) => b[1].length - a[1].length);
-    sortedAliases.forEach(([username, alias]) => {
-      const regex = new RegExp(`@${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|@)`, 'g');
-      result = result.replace(regex, `@${username}`);
-    });
-    return result;
-  };
-
-  // ⭐ 在光标位置插入角色引用
+  // ⭐ 在光标位置插入角色引用（直接插入真实ID，不使用别名）
   const insertCharacterAtCursor = (username, alias) => {
     const promptElement = promptInputRef.current;
     if (!promptElement) return;
 
     const start = promptElement.selectionStart;
     const end = promptElement.selectionEnd;
-    const displayText = realToDisplay(simplePrompt);
-    const refText = `@${alias} `;
+    const text = simplePrompt;
+    const refText = `@${username} `; // ⭐ 关键修复：直接插入真实ID，而非别名
 
-    const newDisplayText = displayText.substring(0, start) + refText + displayText.substring(end);
-    const newRealText = displayToReal(newDisplayText);
-    setSimplePrompt(newRealText);
+    const newText = text.substring(0, start) + refText + text.substring(end);
+    setSimplePrompt(newText);
 
     setTimeout(() => {
       promptElement.setSelectionRange(start + refText.length, start + refText.length);
@@ -341,7 +307,7 @@ function PromptOptimizerNode({ data }) {
                   gap: '4px',
                   transition: 'background 0.2s',
                 }}
-                title="点击插入到光标位置"
+                title={`点击插入角色ID: @${char.username}`}
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#d1fae5'}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ecfdf5'}
               >
@@ -352,6 +318,9 @@ function PromptOptimizerNode({ data }) {
                 />
                 <span style={{ fontSize: '10px', color: '#047857' }}>
                   {char.alias || char.username}
+                </span>
+                <span style={{ fontSize: '8px', color: '#6b7280', marginLeft: '2px' }}>
+                  (@{char.username})
                 </span>
               </div>
             ))}
@@ -379,10 +348,9 @@ function PromptOptimizerNode({ data }) {
           className="nodrag"
           ref={promptInputRef}
           name="simplePrompt"
-          value={realToDisplay(simplePrompt)}
+          value={simplePrompt}
           onChange={(e) => {
-            const realText = displayToReal(e.target.value);
-            setSimplePrompt(realText);
+            setSimplePrompt(e.target.value);
           }}
           onWheel={(e) => e.stopPropagation()}
           placeholder="例如: @装载机 在工地上干活"

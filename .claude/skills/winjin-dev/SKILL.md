@@ -1597,3 +1597,88 @@ git push origin feature/workflow-management
 31. ✅ **自动检测修复缺失字段**: 从连接的源节点读取配置信息，自动修复 localStorage 中旧任务缺失的字段（如 platform），确保向后兼容 ⭐ 2026-01-01
 32. ⚠️ **Windows 后端重启**: 修改后端代码后必须 Ctrl+C 停止服务器，重新运行 `npm run server`（Node.js 模块缓存导致修改不生效）⭐ 2026-01-02
 33. ⚠️ **Windows 端口占用**: 如遇 EADDRINUSE 错误，删除 nul 文件（`del nul`）或运行 `taskkill /F /IM node.exe` 强制结束进程 ⭐ 2026-01-02
+34. ⚠️ **角色引用原则**: 优化节点始终使用真实ID（`@ebfb9a758.sunnykitte`），视频生成节点使用双显示（输入框显示别名，API使用真实ID），Sora2使用真实ID调用角色，不需要描述角色外观 ⭐ 2026-01-06
+
+---
+
+### 错误48: 优化节点错误使用双显示功能导致角色引用丢失 ⭐ 2026-01-06 新增
+- **现象**: AI 优化后的提示词丢失了角色引用，替换成通用的"所有角色均采用拟人化设计"
+- **用户反馈**: "优化结果又回到原点了，丢失了角色信息，使用了外观描述，这是非常错误的"
+- **根本原因**:
+  - 优化节点（PromptOptimizerNode）错误地使用了"双显示功能"（realToDisplay/displayToReal）
+  - 输入框显示别名：`@测试小猫` 而非真实ID `@ebfb9a758.sunnykitte`
+  - AI接收到别名，无法识别为角色引用，当作普通文本处理
+  - 优化结果丢失角色引用，替换成通用外观描述
+- **错误尝试**:
+  - ❌ 优化节点使用 realToDisplay 显示别名：用户看到友好的别名，但AI收到错误的输入
+  - ❌ 优化节点使用 displayToReal 转换：别名和真实ID之间转换导致数据混乱
+  - ❌ 角色卡片只显示别名：用户不知道插入的是真实ID还是别名
+- **正确做法**: 优化节点始终使用真实ID，不做任何别名转换
+  ```javascript
+  // ❌ 错误：优化节点使用双显示功能
+  const usernameToAlias = React.useMemo(() => {
+    const map = {};
+    connectedCharacters.forEach(char => {
+      map[char.username] = char.alias || char.username;
+    });
+    return map;
+  }, [connectedCharacters]);
+
+  const realToDisplay = (text) => {
+    // 转换真实ID为别名显示
+    let result = text;
+    Object.entries(usernameToAlias).forEach(([username, alias]) => {
+      const regex = new RegExp(`@${username}(?=\\s|$|@)`, 'g');
+      result = result.replace(regex, `@${alias}`);
+    });
+    return result;
+  };
+
+  <textarea
+    value={realToDisplay(simplePrompt)}  // ❌ AI接收到别名
+    onChange={(e) => {
+      const realText = displayToReal(e.target.value);
+      setSimplePrompt(realText);
+    }}
+  />
+
+  // ✅ 正确：优化节点始终使用真实ID
+  <textarea
+    value={simplePrompt}  // ✅ AI接收到真实ID @ebfb9a758.sunnykitte
+    onChange={(e) => {
+      setSimplePrompt(e.target.value);
+    }}
+  />
+
+  // ✅ 正确：角色卡片显示别名+ID，点击插入真实ID
+  <div onClick={() => insertCharacterAtCursor(char.username, char.alias)}>
+    <span>{char.alias || char.username}</span>
+    <span style={{ fontSize: '8px', color: '#6b7280' }}>
+      (@{char.username})
+    </span>
+  </div>
+
+  // ⭐ 关键：直接插入真实ID
+  const insertCharacterAtCursor = (username, alias) => {
+    const refText = `@${username} `;  // ✅ 插入真实ID，而非别名
+    // ...
+  };
+  ```
+- **关键点**:
+  1. **优化节点输入**: 始终使用真实ID（`@ebfb9a758.sunnykitte`），不使用别名
+  2. **优化节点输出**: 优化结果也包含真实ID，传递给视频生成节点
+  3. **视频生成节点**: 使用双显示功能（输入框显示别名，API使用真实ID）
+  4. **角色卡片**: 显示别名+ID格式（`测试小猫 (@ebfb9a758.sunnykitte)`），点击插入真实ID
+  5. **AI识别**: 只有真实ID才能被AI识别为角色引用并保留
+- **角色引用原则** ⭐ 核心原则:
+  - **Sora2 API**: 使用真实ID调用角色（`@ebfb9a758.sunnykitte`）
+  - **不需要描述外观**: 角色引用后，AI不需要描述角色长相、眼睛、表情等（Sora2会使用角色真实外观）
+  - **只描述活动**: 重点描述角色在场景中的动作、互动、位置
+  - **优化节点**: 始终使用真实ID（发送给AI）
+  - **视频生成节点**: 使用双显示（用户友好的别名显示，API使用真实ID）
+- **修复文件**:
+  - `src/client/src/nodes/process/PromptOptimizerNode.jsx` - Lines 28-48（移除双显示功能，直接使用真实ID）
+  - `src/client/src/nodes/process/PromptOptimizerNode.jsx` - Lines 310-325（角色卡片显示别名+ID）
+  - `src/client/src/nodes/process/PromptOptimizerNode.jsx` - Lines 348-350（textarea直接使用simplePrompt）
+- **验证结果**: ✅ AI优化结果保留角色引用，优化内容正确
+- **修复日期**: 2026-01-06
