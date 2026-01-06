@@ -93,7 +93,12 @@
       "Bash(Select-String:*)",
       "Bash(Select-Object -First 20)",
       "Bash(ls:*)",
-      "Bash(exit 0)"
+      "Bash(exit 0)",
+      "Bash(Get-Process node -ErrorAction SilentlyContinue)",
+      "Bash(Where-Object {$_HasExited})",
+      "Bash(Select-Object:*)",
+      "Bash(Stop-Process -Id 11916 -Force -ErrorAction SilentlyContinue)",
+      "Bash(Start-Sleep -Seconds 2)"
     ]
   }
 }

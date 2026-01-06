@@ -54,49 +54,31 @@ function PromptOptimizerNode({ data }) {
     }
   }, [data.openaiConfig]);
 
-  // ⭐ 主动从连接的 OpenAI Config Node 读取配置（使用轮询机制）
+  // ⭐ 主动从连接的 OpenAI Config Node 读取配置（持续监听 edges 和 nodes 变化）
   useEffect(() => {
-    let attempts = 0;
-    const maxAttempts = 10; // 最多尝试10次
+    const edges = getEdges();
+    // 找到连接到 openai-config 端口的源节点
+    const configEdge = edges.find(e => e.target === nodeId && e.targetHandle === 'openai-config');
 
-    const checkConfig = () => {
-      attempts++;
-      const edges = getEdges();
-      // 找到连接到 openai-config 端口的源节点
-      const configEdge = edges.find(e => e.target === nodeId && e.targetHandle === 'openai-config');
+    if (configEdge) {
+      // 读取所有节点，找到源节点
+      const allNodes = getNodes();
+      const sourceNode = allNodes.find(n => n.id === configEdge.source);
 
-      if (configEdge) {
-        // 读取所有节点，找到源节点
-        const allNodes = getNodes();
-        const sourceNode = allNodes.find(n => n.id === configEdge.source);
-
-        if (sourceNode?.type === 'openaiConfigNode' && sourceNode.data?.openaiConfig) {
-          const config = sourceNode.data.openaiConfig;
-          setOpenaiConfig(config);
-          // 同步到自己的 data
-          setNodes((nds) =>
-            nds.map((node) =>
-              node.id === nodeId
-                ? { ...node, data: { ...node.data, openaiConfig: config } }
-                : node
-            )
-          );
-          return true; // 找到配置，停止轮询
-        }
+      if (sourceNode?.type === 'openaiConfigNode' && sourceNode.data?.openaiConfig) {
+        const config = sourceNode.data.openaiConfig;
+        setOpenaiConfig(config);
+        // 同步到自己的 data
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? { ...node, data: { ...node.data, openaiConfig: config } }
+              : node
+          )
+        );
       }
-
-      if (attempts < maxAttempts) {
-        setTimeout(checkConfig, 100); // 100ms 后重试
-      }
-      return false;
-    };
-
-    const timer = setTimeout(checkConfig, 100); // 初始延迟100ms
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [nodeId]); // 只依赖 nodeId，避免重复执行
+    }
+  }, [nodeId, getEdges, getNodes, setNodes]); // ⭐ 依赖 getEdges 和 getNodes，确保源节点配置变化时能及时更新
 
   // 从 data 接收角色数据
   useEffect(() => {
