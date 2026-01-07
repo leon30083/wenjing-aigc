@@ -153,22 +153,23 @@ function App() {
     characterResultNode: CharacterResultNode,
   }), []);
 
-  // Load saved workflow from localStorage or use empty arrays
-  const loadSavedWorkflow = () => {
-    try {
-      const saved = localStorage.getItem('workflow-nodes');
-      const savedEdges = localStorage.getItem('workflow-edges');
-      return {
-        nodes: saved ? JSON.parse(saved) : [],
-        edges: savedEdges ? JSON.parse(savedEdges) : []
-      };
-    } catch (error) {
-      console.error('Failed to load saved workflow:', error);
-      return { nodes: [], edges: [] };
+  // ✅ 加载当前命名工作流（替代旧的自动保存系统）
+  const loadCurrentWorkflow = () => {
+    const currentName = WorkflowStorage.getCurrentWorkflowName();
+    if (currentName) {
+      const result = WorkflowStorage.loadWorkflow(currentName);
+      if (result.success) {
+        console.log(`[App] 已加载工作流: ${currentName}`);
+        return {
+          nodes: result.data.nodes || [],
+          edges: result.data.edges || []
+        };
+      }
     }
+    return { nodes: [], edges: [] };
   };
 
-  const savedWorkflow = loadSavedWorkflow();
+  const savedWorkflow = loadCurrentWorkflow();
   const [nodes, setNodes, onNodesChange] = useNodesState(savedWorkflow.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(savedWorkflow.edges);
   const { executionState, progress, executeWorkflow, resetExecution } = useWorkflowExecution();
@@ -409,20 +410,59 @@ function App() {
     }
   }, [edges, setNodes, handleNodeSizeChange]);
 
-  // Save workflow to localStorage whenever nodes or edges change (with 500ms debounce)
+  // ⭐ 数据迁移：自动迁移旧的 workflow-nodes 数据到新系统（向后兼容）
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const migrateOldData = () => {
       try {
-        localStorage.setItem('workflow-nodes', JSON.stringify(nodes));
-        localStorage.setItem('workflow-edges', JSON.stringify(edges));
-        console.log('[App] Workflow saved to localStorage');
-      } catch (error) {
-        console.error('[App] Failed to save workflow:', error);
-      }
-    }, 500); // 500ms debounce
+        const oldNodes = localStorage.getItem('workflow-nodes');
+        const oldEdges = localStorage.getItem('workflow-edges');
 
-    return () => clearTimeout(timer);
-  }, [nodes, edges]);
+        if (oldNodes || oldEdges) {
+          console.log('[App] 检测到旧的工作流数据，开始迁移...');
+
+          const nodes = oldNodes ? JSON.parse(oldNodes) : [];
+          const edges = oldEdges ? JSON.parse(oldEdges) : [];
+
+          // 如果旧数据为空，跳过迁移
+          if (nodes.length === 0 && edges.length === 0) {
+            console.log('[App] 旧数据为空，跳过迁移');
+            localStorage.removeItem('workflow-nodes');
+            localStorage.removeItem('workflow-edges');
+            return;
+          }
+
+          // 生成唯一名称
+          const workflows = WorkflowStorage.getAllWorkflows();
+          const existingNames = Object.keys(workflows);
+          let counter = 1;
+          let newName = '未命名工作流 1';
+          while (existingNames.includes(newName)) {
+            counter++;
+            newName = `未命名工作流 ${counter}`;
+          }
+
+          // 保存到新系统
+          const result = WorkflowStorage.saveWorkflow(newName, nodes, edges, '从旧版本迁移');
+
+          if (result.success) {
+            console.log(`[App] ✅ 旧数据已迁移为 "${newName}"`);
+            setCurrentWorkflowName(newName);
+
+            // 清理旧数据
+            localStorage.removeItem('workflow-nodes');
+            localStorage.removeItem('workflow-edges');
+            console.log('[App] ✅ 已清理旧的工作流数据');
+          } else {
+            console.error('[App] ❌ 迁移失败:', result.error);
+          }
+        }
+      } catch (error) {
+        console.error('[App] 数据迁移失败:', error);
+      }
+    };
+
+    migrateOldData();
+  }, []);
 
   // Add a new node
   const addNode = useCallback((nodeType, label, position) => {
@@ -506,22 +546,40 @@ function App() {
 
   // Workflow management handlers
   const handleSaveWorkflow = () => {
-    if (currentWorkflowName) {
-      // 保存到当前工作流
-      const result = WorkflowStorage.saveWorkflow(
-        currentWorkflowName,
-        nodes,
-        edges
-      );
-      if (result.success) {
-        alert(`✅ 工作流 "${currentWorkflowName}" 已保存`);
-      } else {
-        alert(`❌ 保存失败: ${result.error}`);
-      }
-    } else {
-      // 没有当前工作流，弹出另存为对话框
-      setShowSaveAsDialog(true);
+    let workflowName = currentWorkflowName;
+
+    // ⭐ 如果没有当前工作流名称，自动生成未命名工作流
+    if (!workflowName) {
+      const workflows = WorkflowStorage.getAllWorkflows();
+      const existingNames = Object.keys(workflows);
+
+      // 找到最大的未命名工作流编号
+      let maxCounter = 0;
+      existingNames.forEach(name => {
+        const match = name.match(/^未命名工作流 (\d+)$/);
+        if (match) {
+          const counter = parseInt(match[1]);
+          if (counter > maxCounter) {
+            maxCounter = counter;
+          }
+        }
+      });
+
+      // 生成新的未命名工作流名称
+      workflowName = `未命名工作流 ${maxCounter + 1}`;
     }
+
+    // 保存工作流
+    const result = WorkflowStorage.saveWorkflow(workflowName, nodes, edges);
+
+    if (result.success) {
+      setCurrentWorkflowName(workflowName);
+      console.log(`✅ 工作流 "${workflowName}" 已保存 (${nodes.length} 节点, ${edges.length} 连线)`);
+      // ⭐ 静默保存，不显示 alert 弹窗
+    } else {
+      alert(`❌ 保存失败: ${result.error}`);
+    }
+
     setShowWorkflowMenu(false);
   };
 
@@ -655,19 +713,17 @@ function App() {
           ⚡ AI star视频工作台
         </h1>
 
-        {/* Current Workflow Name Display */}
-        {currentWorkflowName && (
-          <div style={{
-            padding: '4px 10px',
-            backgroundColor: '#3b82f6',
-            borderRadius: '4px',
-            fontSize: '12px',
-            color: 'white',
-            fontWeight: 'bold',
-          }}>
-            📁 {currentWorkflowName}
-          </div>
-        )}
+        {/* Current Workflow Name Display - 始终显示当前状态 */}
+        <div style={{
+          padding: '4px 10px',
+          backgroundColor: currentWorkflowName ? '#3b82f6' : '#64748b',
+          borderRadius: '4px',
+          fontSize: '12px',
+          color: 'white',
+          fontWeight: 'bold',
+        }}>
+          {currentWorkflowName ? `📁 ${currentWorkflowName}` : '📄 未命名工作流'}
+        </div>
 
         {/* Workflow Menu Button */}
         <div style={{ position: 'relative' }}>
