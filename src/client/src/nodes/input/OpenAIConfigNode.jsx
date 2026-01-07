@@ -8,7 +8,7 @@ import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
 
 function OpenAIConfigNode({ data }) {
   const nodeId = useNodeId();
-  const { setNodes } = useReactFlow();
+  const { setNodes, getEdges, edges } = useReactFlow();
 
   // 从 localStorage 或 data 初始化
   const [config, setConfig] = useState(() => {
@@ -85,13 +85,24 @@ function OpenAIConfigNode({ data }) {
 
   // 同步配置到 node.data
   const syncToData = (config) => {
-    setNodes((nds) =>
-      nds.map((node) =>
+    console.log('[OpenAIConfigNode] syncToData 调用:', {
+      nodeId,
+      configKeys: config ? Object.keys(config) : [],
+      hasConfig: !!config,
+    });
+    setNodes((nds) => {
+      const updated = nds.map((node) =>
         node.id === nodeId
           ? { ...node, data: { ...node.data, openaiConfig: config } }
           : node
-      )
-    );
+      );
+      const updatedNode = updated.find(n => n.id === nodeId);
+      console.log('[OpenAIConfigNode] syncToData 更新后:', {
+        nodeId,
+        hasOpenaiConfig: !!updatedNode?.data?.openaiConfig,
+      });
+      return updated;
+    });
   };
 
   // 处理配置变更
@@ -104,8 +115,47 @@ function OpenAIConfigNode({ data }) {
 
   // 同步配置到 node.data（初始化时同步一次）
   useEffect(() => {
+    console.log('[OpenAIConfigNode] 初始化 useEffect - 同步配置到 node.data:', {
+      nodeId,
+      configKeys: Object.keys(config),
+      hasConfig: !!config,
+    });
     syncToData(config);
   }, []); // ⭐ 空依赖数组，只在挂载时运行一次
+
+  // 传递配置到下游节点
+  useEffect(() => {
+    if (nodeId) {
+      const edges = getEdges();
+      const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+      if (outgoingEdges.length > 0) {
+        console.log('[OpenAIConfigNode] 推送配置到下游节点:', {
+          config: { base_url: config.base_url, model: config.model },
+          targetNodes: outgoingEdges.map(e => e.target),
+        });
+
+        setNodes((nds) =>
+          nds.map((node) => {
+            const isConnected = outgoingEdges.some(e => e.target === node.id);
+            if (isConnected) {
+              console.log('[OpenAIConfigNode] 更新节点:', node.id, '配置:', config);
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  openaiConfig: config,
+                  openaiConfigSourceId: nodeId,
+                  openaiConfigSourceLabel: data.label || 'OpenAI 配置'
+                }
+              };
+            }
+            return node;
+          })
+        );
+      }
+    }
+  }, [config, nodeId, getEdges, setNodes, data.label, edges]);
 
   return (
     <div style={{
