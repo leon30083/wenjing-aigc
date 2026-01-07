@@ -249,13 +249,13 @@ useEffect(() => {
 
 | 类型 | 链接 | 错误数量 |
 |------|------|----------|
-| [API 相关](../../rules/error-patterns.md#api-相关) | [error-patterns.md](../../rules/error-patterns.md#api-相关) | 8个 |
-| [React Flow 相关](../../rules/error-patterns.md#react-flow-相关) | [error-patterns.md](../../rules/error-patterns.md#react-flow-相关) | 6个 |
-| [角色系统相关](../../rules/error-patterns.md#角色系统相关) | [error-patterns.md](../../rules/error-patterns.md#角色系统相关) | 5个 |
+| [API 相关](../../rules/error-patterns.md#api-相关) | [error-patterns.md](../../rules/error-patterns.md#api-相关) | 9个 |
+| [React Flow 相关](../../rules/error-patterns.md#react-flow-相关) | [error-patterns.md](../../rules/error-patterns.md#react-flow-相关) | 7个 |
+| [角色系统相关](../../rules/error-patterns.md#角色系统相关) | [error-patterns.md](../../rules/error-patterns.md#角色系统相关) | 6个 |
 | [表单/输入相关](../../rules/error-patterns.md#表单输入相关) | [error-patterns.md](../../rules/error-patterns.md#表单输入相关) | 2个 |
-| [存储/持久化相关](../../rules/error-patterns.md#存储持久化相关) | [error-patterns.md](../../rules/error-patterns.md#存储持久化相关) | 4个 |
+| [存储/持久化相关](../../rules/error-patterns.md#存储持久化相关) | [error-patterns.md](../../rules/error-patterns.md#存储持久化相关) | 6个 |
 | [UI/渲染相关](../../rules/error-patterns.md#ui渲染相关) | [error-patterns.md](../../rules/error-patterns.md#ui渲染相关) | 3个 |
-| [其他](../../rules/error-patterns.md#其他) | [error-patterns.md](../../rules/error-patterns.md#其他) | 20个 |
+| [其他](../../rules/error-patterns.md#其他) | [error-patterns.md](../../rules/error-patterns.md#其他) | 21个 |
 
 ### 高频错误（必读）
 
@@ -263,8 +263,11 @@ useEffect(() => {
 2. **错误6**: 轮询间隔太短（429错误）⭐⭐⭐
 3. **错误16**: React Flow 节点间数据传递错误 ⭐⭐⭐
 4. **错误17**: API 端点路径缺少前缀 ⭐⭐⭐
-5. **错误48**: 优化节点错误使用双显示功能 ⭐⭐⭐
-6. **错误49**: 优化节点输出格式结构化 ⭐⭐⭐ 2026-01-06 新增
+5. **错误37**: TaskResultNode 任务ID竞态条件（useEffect依赖） ⭐⭐
+6. **错误48**: 优化节点错误使用双显示功能 ⭐⭐⭐
+7. **错误49**: 优化节点输出格式结构化 ⭐⭐⭐ 2026-01-06 新增
+8. **错误50**: OpenAI 配置持久化丢失 ⭐⭐ 2026-01-07 新增
+9. **错误51**: 任务结果节点轮询 interval 竞态条件 ⭐⭐⭐ 2026-01-07 新增
 
 **查看完整错误模式**: [`.claude/rules/error-patterns.md`](../../rules/error-patterns.md)
 

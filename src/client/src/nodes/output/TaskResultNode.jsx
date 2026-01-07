@@ -172,7 +172,8 @@ function TaskResultNode({ data }) {
       // 获取所有节点并找到源节点，验证其类型是否有效
       const allNodes = getNodes();
       const sourceNode = allNodes.find(n => n.id === sourceNodeId);
-      const validSourceTypes = ['videoGenerateNode', 'storyboardNode', 'juxinStoryboardNode', 'zhenzhenStoryboardNode', 'characterCreateNode'];
+      // ⚠️ 停用平台专用故事板节点 (2026-01-07) - 使用统一的 VideoGenerateNode 代替
+      const validSourceTypes = ['videoGenerateNode', 'storyboardNode', /* 'juxinStoryboardNode', 'zhenzhenStoryboardNode', */ 'characterCreateNode'];
 
       // 检查：1) connectedSourceId 匹配 2) 源节点类型有效 3) newTaskId 存在且不同
       if (connectedSourceId === sourceNodeId &&
@@ -181,6 +182,13 @@ function TaskResultNode({ data }) {
           newTaskId &&
           newTaskId !== taskIdRef.current) {
         console.log('[TaskResultNode] Match! Setting taskId:', newTaskId, 'platform:', newPlatform);
+
+        // ⭐ 关键修复：先清理轮询状态，防止旧 interval 覆盖新任务
+        setPolling(false);
+        setTaskStatus('idle');
+        setVideoUrl(null);
+        setError(null);
+        setProgress(0);
 
         // ⭐ 关键修复：先设置 ref 为 true，确保后续恢复逻辑使用新数据
         // 这会阻止 useEffect 1 从旧 data 恢复 taskId
@@ -197,9 +205,10 @@ function TaskResultNode({ data }) {
                     ...node.data,
                     taskId: newTaskId,
                     platform: newPlatform || 'juxin', // ⭐ 保存 platform
-                    taskStatus: 'idle',
+                    taskStatus: 'IN_PROGRESS', // ⭐ 修复：新任务应该是 IN_PROGRESS 而不是 idle
                     videoUrl: null,
                     error: null,
+                    progress: 0,
                     _isCompletedFromHistory: false // 新任务不是历史记录
                   }
                 }
@@ -207,13 +216,12 @@ function TaskResultNode({ data }) {
           )
         );
 
-        // 然后更新 useState（用于 UI）
+        // 然后更新 useState（用于 UI）- ⭐ 最后更新 taskId，触发新的轮询
         setTaskId(newTaskId);
+        taskIdRef.current = newTaskId;
         setPlatform(newPlatform || 'juxin'); // ⭐ 更新 platform 状态
-        setTaskStatus('idle');
-        setVideoUrl(null);
-        setError(null);
-        setPolling(false);
+        setTaskStatus('IN_PROGRESS'); // ⭐ 修复：新任务应该是 IN_PROGRESS
+        setPolling(true); // ⭐ 重新启动轮询
         isCompletedFromHistoryRef.current = false; // ⭐ 恢复 ref 值，允许后续更新
       }
     };

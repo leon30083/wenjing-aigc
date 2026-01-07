@@ -26,8 +26,9 @@ import OpenAIConfigNode from './nodes/input/OpenAIConfigNode';
 import CharacterCreateNode from './nodes/process/CharacterCreateNode';
 import VideoGenerateNode from './nodes/process/VideoGenerateNode';
 import StoryboardNode from './nodes/process/StoryboardNode';
-import JuxinStoryboardNode from './nodes/process/JuxinStoryboardNode';
-import ZhenzhenStoryboardNode from './nodes/process/ZhenzhenStoryboardNode';
+// ⚠️ 停用平台专用故事板节点 (2026-01-07) - 使用统一的 VideoGenerateNode 代替
+// import JuxinStoryboardNode from './nodes/process/JuxinStoryboardNode';
+// import ZhenzhenStoryboardNode from './nodes/process/ZhenzhenStoryboardNode';
 import PromptOptimizerNode from './nodes/process/PromptOptimizerNode';
 import TaskResultNode from './nodes/output/TaskResultNode';
 import CharacterResultNode from './nodes/output/CharacterResultNode';
@@ -126,8 +127,9 @@ const nodeTemplates = [
   { type: 'promptOptimizerNode', label: '📝 提示词优化', category: 'process' },
   { type: 'videoGenerateNode', label: '🎬 视频生成', category: 'process' },
   { type: 'storyboardNode', label: '🎞️ 故事板', category: 'process' },
-  { type: 'juxinStoryboardNode', label: '🎬 聚鑫故事板', category: 'process' },
-  { type: 'zhenzhenStoryboardNode', label: '🎬 贞贞故事板', category: 'process' },
+  // ⚠️ 停用平台专用故事板节点 (2026-01-07) - 使用统一的 VideoGenerateNode 代替
+  // { type: 'juxinStoryboardNode', label: '🎬 聚鑫故事板', category: 'process' },
+  // { type: 'zhenzhenStoryboardNode', label: '🎬 贞贞故事板', category: 'process' },
   { type: 'taskResultNode', label: '📺 任务结果', category: 'output' },
   { type: 'characterResultNode', label: '📊 角色结果', category: 'output' },
 ];
@@ -141,8 +143,9 @@ function App() {
     apiSettingsNode: APISettingsNode,
     openaiConfigNode: OpenAIConfigNode,
     characterCreateNode: CharacterCreateNode,
-    juxinStoryboardNode: JuxinStoryboardNode,
-    zhenzhenStoryboardNode: ZhenzhenStoryboardNode,
+    // ⚠️ 停用平台专用故事板节点 (2026-01-07)
+    // juxinStoryboardNode: JuxinStoryboardNode,
+    // zhenzhenStoryboardNode: ZhenzhenStoryboardNode,
     videoGenerateNode: VideoGenerateNode,
     storyboardNode: StoryboardNode,
     promptOptimizerNode: PromptOptimizerNode,
@@ -356,8 +359,9 @@ function App() {
           const validVideoSourceTypes = [
             'videoGenerateNode',   // 视频生成节点
             'storyboardNode',
-            'juxinStoryboardNode',
-            'zhenzhenStoryboardNode',      // 故事板节点
+            // ⚠️ 停用平台专用故事板节点 (2026-01-07)
+            // 'juxinStoryboardNode',
+            // 'zhenzhenStoryboardNode',      // 故事板节点
             'characterCreateNode'  // 角色创建节点
           ];
 

@@ -1,7 +1,7 @@
 # WinJin AIGC - 错误模式参考
 
 > **说明**: 本文档按类型分类，包含所有已知的错误模式和解决方案。
-> **更新日期**: 2026-01-06 (验证错误49修复)
+> **更新日期**: 2026-01-07 (新增错误50、51)
 
 ---
 
@@ -10,10 +10,10 @@
 | 类型 | 错误数量 | 关键词 |
 |------|----------|--------|
 | [API 相关](#api-相关) | 9个 | 双平台、轮询、端点、模型、故事板、输出格式 |
-| [React Flow 相关](#react-flow-相关) | 6个 | 数据传递、Handle、连接、事件 |
+| [React Flow 相关](#react-flow-相关) | 7个 | 数据传递、Handle、连接、事件、竞态条件 |
 | [角色系统相关](#角色系统相关) | 6个 | 引用、显示、焦点、双显示、优化 |
 | [表单/输入相关](#表单输入相关) | 2个 | id/name、验证 |
-| [存储/持久化相关](#存储持久化相关) | 4个 | localStorage、工作流 |
+| [存储/持久化相关](#存储持久化相关) | 6个 | localStorage、工作流、配置持久化 |
 | [UI/渲染相关](#ui渲染相关) | 3个 | 布局抖动、对象渲染、CSS语法 |
 | [其他](#其他) | 21个 | ... |
 
@@ -581,6 +581,111 @@ const validSourceTypes = [
 3. **控制台日志**: `[TaskResultNode] Match! Setting taskId: xxx platform: zhenzhen` 表示成功
 
 **修复日期**: 2026-01-02
+
+---
+
+### 错误51: 任务结果节点轮询 interval 竞态条件 `React Flow` `竞态条件` ⭐⭐⭐ 2026-01-07 新增
+
+**现象**:
+- 生成新视频后，TaskResultNode 显示旧任务的视频结果
+- 用户描述："在任务执行过程中，任务结果节点都有显示任务进度，在85%进度时停止了，然后我手动查询，得到了错误的ID和结果"
+- API 后台显示新任务ID，TaskResultNode 显示旧任务ID
+
+**根本原因**:
+当 VideoGenerateNode 派发新任务事件时，TaskResultNode 的事件监听器更新 `setTaskId(newTaskId)`，但旧的轮询 interval 没有被清理，继续使用旧的 taskId 查询 API，导致新任务状态被旧任务结果覆盖
+
+**问题流程**:
+```
+1. VideoGenerateNode 派发事件 { taskId: 'video_new' }
+2. TaskResultNode 接收事件，开始轮询新任务，显示进度到 85%
+3. ❌ 旧的轮询 interval 仍在运行（使用 video_old）
+4. ❌ 旧 interval 查询 API 返回完成结果
+5. ❌ 调用 setTaskStatus('SUCCESS'), setVideoUrl(...) 等
+6. ❌ 覆盖了新任务状态
+```
+
+**错误示例**:
+```javascript
+// ❌ 错误：先更新 taskId，后清理轮询
+useEffect(() => {
+  const handleVideoCreated = (event) => {
+    const { taskId: newTaskId } = event.detail;
+
+    // ❌ 先更新 taskId（触发新的轮询 useEffect）
+    setTaskId(newTaskId);
+
+    // ❌ 后清理轮询（旧的 interval 可能已经执行）
+    setPolling(false);
+    setTaskStatus('idle');
+    setVideoUrl(null);
+
+    // 更新 node.data...
+  };
+}, []);
+```
+
+**正确示例**:
+```javascript
+// ✅ 正确：先清理轮询状态，防止旧 interval 覆盖
+useEffect(() => {
+  const handleVideoCreated = (event) => {
+    const { taskId: newTaskId, platform: newPlatform } = event.detail;
+
+    // ⭐ 关键修复：先清理轮询状态
+    setPolling(false);
+    setTaskStatus('idle');
+    setVideoUrl(null);
+    setError(null);
+    setProgress(0);
+
+    // ⭐ 设置 ref，阻止历史记录恢复
+    isCompletedFromHistoryRef.current = true;
+
+    // ⭐ 立即同步到 node.data
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                taskId: newTaskId,
+                platform: newPlatform || 'juxin',
+                taskStatus: 'IN_PROGRESS', // ⭐ 新任务应该是 IN_PROGRESS
+                videoUrl: null,
+                error: null,
+                progress: 0,
+                _isCompletedFromHistory: false
+              }
+            }
+          : node
+      )
+    );
+
+    // ⭐ 最后更新 taskId（触发新的轮询 useEffect）
+    setTaskId(newTaskId);
+    taskIdRef.current = newTaskId;
+    setPlatform(newPlatform || 'juxin');
+    setTaskStatus('IN_PROGRESS');
+    setPolling(true); // ⭐ 重新启动轮询
+    isCompletedFromHistoryRef.current = false;
+  };
+}, []);
+```
+
+**关键点**:
+1. **清理顺序**: 先 `setPolling(false)` 停止旧 interval，再 `setTaskId(newTaskId)` 触发新的
+2. **状态重置**: 同时重置 `setTaskStatus('idle')`, `setVideoUrl(null)`, `setError(null)`, `setProgress(0)`
+3. **taskStatus 正确性**: 新任务应该设置为 `'IN_PROGRESS'` 而非 `'idle'`
+4. **ref 管理**: 使用 `isCompletedFromHistoryRef` 阻止历史记录恢复
+
+**修复位置**: `src/client/src/nodes/output/TaskResultNode.jsx` (Lines 185-224)
+
+**相关错误**:
+- 错误37: TaskResultNode 任务ID竞态条件（useEffect 依赖问题）- 不同的竞态条件场景
+- 错误35: 轮询请求缺少 platform 参数导致查询失败
+
+**修复日期**: 2026-01-07
 
 ---
 
@@ -1171,6 +1276,79 @@ const [config, setConfig] = useState({
 
 **问题**: 时长参数应为数字类型，传递字符串导致 API 调用失败
 **解决方案**: duration 使用数字类型 (5, 10, 15, 25)
+
+---
+
+### 错误50: OpenAI 配置持久化丢失 `Storage` `持久化` ⭐⭐ 2026-01-07 新增
+
+**现象**: 服务重启后，OpenAI 配置节点连接丢失，PromptOptimizerNode 显示"⚠️ 未连接配置节点"
+
+**根本原因**:
+OpenAIConfigNode 初始化时使用了错误的优先级顺序，localStorage 全局配置覆盖了 node.data 工作流配置
+
+```javascript
+// ❌ 错误：localStorage 优先级高于 node.data
+const [config, setConfig] = useState(() => {
+  // 1. ❌ 优先 localStorage（全局配置）
+  try {
+    const local = localStorage.getItem('winjin-openai-config');
+    if (local) {
+      return JSON.parse(local);  // 覆盖了 node.data.openaiConfig
+    }
+  } catch (error) {
+    console.error('[OpenAIConfigNode] 读取 localStorage 失败:', error);
+  }
+
+  // 2. 降级到 node.data
+  const saved = data.savedConfig || {};
+  return {
+    base_url: saved.base_url || 'http://170.106.152.118:2999',
+    api_key: saved.api_key || 'sk-PdoHKdR3XKgiLzYRk3mxfgiYpJbC24JTLmwP0hv07nOE4QaE',
+    model: saved.model || 'gemini-2.5-pro-maxthinking',
+  };
+});
+
+// ✅ 正确：node.data 优先级高于 localStorage
+const [config, setConfig] = useState(() => {
+  // 1. ✅ 优先 node.data.openaiConfig（工作流专属配置）
+  if (data.openaiConfig) {
+    console.log('[OpenAIConfigNode] 使用 node.data 配置:', data.openaiConfig);
+    return data.openaiConfig;
+  }
+
+  // 2. ⚠️ 降级到 localStorage（全局配置，仅作为备份）
+  try {
+    const local = localStorage.getItem('winjin-openai-config');
+    if (local) {
+      const parsed = JSON.parse(local);
+      console.log('[OpenAIConfigNode] 降级到 localStorage 配置:', parsed);
+      return parsed;
+    }
+  } catch (error) {
+    console.error('[OpenAIConfigNode] 读取 localStorage 失败:', error);
+  }
+
+  // 3. ⚠️ 最后降级到空配置（不使用硬编码测试数据）
+  console.log('[OpenAIConfigNode] 使用默认空配置');
+  return {
+    base_url: '',
+    api_key: '',
+    model: '',
+  };
+});
+```
+
+**关键点**:
+1. **优先级调整**: node.data.openaiConfig → localStorage → 空配置
+2. **移除硬编码测试数据**: 返回空配置而非硬编码值
+3. **添加调试日志**: 记录配置来源（node.data / localStorage / 默认）
+4. **延迟同步**: 添加 100ms 延迟确保 App.jsx 完成工作流加载后再同步
+
+**修复位置**: `src/client/src/nodes/input/OpenAIConfigNode.jsx` (Lines 13-40, 124-137)
+
+**相关错误**: 错误33 - 工作流快照持久化时机问题
+
+**修复日期**: 2026-01-07
 
 ---
 

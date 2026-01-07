@@ -10,24 +10,32 @@ function OpenAIConfigNode({ data }) {
   const nodeId = useNodeId();
   const { setNodes, getEdges, edges } = useReactFlow();
 
-  // 从 localStorage 或 data 初始化
+  // 从 node.data 或 localStorage 初始化（优先级调整）
   const [config, setConfig] = useState(() => {
-    // 优先从 localStorage 读取（持久化存储）
+    // ✅ 优先使用 node.data.openaiConfig（工作流专属配置）
+    if (data.openaiConfig) {
+      console.log('[OpenAIConfigNode] 使用 node.data 配置:', data.openaiConfig);
+      return data.openaiConfig;
+    }
+
+    // ⚠️ 降级到 localStorage（全局配置，仅作为备份）
     try {
       const local = localStorage.getItem('winjin-openai-config');
       if (local) {
-        return JSON.parse(local);
+        const parsed = JSON.parse(local);
+        console.log('[OpenAIConfigNode] 降级到 localStorage 配置:', parsed);
+        return parsed;
       }
     } catch (error) {
       console.error('[OpenAIConfigNode] 读取 localStorage 失败:', error);
     }
 
-    // 降级到 node.data 初始化
-    const saved = data.savedConfig || {};
+    // ⚠️ 最后降级到空配置（不使用硬编码测试数据）
+    console.log('[OpenAIConfigNode] 使用默认空配置');
     return {
-      base_url: saved.base_url || 'http://170.106.152.118:2999',
-      api_key: saved.api_key || 'sk-PdoHKdR3XKgiLzYRk3mxfgiYpJbC24JTLmwP0hv07nOE4QaE',
-      model: saved.model || 'gemini-2.5-pro-maxthinking',
+      base_url: '',
+      api_key: '',
+      model: '',
     };
   });
 
@@ -113,14 +121,19 @@ function OpenAIConfigNode({ data }) {
     syncToData(newConfig);
   };
 
-  // 同步配置到 node.data（初始化时同步一次）
+  // 同步配置到 node.data（初始化时同步一次，延迟执行确保工作流已加载）
   useEffect(() => {
-    console.log('[OpenAIConfigNode] 初始化 useEffect - 同步配置到 node.data:', {
-      nodeId,
-      configKeys: Object.keys(config),
-      hasConfig: !!config,
-    });
-    syncToData(config);
+    // ⭐ 延迟 100ms 执行，确保 App.jsx 已完成工作流加载
+    const timer = setTimeout(() => {
+      console.log('[OpenAIConfigNode] 延迟同步配置到 node.data:', {
+        nodeId,
+        configKeys: Object.keys(config),
+        hasConfig: !!config,
+      });
+      syncToData(config);
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, []); // ⭐ 空依赖数组，只在挂载时运行一次
 
   // 传递配置到下游节点
