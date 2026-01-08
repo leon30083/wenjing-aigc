@@ -1,0 +1,82 @@
+[
+  {
+    "version": "v1.0",
+    "tests": [
+      {
+        "success": true,
+        "version": "v1.0",
+        "original": "一只可爱的猫咪在睡觉",
+        "optimized": "[v1.0] 优化后的提示词：一只可爱的猫咪在睡觉",
+        "tokenCount": 7,
+        "responseTime": 1374,
+        "quality": 8.434220139568616
+      },
+      {
+        "success": true,
+        "version": "v1.0",
+        "original": "@test.user 在海边玩耍",
+        "optimized": "[v1.0] 优化后的提示词：@test.user 在海边玩耍",
+        "tokenCount": 6,
+        "responseTime": 2721,
+        "quality": 7.430566397226292
+      },
+      {
+        "success": true,
+        "version": "v1.0",
+        "original": "老鹰在山上飞翔，背景是日落",
+        "optimized": "[v1.0] 优化后的提示词：老鹰在山上飞翔，背景是日落",
+        "tokenCount": 8,
+        "responseTime": 2734,
+        "quality": 8.267324753885092
+      }
+    ],
+    "summary": {
+      "totalTests": 3,
+      "passedTests": 3,
+      "failedTests": 0,
+      "avgTokens": 7,
+      "avgResponseTime": 2276.3333333333335,
+      "avgQuality": 8.044037096893334
+    }
+  },
+  {
+    "version": "v1.1",
+    "tests": [
+      {
+        "success": true,
+        "version": "v1.1",
+        "original": "一只可爱的猫咪在睡觉",
+        "optimized": "[v1.1] 优化后的提示词：一只可爱的猫咪在睡觉",
+        "tokenCount": 7,
+        "responseTime": 2131,
+        "quality": 8.38748038095885
+      },
+      {
+        "success": true,
+        "version": "v1.1",
+        "original": "@test.user 在海边玩耍",
+        "optimized": "[v1.1] 优化后的提示词：@test.user 在海边玩耍",
+        "tokenCount": 6,
+        "responseTime": 1896,
+        "quality": 8.060714785905114
+      },
+      {
+        "success": true,
+        "version": "v1.1",
+        "original": "老鹰在山上飞翔，背景是日落",
+        "optimized": "[v1.1] 优化后的提示词：老鹰在山上飞翔，背景是日落",
+        "tokenCount": 8,
+        "responseTime": 2212,
+        "quality": 7.908515550783233
+      }
+    ],
+    "summary": {
+      "totalTests": 3,
+      "passedTests": 3,
+      "failedTests": 0,
+      "avgTokens": 7,
+      "avgResponseTime": 2079.6666666666665,
+      "avgQuality": 8.118903572549065
+    }
+  }
+]

@@ -12,5 +12,111 @@
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-context7"]
     }
+  },
+
+  "sandbox": {
+    "allowedCommands": [
+      "npm*",
+      "node*",
+      "git status",
+      "git diff",
+      "git log",
+      "git show",
+      "git branch",
+      "dir",
+      "ls",
+      "cat",
+      "type",
+      "cd"
+    ],
+    "allowedPaths": [
+      "src/**",
+      "tests/**",
+      ".claude/**",
+      "scripts/**",
+      "data/**",
+      "downloads/**"
+    ],
+    "allowMcpServers": [
+      "mcp__chrome-devtools__*",
+      "mcp__context7__*",
+      "mcp__memory__*",
+      "mcp__sequential-thinking__*",
+      "mcp__web-reader__*",
+      "mcp__web-search-prime__*"
+    ]
+  },
+
+  "hooks": {
+    "PreToolUse": {
+      "enabled": true,
+      "description": "工具使用前检查",
+      "commands": [
+        "echo '[Hook] 准备执行工具...'"
+      ]
+    },
+    "PostToolUse": {
+      "enabled": true,
+      "description": "工具使用后显示状态",
+      "commands": [
+        "! git status --short"
+      ]
+    },
+    "PermissionRequest": {
+      "enabled": true,
+      "autoApprove": [
+        "npm run lint",
+        "npm run test:*",
+        "node scripts/*.js",
+        "git status",
+        "git diff",
+        "git log"
+      ],
+      "description": "自动批准安全命令"
+    }
+  },
+
+  "statusline": {
+    "enabled": true,
+    "components": [
+      "git-branch",
+      "git-status",
+      "model",
+      "token-usage",
+      "context-percentage"
+    ]
+  },
+
+  "autoLearning": {
+    "enabled": true,
+    "errorMonitoring": true,
+    "patternRecognition": true,
+    "ruleGeneration": false,
+    "requireApproval": true,
+    "config": {
+      "minFrequency": 2,
+      "timeWindow": "7d",
+      "similarityThreshold": 0.8
+    }
+  },
+
+  "documentation": {
+    "autoUpdate": true,
+    "updateOnComplete": true,
+    "requireConfirmation": true,
+    "files": [
+      ".claude/skills/winjin-dev/SKILL.md",
+      ".claude/rules/base.md",
+      ".claude/rules/code.md",
+      ".claude/rules/error-patterns.md",
+      "用户输入文件夹/开发对话/开发交接书.md"
+    ]
+  },
+
+  "testing": {
+    "autoRun": false,
+    "onSave": false,
+    "onCommit": true,
+    "framework": "mcp-chrome-devtools"
   }
 }

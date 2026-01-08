@@ -10,7 +10,10 @@
     "dev:main": "nodemon --exec electron . --watch src/main",
     "build": "vite build && electron-builder",
     "build:dir": "vite build && electron-builder --dir",
-    "server": "node src/server/index.js"
+    "server": "node src/server/index.js",
+    "test:prompt": "node scripts/test-prompt.js",
+    "test:prompt:all": "node scripts/test-prompt.js --versions=v1.0,v1.1,v1.2",
+    "generate:report": "node scripts/generate-report.js --format=html"
   },
   "keywords": [
     "aigc",
