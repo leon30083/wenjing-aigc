@@ -58,24 +58,39 @@ export default function NarratorProcessorNode({ data }) {
 
           // 如果已有优化数据，只更新配置参数，不覆盖 sentences
           if (hasOptimizedData) {
-            console.log('[NarratorProcessorNode] ✅ 保留已优化的句子（', sentences.filter(s => s.optimized).length, '个），只更新配置');
-            setStyle(sourceNode.data.style || 'picture-book');
-            setTargetDuration(sourceNode.data.targetDuration || 10);
-            setOptimizationDirection(sourceNode.data.optimizationDirection || 'balanced');
-            setCustomStyleDescription(sourceNode.data.customStyleDescription || '');
-            setConnectedCharacters(sourceNode.data.connectedCharacters || []);
+            // ⭐ 使用时间戳检查：如果优化刚刚开始（100ms内），跳过进度恢复
+            // 这解决了 onClick 执行晚于 useEffect 的时序问题
+            const timeSinceOptimizationStart = Date.now() - optimizationStartTimestampRef.current;
+            if (isOptimizingRef.current || timeSinceOptimizationStart < 100) {
+              console.log('[NarratorProcessorNode] ⏭️ 跳过进度恢复（优化刚启动或进行中）', {
+                isOptimizing: isOptimizingRef.current,
+                timeSinceStart: timeSinceOptimizationStart
+              });
+              setStyle(sourceNode.data.style || 'picture-book');
+              setTargetDuration(sourceNode.data.targetDuration || 10);
+              setOptimizationDirection(sourceNode.data.optimizationDirection || 'balanced');
+              setCustomStyleDescription(sourceNode.data.customStyleDescription || '');
+              setConnectedCharacters(sourceNode.data.connectedCharacters || []);
+            } else {
+              console.log('[NarratorProcessorNode] ✅ 保留已优化的句子（', sentences.filter(s => s.optimized).length, '个），只更新配置');
+              setStyle(sourceNode.data.style || 'picture-book');
+              setTargetDuration(sourceNode.data.targetDuration || 10);
+              setOptimizationDirection(sourceNode.data.optimizationDirection || 'balanced');
+              setCustomStyleDescription(sourceNode.data.customStyleDescription || '');
+              setConnectedCharacters(sourceNode.data.connectedCharacters || []);
 
-            // ⭐ 恢复 UI 状态（进度、当前句子）
-            const optimizedCount = sentences.filter(s => s.optimized).length;
-            const totalCount = sentences.length;
-            const restoredProgress = Math.round((optimizedCount / totalCount) * 100);
-            setProgress(restoredProgress);
+              // ⭐ 恢复 UI 状态（进度、当前句子）
+              const optimizedCount = sentences.filter(s => s.optimized).length;
+              const totalCount = sentences.length;
+              const restoredProgress = Math.round((optimizedCount / totalCount) * 100);
+              setProgress(restoredProgress);
 
-            // 恢复当前索引和提示词
-            const savedIndex = data.currentIndex || 0;
-            setCurrentIndex(savedIndex);
-            if (sentences[savedIndex]?.optimized) {
-              setCurrentPrompt(sentences[savedIndex].optimized);
+              // 恢复当前索引和提示词
+              const savedIndex = data.currentIndex || 0;
+              setCurrentIndex(savedIndex);
+              if (sentences[savedIndex]?.optimized) {
+                setCurrentPrompt(sentences[savedIndex].optimized);
+              }
             }
           } else {
             // 没有优化数据时，才从源节点读取句子
@@ -140,14 +155,32 @@ export default function NarratorProcessorNode({ data }) {
    * ⭐ 关键：使用 ref 防止无限循环，只同步关键数据
    */
   const isInitialLoadRef = React.useRef(true);
+  const isOptimizingRef = React.useRef(false); // ⭐ 防止优化期间触发同步 useEffect
+  const optimizationStartTimestampRef = React.useRef(0); // ⭐ 记录优化开始时间（用于防止竞态条件）
 
   useEffect(() => {
-    console.log('[NarratorProcessorNode] 🔧 同步 useEffect 触发:', { currentIndex, isInitialLoad: isInitialLoadRef.current });
+    console.log('[NarratorProcessorNode] 🔧 同步 useEffect 触发:', {
+      currentIndex,
+      isInitialLoad: isInitialLoadRef.current,
+      isOptimizing: isOptimizingRef.current,
+      optimizationStartTimestamp: optimizationStartTimestampRef.current
+    });
 
     // 跳过初始加载（避免覆盖从 data 恢复的数据）
     if (isInitialLoadRef.current) {
       isInitialLoadRef.current = false;
       console.log('[NarratorProcessorNode] ⏭️ 跳过初始加载');
+      return;
+    }
+
+    // ⭐ 跳过优化期间的同步（避免竞态条件）
+    // 使用时间戳检查：如果优化刚刚开始（100ms内），跳过同步
+    const timeSinceOptimizationStart = Date.now() - optimizationStartTimestampRef.current;
+    if (isOptimizingRef.current || timeSinceOptimizationStart < 100) {
+      console.log('[NarratorProcessorNode] ⏭️ 跳过同步（优化进行中或刚启动）', {
+        isOptimizing: isOptimizingRef.current,
+        timeSinceStart: timeSinceOptimizationStart
+      });
       return;
     }
 
@@ -330,57 +363,126 @@ export default function NarratorProcessorNode({ data }) {
    * 批量优化所有句子
    */
   const optimizeAllSentences = async () => {
+    // ⭐ 防止重复点击
+    if (isOptimizing) {
+      console.warn('[NarratorProcessorNode] 优化进行中，忽略重复点击');
+      return;
+    }
+
     if (!openaiConfig) {
       alert('请先连接 OpenAI 配置节点');
       return;
     }
 
-    // ⭐ 如果 sentences 为空，先从上游节点加载
-    if (sentences.length === 0) {
-      console.log('[NarratorProcessorNode] sentences 为空，尝试从上游节点加载...');
-      const loaded = await loadFromSourceNode();
-      if (!loaded) {
-        alert('请先连接旁白输入节点或输入旁白文本');
-        return;
-      }
-      // 等待状态更新
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
+    // ⭐⭐⭐ 关键修复：立即设置时间戳（在任何可能导致 useEffect 触发的操作之前）
+    optimizationStartTimestampRef.current = Date.now();
+    console.log('[NarratorProcessorNode] ⏱️ 设置优化开始时间戳:', optimizationStartTimestampRef.current);
 
+    // ⭐ 设置标记和状态
     setIsOptimizing(true);
+    isOptimizingRef.current = true;
+
+    try {
+      // ⭐ 如果 sentences 为空，先从上游节点加载
+      if (sentences.length === 0) {
+        console.log('[NarratorProcessorNode] sentences 为空，尝试从上游节点加载...');
+        const loaded = await loadFromSourceNode();
+        if (!loaded) {
+          alert('请先连接旁白输入节点或输入旁白文本');
+          return;
+        }
+        // 等待状态更新
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
     setProgress(0);
 
     const results = [];
-    let completedCount = 0;
 
     // ⭐ 优化：使用临时数组收集结果，最后一次性更新状态
     // 避免在循环中多次触发 setSentences 和同步 useEffect
-    const tempSentences = [...sentences];
+    let tempSentences = [...sentences];
+
+    // ⭐ 关键修复：重置所有句子的状态（清空之前的优化结果）
+    // 这样 readyCount 才会从 0 开始计算
+    tempSentences = tempSentences.map(s => ({
+      ...s,
+      status: 'pending',
+      optimized: undefined,  // 清空之前的优化结果
+      error: undefined
+    }));
+
+    // ⭐ 立即更新状态，确保 UI 显示正确（readyCount = 0）
+    setSentences(tempSentences);
+
+    // ⭐ 添加日志：开始优化循环
+    console.log('[NarratorProcessorNode] ========== 开始优化循环 ==========');
+    console.log('[NarratorProcessorNode] 待优化句子数:', tempSentences.length);
 
     for (let i = 0; i < tempSentences.length; i++) {
-      // 更新临时数组的状态为优化中（仅用于 UI 显示）
-      tempSentences[i] = { ...tempSentences[i], status: 'optimizing' };
-      setSentences([...tempSentences]); // 仅更新 UI，触发同步 useEffect（但没有优化数据）
+      console.log(`[NarratorProcessorNode] [${i + 1}/${tempSentences.length}] 开始优化`);
 
-      // 更新进度
-      setProgress(Math.round((completedCount / tempSentences.length) * 100));
+      // 更新本地变量
+      tempSentences[i] = {
+        ...tempSentences[i],
+        status: 'optimizing'
+      };
 
-      // 优化句子
-      const optimized = await optimizeSentence(tempSentences[i]);
-      results.push(optimized);
+      // ⭐ 实时更新 UI（isOptimizingRef 会防止同步 useEffect）
+      setSentences([...tempSentences]);
 
-      // 更新临时数组
-      tempSentences[i] = optimized;
+      try {
+        // 优化句子
+        const optimized = await optimizeSentence(tempSentences[i]);
+        results.push(optimized);
 
-      completedCount++;
-      setProgress(Math.round((completedCount / tempSentences.length) * 100));
+        // 更新本地变量
+        tempSentences[i] = optimized;
+
+        // ⭐ 实时更新 UI（显示优化完成的句子）
+        setSentences([...tempSentences]);
+
+        // 实时更新进度百分比
+        setProgress(Math.round(((i + 1) / tempSentences.length) * 100));
+
+        console.log(`[NarratorProcessorNode] [${i + 1}/${tempSentences.length}] 优化成功`, {
+          hasOptimized: !!optimized.optimized,
+          status: optimized.status
+        });
+      } catch (error) {
+        console.error(`[NarratorProcessorNode] [${i + 1}/${tempSentences.length}] 优化失败:`, error);
+        tempSentences[i] = {
+          ...tempSentences[i],
+          status: 'error',
+          error: error.message
+        };
+        // ⭐ 实时更新 UI（显示失败的句子）
+        setSentences([...tempSentences]);
+      }
+    }
+
+    console.log('[NarratorProcessorNode] ========== 优化循环完成 ==========');
+    console.log('[NarratorProcessorNode] 优化结果统计:', {
+      总数: tempSentences.length,
+      成功: results.filter(r => r.optimized).length,
+      失败: results.filter(r => r.status === 'error').length
+    });
+
+    // ⭐ 清除标记：结束优化
+    isOptimizingRef.current = false;
+
+    // ⭐ 验证完整性
+    if (results.length !== tempSentences.length) {
+      console.error('[NarratorProcessorNode] ⚠️ 警告：优化结果数量不匹配！', {
+        预期: tempSentences.length,
+        实际: results.length
+      });
     }
 
     // ⭐ 关键：最后一次性设置所有优化后的句子
     // 这会触发同步 useEffect，将完整结果保存到 node.data
     setSentences(tempSentences);
 
-    setIsOptimizing(false);
     setProgress(100);
 
     // 设置当前为第一个句子
@@ -394,8 +496,19 @@ export default function NarratorProcessorNode({ data }) {
       // ⭐ 派发事件通知 App.jsx 自动保存工作流
       console.log('[NarratorProcessorNode] 优化完成，派发保存工作流事件');
       window.dispatchEvent(new CustomEvent('narrator-optimization-complete', {
-        detail: { nodeId, sentencesCount: results.length }
+        detail: {
+          nodeId,
+          sentencesCount: results.length,
+          successCount: results.filter(r => r.optimized).length
+        }
       }));
+    }
+    } finally {
+      // ⭐ 确保标记总是被清除（即使发生错误）
+      setIsOptimizing(false);
+      isOptimizingRef.current = false;
+      optimizationStartTimestampRef.current = 0; // ⭐ 清除时间戳
+      console.log('[NarratorProcessorNode] 优化标记和时间戳已清除');
     }
   };
 
@@ -538,12 +651,25 @@ export default function NarratorProcessorNode({ data }) {
    * 重新优化当前句子
    */
   const reoptimizeCurrent = async () => {
+    // ⭐⭐⭐ 关键修复：立即设置时间戳（在任何可能导致 useEffect 触发的操作之前）
+    optimizationStartTimestampRef.current = Date.now();
+    console.log('[NarratorProcessorNode] ⏱️ 设置优化开始时间戳 (reoptimize):', optimizationStartTimestampRef.current);
+
+    // ⭐ 关键修复：立即设置标记，防止 useEffect 恢复旧进度
+    isOptimizingRef.current = true;
+    setIsOptimizing(true);
+    setProgress(0);
+
     // ⭐ 如果 sentences 为空，先从上游节点加载
     if (sentences.length === 0) {
       console.log('[NarratorProcessorNode] sentences 为空，尝试从上游节点加载...');
       const loaded = await loadFromSourceNode();
       if (!loaded) {
         alert('请先连接旁白输入节点或输入旁白文本');
+        // ⭐ 清除标记
+        isOptimizingRef.current = false;
+        optimizationStartTimestampRef.current = 0;
+        setIsOptimizing(false);
         return;
       }
       // 等待状态更新
@@ -551,6 +677,10 @@ export default function NarratorProcessorNode({ data }) {
     }
 
     if (currentIndex >= sentences.length) {
+      // ⭐ 清除标记
+      isOptimizingRef.current = false;
+      optimizationStartTimestampRef.current = 0;
+      setIsOptimizing(false);
       return;
     }
 
@@ -563,21 +693,29 @@ export default function NarratorProcessorNode({ data }) {
       )
     );
 
-    // 优化
-    const optimized = await optimizeSentence(sentence);
+    try {
+      // 优化
+      const optimized = await optimizeSentence(sentence);
 
-    // 创建更新后的句子数组
-    const updatedSentences = sentences.map((s, idx) =>
-      idx === currentIndex ? optimized : s
-    );
+      // 创建更新后的句子数组
+      const updatedSentences = sentences.map((s, idx) =>
+        idx === currentIndex ? optimized : s
+      );
 
-    // 更新句子状态
-    setSentences(updatedSentences);
+      // 更新句子状态
+      setSentences(updatedSentences);
 
-    // 更新当前提示词
-    if (optimized.status === 'ready') {
-      setCurrentPrompt(optimized.optimized);
-      updateVideoGenerateNode(optimized.optimized, updatedSentences, currentIndex);
+      // 更新当前提示词
+      if (optimized.status === 'ready') {
+        setCurrentPrompt(optimized.optimized);
+        updateVideoGenerateNode(optimized.optimized, updatedSentences, currentIndex);
+      }
+    } finally {
+      // ⭐ 确保标记总是被清除
+      isOptimizingRef.current = false;
+      optimizationStartTimestampRef.current = 0; // ⭐ 清除时间戳
+      setIsOptimizing(false);
+      console.log('[NarratorProcessorNode] reoptimizeCurrent 优化标记和时间戳已清除');
     }
   };
 
