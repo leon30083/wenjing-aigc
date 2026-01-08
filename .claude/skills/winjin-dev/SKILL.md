@@ -253,7 +253,7 @@ useEffect(() => {
 | [React Flow 相关](../../rules/error-patterns.md#react-flow-相关) | [error-patterns.md](../../rules/error-patterns.md#react-flow-相关) | 7个 |
 | [角色系统相关](../../rules/error-patterns.md#角色系统相关) | [error-patterns.md](../../rules/error-patterns.md#角色系统相关) | 6个 |
 | [表单/输入相关](../../rules/error-patterns.md#表单输入相关) | [error-patterns.md](../../rules/error-patterns.md#表单输入相关) | 2个 |
-| [存储/持久化相关](../../rules/error-patterns.md#存储持久化相关) | [error-patterns.md](../../rules/error-patterns.md#存储持久化相关) | 6个 |
+| [存储/持久化相关](../../rules/error-patterns.md#存储持久化相关) | [error-patterns.md](../../rules/error-patterns.md#存储持久化相关) | 7个 |
 | [UI/渲染相关](../../rules/error-patterns.md#ui渲染相关) | [error-patterns.md](../../rules/error-patterns.md#ui渲染相关) | 3个 |
 | [其他](../../rules/error-patterns.md#其他) | [error-patterns.md](../../rules/error-patterns.md#其他) | 21个 |
 
@@ -268,12 +268,13 @@ useEffect(() => {
 7. **错误49**: 优化节点输出格式结构化 ⭐⭐⭐ 2026-01-06 新增
 8. **错误50**: OpenAI 配置持久化丢失 ⭐⭐ 2026-01-07 新增
 9. **错误51**: 任务结果节点轮询 interval 竞态条件 ⭐⭐⭐ 2026-01-07 新增
+10. **错误53**: NarratorProcessorNode 优化结果刷新后丢失 ⭐⭐⭐ 2026-01-08 新增
 
 **查看完整错误模式**: [`.claude/rules/error-patterns.md`](../../rules/error-patterns.md)
 
 ---
 
-## 开发提示（精选）⭐ 2026-01-06 更新
+## 开发提示（精选）⭐ 2026-01-08 更新
 
 以下是开发过程中最重要的提示，按优先级排序：
 
@@ -283,6 +284,8 @@ useEffect(() => {
 2. **useEffect 依赖**: 避免依赖 `nodes`（会导致无限循环）
 3. **节点间数据传递**: 源节点直接更新目标节点（不要依赖 App.jsx）
 4. **事件系统**: 用于异步数据传递（taskId 等）
+5. **getEdges 解构**: `useReactFlow()` 必须包含 `getEdges`，否则无法查询连接 ⭐ 2026-01-08 新增
+6. **单向数据流**: 避免双向同步导致无限循环（节点持续跳动/闪烁 = 数据流循环）⭐ 2026-01-08 新增
 
 ### 2. API 调用优先级 ⭐⭐⭐
 

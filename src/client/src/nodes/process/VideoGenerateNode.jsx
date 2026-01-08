@@ -10,7 +10,7 @@ let isResizingNode = false;
 
 function VideoGenerateNode({ data }) {
   const nodeId = useNodeId();
-  const { setNodes } = useReactFlow();
+  const { setNodes, getNodes, getEdges } = useReactFlow();
   const promptInputRef = useRef(null);
   const nodeRef = useRef(null);
   const resizeHandleRef = useRef(null);
@@ -83,6 +83,12 @@ function VideoGenerateNode({ data }) {
   const [taskId, setTaskId] = useState(data.taskId || null); // ⭐ 从 data.taskId 初始化
   const [error, setError] = useState(null);
 
+  // ⭐ 旁白模式状态
+  const [narratorMode, setNarratorMode] = useState(data.narratorMode || false);
+  const [narratorIndex, setNarratorIndex] = useState(data.narratorIndex || 0);
+  const [narratorTotal, setNarratorTotal] = useState(data.narratorTotal || 0);
+  const [narratorSentences, setNarratorSentences] = useState(data.narratorSentences || []);
+
   // ⭐ 关键修复：当 data.taskId 变化时（加载工作流），同步到内部状态
   useEffect(() => {
     if (data.taskId && data.taskId !== taskId) {
@@ -125,6 +131,68 @@ function VideoGenerateNode({ data }) {
       );
     }
   }, [manualPrompt, nodeId, setNodes, data.manualPrompt]);
+
+  // ⭐ 接收旁白模式数据（来自 NarratorProcessorNode）
+  useEffect(() => {
+    console.log('[VideoGenerateNode] 旁白数据变化:', {
+      narratorMode: data.narratorMode,
+      narratorIndex: data.narratorIndex,
+      narratorTotal: data.narratorTotal,
+      narratorSentencesCount: data.narratorSentences?.length || 0,
+      manualPrompt: data.manualPrompt?.substring(0, 50)
+    });
+
+    if (data.narratorMode !== undefined) {
+      console.log('[VideoGenerateNode] 设置 narratorMode =', data.narratorMode);
+      setNarratorMode(data.narratorMode);
+    }
+    if (data.narratorIndex !== undefined) {
+      console.log('[VideoGenerateNode] 设置 narratorIndex =', data.narratorIndex);
+      setNarratorIndex(data.narratorIndex);
+    }
+    if (data.narratorTotal !== undefined) {
+      console.log('[VideoGenerateNode] 设置 narratorTotal =', data.narratorTotal);
+      setNarratorTotal(data.narratorTotal);
+    }
+    if (data.narratorSentences !== undefined) {
+      console.log('[VideoGenerateNode] 设置 narratorSentences =', data.narratorSentences.length, '个句子');
+      setNarratorSentences(data.narratorSentences);
+    }
+  }, [data.narratorMode, data.narratorIndex, data.narratorTotal, data.narratorSentences]);
+
+  // ⭐ 关键修复：同步内部 narratorIndex 变化到 node.data（修复 UI 不更新问题）
+  useEffect(() => {
+    // 只在旁白模式下同步
+    if (narratorMode) {
+      // 获取当前节点的 data
+      const currentNode = getNodes().find(n => n.id === nodeId);
+      const currentIndex = currentNode?.data?.narratorIndex;
+
+      // ⭐ 只在值真正不同时更新（防止无限循环）
+      if (currentIndex !== narratorIndex || currentNode?.data?.manualPrompt !== manualPrompt) {
+        console.log('[VideoGenerateNode] 内部状态变化，同步到 node.data:', {
+          oldIndex: currentIndex,
+          newIndex: narratorIndex,
+          manualPrompt: manualPrompt?.substring(0, 30)
+        });
+
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    narratorIndex,
+                    manualPrompt
+                  }
+                }
+              : node
+          )
+        );
+      }
+    }
+  }, [narratorIndex, manualPrompt, narratorMode, nodeId, setNodes, getNodes]);
 
   // Resize handling - use capture phase and prevent default
   const handleResizeMouseDown = (e) => {
@@ -311,6 +379,52 @@ function VideoGenerateNode({ data }) {
     }
   };
 
+  // ⭐ 加载当前旁白（从 NarratorProcessorNode 读取当前句子）
+  const loadCurrentSentence = () => {
+    // 查找连接的 NarratorProcessorNode
+    const edges = getEdges();
+    const narratorEdge = edges.find(
+      (e) => e.target === nodeId && e.sourceHandle === 'sentence-output'
+    );
+
+    if (narratorEdge) {
+      const narratorNode = getNodes().find(n => n.id === narratorEdge.source);
+      if (narratorNode?.type === 'narratorProcessorNode') {
+        const currentIndex = narratorNode.data?.currentIndex || 0;
+        const sentences = narratorNode.data?.sentences || [];
+        const currentSentence = sentences[currentIndex];
+
+        if (currentSentence?.optimized) {
+          setNarratorMode(true);
+          setNarratorIndex(currentIndex);
+          setNarratorTotal(sentences.length);
+          setNarratorSentences(sentences);
+          setManualPrompt(currentSentence.optimized);
+
+          console.log('[VideoGenerateNode] 加载当前旁白:', {
+            currentIndex,
+            total: sentences.length,
+            prompt: currentSentence.optimized?.substring(0, 50)
+          });
+        }
+      }
+    }
+  };
+
+  // ⭐ 加载下一个句子（旁白模式）
+  const loadNextSentence = () => {
+    if (narratorMode && narratorIndex < narratorTotal - 1) {
+      const nextIndex = narratorIndex + 1;
+      const nextSentence = narratorSentences[nextIndex];
+
+      if (nextSentence && nextSentence.optimized) {
+        setNarratorIndex(nextIndex);
+        setManualPrompt(nextSentence.optimized);
+        console.log('[VideoGenerateNode] 加载下一个句子:', nextIndex);
+      }
+    }
+  };
+
   return (
     <div
       ref={nodeRef}
@@ -353,6 +467,12 @@ function VideoGenerateNode({ data }) {
         id="images-input"
         style={{ background: '#8b5cf6', width: 10, height: 10, top: '70%' }}
       />
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="sentence-output"
+        style={{ background: '#a855f7', width: 10, height: 10, top: '85%' }}
+      />
 
       {/* Input Labels (separate from handles) */}
       <div style={{ position: 'absolute', left: '18px', top: '10%', transform: 'translateY(-50%)', zIndex: 10 }}>
@@ -366,6 +486,9 @@ function VideoGenerateNode({ data }) {
       </div>
       <div style={{ position: 'absolute', left: '18px', top: '70%', transform: 'translateY(-50%)', zIndex: 10 }}>
         <span style={{ fontSize: '10px', color: '#8b5cf6', fontWeight: 'bold', whiteSpace: 'nowrap' }}>图片</span>
+      </div>
+      <div style={{ position: 'absolute', left: '18px', top: '85%', transform: 'translateY(-50%)', zIndex: 10 }}>
+        <span style={{ fontSize: '10px', color: '#a855f7', fontWeight: 'bold', whiteSpace: 'nowrap' }}>旁白</span>
       </div>
 
       {/* Output Handle */}
@@ -449,6 +572,63 @@ function VideoGenerateNode({ data }) {
           <option value={25}>25秒</option>
         </select>
       </div>
+
+      {/* ⭐ 旁白模式显示 */}
+      {narratorMode && (
+        <div style={{
+          padding: '8px',
+          backgroundColor: '#e0f2fe',
+          borderRadius: '4px',
+          marginBottom: '8px',
+          border: '1px solid #7dd3fc'
+        }}>
+          <div style={{
+            fontSize: '12px',
+            fontWeight: 'bold',
+            marginBottom: '4px',
+            color: '#0369a1'
+          }}>
+            📺 旁白模式: 句子 {narratorIndex + 1}/{narratorTotal}
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button
+              className="nodrag"
+              onClick={loadCurrentSentence}
+              style={{
+                flex: 1,
+                padding: '4px 8px',
+                fontSize: '11px',
+                backgroundColor: '#059669',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                opacity: 1
+              }}
+            >
+              📥 加载当前旁白
+            </button>
+            <button
+              className="nodrag"
+              onClick={loadNextSentence}
+              disabled={narratorIndex >= narratorTotal - 1}
+              style={{
+                flex: 1,
+                padding: '4px 8px',
+                fontSize: '11px',
+                backgroundColor: narratorIndex >= narratorTotal - 1 ? '#9ca3af' : '#0ea5e9',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: narratorIndex >= narratorTotal - 1 ? 'not-allowed' : 'pointer',
+                opacity: narratorIndex >= narratorTotal - 1 ? 0.5 : 1
+              }}
+            >
+            {narratorIndex >= narratorTotal - 1 ? '✓ 完成' : '⏭️ 下一个'}
+          </button>
+          </div>
+        </div>
+      )}
 
       {/* ⭐ 候选角色显示 */}
       <div className="nodrag" style={{ marginBottom: '8px' }}>

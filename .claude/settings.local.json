@@ -98,7 +98,9 @@
       "Bash(Where-Object {$_HasExited})",
       "Bash(Select-Object:*)",
       "Bash(Stop-Process -Id 11916 -Force -ErrorAction SilentlyContinue)",
-      "Bash(Start-Sleep -Seconds 2)"
+      "Bash(Start-Sleep -Seconds 2)",
+      "Bash(Where-Object {$_HasExited -eq $false})",
+      "Bash(ForEach-Object { Stop-Process -Id $_Id -Force -ErrorAction SilentlyContinue })"
     ]
   }
 }

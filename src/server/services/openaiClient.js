@@ -363,9 +363,23 @@ ${characterList}
 
       characterMapping = `\n\n可用角色列表（必须使用 @username 格式引用）：\n${characterList}`;
 
-      characterContext = `\n\n重要：当提示词需要描述角色时，必须使用 @username 格式引用角色（注意：username 后面必须加空格，如 @username 在...），不要直接描述角色的外貌特征。`;
+      // ⭐ 增强角色引用保留指令
+      characterContext = `
 
-      characterInstruction = '6. 如果提供了角色上下文，必须使用 @username 格式引用角色（注意：@username 后面必须加空格），不要直接描述角色';
+⚠️ 重要：当提示词需要描述角色时，必须使用 @username 格式引用角色。
+
+✅ 正确示例：
+- 输入: "@装载机 在工地上干活"
+- 输出: "卡通绘本风格的视频。@783316a1d.diggyloade 在工地上工作，搬运岩石，展示力量..."
+
+❌ 禁止：
+- 描述角色外观（如"强壮的手臂"、"微笑的表情"）
+- 使用别名代替真实ID（如"@装载机"而非"@783316a1d.diggyloade"）
+- 将角色引用替换为通用描述（如"一个卡通角色"）
+
+✅ 正确：只描述角色活动（如"搬运岩石"、"展示力量"、"探索环境"）`;
+
+      characterInstruction = '6. 如果提供了角色上下文，必须使用 @username 格式引用角色（注意：@username 后面必须加空格），只描述角色在场景中的动作、互动、位置，不要描述角色外观';
     } else {
       // ⭐ 关键修复：明确告知不要使用 @username 格式
       characterInstruction = '6. 不要使用 @username 格式引用角色（未提供角色上下文），直接描述主体即可';
@@ -425,13 +439,14 @@ ${characterInstruction}${examplesSection}
     if (!direction) return '';
 
     const instructions = {
-      '更详细': '请增加细节描述，提供更多视觉细节、环境描述和感官体验。添加具体的颜色、形状、材质、光影效果等细节。',
-      '更简洁': '请简化描述，保持核心内容，去掉冗余的修饰词和次要细节。使用简洁明了的语言表达。保留最重要的视觉元素和动作，删减不必要的描述。',
-      '更生动': '请使用更生动的语言，增强画面感和动态感。添加动态动词、拟声词、比喻等修辞手法，让描述更具活力和表现力。',
-      '更专业': '请使用专业术语和更正式的表达方式。采用行业标准词汇、技术参数描述，让提示词更具专业性和权威感。'
+      'balanced': '保持细节和创意的平衡',
+      'detailed': '添加丰富的视觉细节，描述环境和氛围',
+      'concise': '突出核心动作，简化细节描述',
+      'creative': '给AI更多发挥空间，不要写死每个细节',
+      'professional': '使用专业的术语和摄影指导'
     };
 
-    return instructions[direction] || `请按照以下方向优化：${direction}`;
+    return instructions[direction] || instructions['balanced'];
   }
 
   /**

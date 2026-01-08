@@ -23,9 +23,11 @@ import ReferenceImageNode from './nodes/input/ReferenceImageNode';
 import CharacterLibraryNode from './nodes/input/CharacterLibraryNode';
 import APISettingsNode from './nodes/input/APISettingsNode';
 import OpenAIConfigNode from './nodes/input/OpenAIConfigNode';
+import NarratorNode from './nodes/input/NarratorNode';
 import CharacterCreateNode from './nodes/process/CharacterCreateNode';
 import VideoGenerateNode from './nodes/process/VideoGenerateNode';
 import StoryboardNode from './nodes/process/StoryboardNode';
+import NarratorProcessorNode from './nodes/process/NarratorProcessorNode';
 // ⚠️ 停用平台专用故事板节点 (2026-01-07) - 使用统一的 VideoGenerateNode 代替
 // import JuxinStoryboardNode from './nodes/process/JuxinStoryboardNode';
 // import ZhenzhenStoryboardNode from './nodes/process/ZhenzhenStoryboardNode';
@@ -123,8 +125,10 @@ const nodeTemplates = [
   { type: 'characterLibraryNode', label: '📊 角色库', category: 'input' },
   { type: 'apiSettingsNode', label: '⚙️ API 设置', category: 'input' },
   { type: 'openaiConfigNode', label: '⚙️ OpenAI 配置', category: 'input' },
+  { type: 'narratorNode', label: '📖 旁白输入', category: 'input' },
   { type: 'characterCreateNode', label: '🎭 角色生成', category: 'process' },
   { type: 'promptOptimizerNode', label: '📝 提示词优化', category: 'process' },
+  { type: 'narratorProcessorNode', label: '⚙️ 旁白处理', category: 'process' },
   { type: 'videoGenerateNode', label: '🎬 视频生成', category: 'process' },
   { type: 'storyboardNode', label: '🎞️ 故事板', category: 'process' },
   // ⚠️ 停用平台专用故事板节点 (2026-01-07) - 使用统一的 VideoGenerateNode 代替
@@ -142,7 +146,9 @@ function App() {
     characterLibraryNode: CharacterLibraryNode,
     apiSettingsNode: APISettingsNode,
     openaiConfigNode: OpenAIConfigNode,
+    narratorNode: NarratorNode,
     characterCreateNode: CharacterCreateNode,
+    narratorProcessorNode: NarratorProcessorNode,
     // ⚠️ 停用平台专用故事板节点 (2026-01-07)
     // juxinStoryboardNode: JuxinStoryboardNode,
     // zhenzhenStoryboardNode: ZhenzhenStoryboardNode,
@@ -351,6 +357,50 @@ function App() {
           newData.openaiConfig = undefined;
         }
 
+        // Check for narrator input (for narrator processor node)
+        const narratorEdge = incomingEdges.find((e) => e.targetHandle === 'narrator-input');
+        if (narratorEdge) {
+          const sourceNode = nds.find((n) => n.id === narratorEdge.source);
+          // ✅ 只有 NarratorNode 可以连接到 narrator-input
+          if (sourceNode?.type === 'narratorNode') {
+            // 传递句子数组和相关配置
+            if (sourceNode.data?.sentences) {
+              newData.sentences = sourceNode.data.sentences;
+            }
+            if (sourceNode.data?.connectedCharacters) {
+              newData.connectedCharacters = sourceNode.data.connectedCharacters;
+            }
+            if (sourceNode.data?.style) {
+              newData.style = sourceNode.data.style;
+            }
+            if (sourceNode.data?.targetDuration) {
+              newData.targetDuration = sourceNode.data.targetDuration;
+            }
+            if (sourceNode.data?.optimizationDirection) {
+              newData.optimizationDirection = sourceNode.data.optimizationDirection;
+            }
+            if (sourceNode.data?.customStyleDescription) {
+              newData.customStyleDescription = sourceNode.data.customStyleDescription;
+            }
+          } else {
+            // ❌ 源节点类型无效，清除所有相关数据
+            newData.sentences = undefined;
+            newData.connectedCharacters = undefined;
+            newData.style = undefined;
+            newData.targetDuration = undefined;
+            newData.optimizationDirection = undefined;
+            newData.customStyleDescription = undefined;
+          }
+        } else {
+          // 没有连线时，清除所有相关数据
+          newData.sentences = undefined;
+          newData.connectedCharacters = undefined;
+          newData.style = undefined;
+          newData.targetDuration = undefined;
+          newData.optimizationDirection = undefined;
+          newData.customStyleDescription = undefined;
+        }
+
         // Check for video input (for task result node)
         const videoEdge = incomingEdges.find((e) => e.targetHandle === 'task-input');
         if (videoEdge) {
@@ -398,7 +448,12 @@ function App() {
           oldData.shots !== newData.shots ||
           oldData.useGlobalImages !== newData.useGlobalImages ||
           oldData.connectedSourceId !== newData.connectedSourceId || // ⭐ 新增：修复 TaskResultNode 连接检测
-          oldData.openaiConfig !== newData.openaiConfig // ⭐ 新增：OpenAI 配置连接检测
+          oldData.openaiConfig !== newData.openaiConfig || // ⭐ 新增：OpenAI 配置连接检测
+          oldData.sentences !== newData.sentences || // ⭐ 新增：旁白句子数组
+          oldData.style !== newData.style || // ⭐ 新增：优化风格
+          oldData.targetDuration !== newData.targetDuration || // ⭐ 新增：目标时长
+          oldData.optimizationDirection !== newData.optimizationDirection || // ⭐ 新增：优化方向
+          oldData.customStyleDescription !== newData.customStyleDescription // ⭐ 新增：自定义风格描述
         );
 
         if (dataChanged) {
@@ -463,6 +518,56 @@ function App() {
 
     migrateOldData();
   }, []);
+
+  // ⭐ 监听 NarratorProcessorNode 优化完成事件，自动保存工作流
+  useEffect(() => {
+    const handleOptimizationComplete = (event) => {
+      const { nodeId, sentencesCount } = event.detail;
+      console.log(`[App] NarratorProcessorNode (${nodeId}) 优化完成，自动保存工作流 (${sentencesCount} 个句子)`);
+
+      // 自动保存当前工作流
+      let workflowName = currentWorkflowName;
+
+      // 如果没有当前工作流名称，自动生成未命名工作流
+      if (!workflowName) {
+        const workflows = WorkflowStorage.getAllWorkflows();
+        const existingNames = Object.keys(workflows);
+
+        // 找到最大的未命名工作流编号
+        let maxCounter = 0;
+        existingNames.forEach(name => {
+          const match = name.match(/^未命名工作流 (\d+)$/);
+          if (match) {
+            const counter = parseInt(match[1], 10);
+            if (counter > maxCounter) {
+              maxCounter = counter;
+            }
+          }
+        });
+
+        // 生成新的未命名工作流名称
+        workflowName = `未命名工作流 ${maxCounter + 1}`;
+      }
+
+      // 保存工作流
+      const result = WorkflowStorage.saveWorkflow(workflowName, nodes, edges);
+
+      if (result.success) {
+        setCurrentWorkflowName(workflowName);
+        console.log(`[App] ✅ 工作流 "${workflowName}" 已自动保存 (${nodes.length} 节点, ${edges.length} 连线)`);
+      } else {
+        console.error(`[App] ❌ 自动保存工作流失败: ${result.error}`);
+      }
+    };
+
+    // 添加事件监听器
+    window.addEventListener('narrator-optimization-complete', handleOptimizationComplete);
+
+    // 清理函数：移除事件监听器
+    return () => {
+      window.removeEventListener('narrator-optimization-complete', handleOptimizationComplete);
+    };
+  }, [nodes, edges, currentWorkflowName]);
 
   // Add a new node
   const addNode = useCallback((nodeType, label, position) => {

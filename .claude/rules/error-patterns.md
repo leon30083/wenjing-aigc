@@ -1,7 +1,7 @@
 # WinJin AIGC - 错误模式参考
 
 > **说明**: 本文档按类型分类，包含所有已知的错误模式和解决方案。
-> **更新日期**: 2026-01-07 (新增错误50、51)
+> **更新日期**: 2026-01-08 (新增错误53)
 
 ---
 
@@ -10,10 +10,10 @@
 | 类型 | 错误数量 | 关键词 |
 |------|----------|--------|
 | [API 相关](#api-相关) | 9个 | 双平台、轮询、端点、模型、故事板、输出格式 |
-| [React Flow 相关](#react-flow-相关) | 7个 | 数据传递、Handle、连接、事件、竞态条件 |
+| [React Flow 相关](#react-flow-相关) | 8个 | 数据传递、Handle、连接、事件、竞态条件、旁白模式 |
 | [角色系统相关](#角色系统相关) | 6个 | 引用、显示、焦点、双显示、优化 |
 | [表单/输入相关](#表单输入相关) | 2个 | id/name、验证 |
-| [存储/持久化相关](#存储持久化相关) | 6个 | localStorage、工作流、配置持久化 |
+| [存储/持久化相关](#存储持久化相关) | 7个 | localStorage、工作流、配置持久化、优化结果持久化 |
 | [UI/渲染相关](#ui渲染相关) | 3个 | 布局抖动、对象渲染、CSS语法 |
 | [其他](#其他) | 21个 | ... |
 
@@ -689,6 +689,199 @@ useEffect(() => {
 
 ---
 
+### 错误52: NarratorProcessorNode 推送数据后 VideoGenerateNode 未显示旁白模式 `React Flow` `数据传递` ⭐⭐⭐ 2026-01-07 新增
+
+**现象**:
+- NarratorProcessorNode 完成优化后，VideoGenerateNode 未显示"📺 旁白模式: 句子 1/X"
+- 提示词输入框未自动填充优化后的提示词
+- 点击"⏭️ 加载下一个句子"按钮无反应
+- 用户需要手动复制粘贴优化后的提示词
+
+**根本原因**:
+NarratorProcessorNode 的 `updateVideoGenerateNode` 函数传递了旧的 `sentences` 状态数组，但 `setSentences` 是异步的，导致传递给 VideoGenerateNode 的 `narratorSentences` 是空数组或旧数据。
+
+**错误示例**:
+```javascript
+// ❌ 错误：传递旧的 sentences 状态
+const optimizeAllSentences = async () => {
+  const results = [];
+
+  for (let i = 0; i < sentences.length; i++) {
+    const optimized = await optimizeSentence(sentences[i]);
+    results.push(optimized);
+
+    // setSentences 是异步的
+    setSentences((prev) =>
+      prev.map((s, idx) =>
+        idx === i ? optimized : s
+      )
+    );
+  }
+
+  // ❌ 此时 sentences 还是旧数组（setSentences 尚未完成）
+  updateVideoGenerateNode(results[0].optimized);
+};
+
+const updateVideoGenerateNode = (prompt) => {
+  // ❌ 传递的是旧的 sentences
+  narratorSentences: sentences  // 空数组或旧数据
+};
+```
+
+**正确示例**:
+```javascript
+// ✅ 正确：传递优化后的 results 数组
+const optimizeAllSentences = async () => {
+  const results = [];
+
+  for (let i = 0; i < sentences.length; i++) {
+    const optimized = await optimizeSentence(sentences[i]);
+    results.push(optimized);
+
+    setSentences((prev) =>
+      prev.map((s, idx) =>
+        idx === i ? optimized : s
+      )
+    );
+  }
+
+  // ✅ 传递 results（优化后的句子数组）
+  updateVideoGenerateNode(results[0].optimized, results);
+};
+
+const updateVideoGenerateNode = (prompt, optimizedSentences, index = 0) => {
+  setNodes((nds) =>
+    nds.map((node) =>
+      node.id === targetNode.id
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              manualPrompt: prompt,
+              narratorMode: true,
+              narratorIndex: index,
+              narratorTotal: optimizedSentences.length,
+              narratorSentences: optimizedSentences  // ✅ 优化后的数组
+            }
+          }
+        : node
+    )
+  );
+};
+```
+
+**关键点**:
+1. **状态异步**: `setSentences` 是异步的，不能在下一个语句立即使用 `sentences`
+2. **传递结果**: 应该传递 `results`（优化后的数组）而不是 `sentences`（旧状态）
+3. **索引同步**: 同时传递当前索引 `index`，确保 VideoGenerateNode 显示正确的句子位置
+4. **所有调用点**: `goToPrevious`, `goToNext`, `reoptimizeCurrent` 都需要传递正确的数组
+
+**修复位置**: `src/client/src/nodes/process/NarratorProcessorNode.jsx` (Lines 285-375)
+
+**相关错误**:
+- 错误16: React Flow 节点间数据传递错误 - 通用的数据传递问题
+
+**修复日期**: 2026-01-08
+
+**✅ 验证完成** - 最终实现方案
+
+根据用户反馈的实际需求，最终实现的是**单向数据流**方案：
+- VideoGenerateNode 从 NarratorProcessorNode **读取**当前句子
+- VideoGenerateNode **不写回** NarratorProcessorNode（避免数据流循环）
+
+**最终实现代码** (VideoGenerateNode.jsx):
+
+```javascript
+// ⭐ 从 useReactFlow 获取 getEdges（必须解构）
+const { setNodes, getNodes, getEdges } = useReactFlow();
+
+// ⭐ 加载当前旁白（从 NarratorProcessorNode 读取当前句子）
+const loadCurrentSentence = () => {
+  const edges = getEdges();
+  const narratorEdge = edges.find(
+    (e) => e.target === nodeId && e.sourceHandle === 'sentence-output'
+  );
+
+  if (narratorEdge) {
+    const narratorNode = getNodes().find(n => n.id === narratorEdge.source);
+    if (narratorNode?.type === 'narratorProcessorNode') {
+      const currentIndex = narratorNode.data?.currentIndex || 0;
+      const sentences = narratorNode.data?.sentences || [];
+      const currentSentence = sentences[currentIndex];
+
+      if (currentSentence?.optimized) {
+        setNarratorMode(true);
+        setNarratorIndex(currentIndex);
+        setNarratorTotal(sentences.length);
+        setNarratorSentences(sentences);
+        setManualPrompt(currentSentence.optimized);
+
+        console.log('[VideoGenerateNode] 加载当前旁白:', {
+          currentIndex,
+          total: sentences.length,
+          prompt: currentSentence.optimized?.substring(0, 50)
+        });
+      }
+    }
+  }
+};
+
+// ⭐ 加载下一个句子（仅更新 VideoGenerateNode 内部状态，不写回）
+const loadNextSentence = () => {
+  if (narratorMode && narratorIndex < narratorTotal - 1) {
+    const nextIndex = narratorIndex + 1;
+    const nextSentence = narratorSentences[nextIndex];
+
+    if (nextSentence && nextSentence.optimized) {
+      setNarratorIndex(nextIndex);
+      setManualPrompt(nextSentence.optimized);
+      console.log('[VideoGenerateNode] 加载下一个句子:', nextIndex);
+    }
+  }
+};
+```
+
+**UI 实现**:
+```javascript
+{narratorMode && (
+  <div style={{
+    padding: '8px',
+    backgroundColor: '#e0f2fe',
+    borderRadius: '4px',
+    marginBottom: '8px',
+    border: '1px solid #7dd3fc'
+  }}>
+    <div style={{
+      fontSize: '12px',
+      fontWeight: 'bold',
+      marginBottom: '4px',
+      color: '#0369a1'
+    }}>
+      📺 旁白模式: 句子 {narratorIndex + 1}/{narratorTotal}
+    </div>
+    <div style={{ display: 'flex', gap: '6px' }}>
+      <button onClick={loadCurrentSentence}>📥 加载当前旁白</button>
+      <button onClick={loadNextSentence}>⏭️ 下一个</button>
+    </div>
+  </div>
+)}
+```
+
+**测试结果** ✅:
+- ✅ "📥 加载当前旁白" 成功加载句子 1/9
+- ✅ "⏭️ 下一个" 成功加载句子 2/9
+- ✅ NarratorProcessorNode 保持稳定（无跳动/闪烁）
+- ✅ 无数据流循环发生
+- ✅ VideoGenerateNode 正确显示 "📺 旁白模式: 句子 2/9"
+
+**关键教训**:
+1. **必须解构 getEdges**: `useReactFlow()` 必须包含 `getEdges`，否则无法查询连接
+2. **单向数据流**: 避免双向同步导致无限循环
+3. **用户需求优先**: 根据实际使用场景调整交互设计
+4. **数据流循环识别**: 节点持续跳动/闪烁 = 数据流循环的典型症状
+
+---
+
 ## 角色系统相关
 
 ### 错误7: 角色插入替换全部内容 `Character` `输入` ⭐⭐
@@ -1349,6 +1542,113 @@ const [config, setConfig] = useState(() => {
 **相关错误**: 错误33 - 工作流快照持久化时机问题
 
 **修复日期**: 2026-01-07
+
+---
+
+### 错误53: NarratorProcessorNode 优化结果刷新后丢失 `Storage` `持久化` `工作流` ⭐⭐⭐ 2026-01-08 新增
+
+**现象**:
+- NarratorProcessorNode 完成优化后（9/9 100%），刷新页面优化结果丢失
+- 优化进度回到 0/9 (0%)，优化结果为空
+- 用户每次刷新都需要重新优化，严重影响开发效率
+
+**根本原因**:
+1. **工作流未自动保存**: React Flow 的 `node.data` 不会自动保存到 localStorage
+2. **需要显式保存**: 用户必须手动点击"💾 保存工作流"按钮
+3. **UI 状态未恢复**: 虽然优化数据被同步到 `node.data`，但 `progress`、`currentPrompt` 等运行时状态未恢复
+
+**错误示例**:
+```javascript
+// ❌ 错误：只同步 sentences，不保存工作流
+useEffect(() => {
+  setNodes((nds) =>
+    nds.map((node) =>
+      node.id === nodeId
+        ? {
+            ...node,
+            data: {
+              ...node.data,
+              sentences,  // ❌ 只同步到内存中的 node.data
+            }
+          }
+        : node
+    )
+  );
+}, [sentences]);
+// ❌ 刷新后，localStorage 中的工作流没有包含优化结果
+```
+
+**正确示例**:
+```javascript
+// ✅ 正确：优化完成后派发事件，自动保存工作流
+const optimizeAllSentences = async () => {
+  // ... 优化逻辑 ...
+
+  setSentences(tempSentences);
+
+  // ⭐ 派发事件通知 App.jsx 自动保存工作流
+  window.dispatchEvent(new CustomEvent('narrator-optimization-complete', {
+    detail: { nodeId, sentencesCount: results.length }
+  }));
+};
+
+// ✅ App.jsx 监听事件并自动保存
+useEffect(() => {
+  const handleOptimizationComplete = (event) => {
+    const { nodeId, sentencesCount } = event.detail;
+    const result = WorkflowStorage.saveWorkflow(workflowName, nodes, edges);
+    if (result.success) {
+      console.log(`✅ 工作流已自动保存`);
+    }
+  };
+
+  window.addEventListener('narrator-optimization-complete', handleOptimizationComplete);
+  return () => {
+    window.removeEventListener('narrator-optimization-complete', handleOptimizationComplete);
+  };
+}, [nodes, edges, currentWorkflowName]);
+
+// ✅ 刷新后恢复 UI 状态
+useEffect(() => {
+  const hasOptimizedData = sentences.some(s => s.optimized);
+  if (hasOptimizedData) {
+    // ⭐ 恢复 UI 状态（进度、当前句子）
+    const optimizedCount = sentences.filter(s => s.optimized).length;
+    const totalCount = sentences.length;
+    const restoredProgress = Math.round((optimizedCount / totalCount) * 100);
+    setProgress(restoredProgress);
+
+    // 恢复当前索引和提示词
+    const savedIndex = data.currentIndex || 0;
+    setCurrentIndex(savedIndex);
+    if (sentences[savedIndex]?.optimized) {
+      setCurrentPrompt(sentences[savedIndex].optimized);
+    }
+  }
+}, [nodeId]);
+```
+
+**关键点**:
+1. **自动保存机制**: 优化完成后派发事件，App.jsx 自动保存工作流到 localStorage
+2. **事件系统**: 使用 `window.dispatchEvent` 派发自定义事件
+3. **UI 状态恢复**: 刷新后根据优化数据恢复 `progress`、`currentIndex`、`currentPrompt`
+4. **向后兼容**: 检测 `sentences.some(s => s.optimized)` 判断是否有优化数据
+5. **防抖依赖**: useEffect 依赖数组避免频繁保存
+
+**修复文件**:
+- `src/client/src/nodes/process/NarratorProcessorNode.jsx` (Lines 320-324, 67-78)
+- `src/client/src/App.jsx` (Lines 522-570)
+
+**验证结果**:
+- ✅ 优化完成后自动保存工作流
+- ✅ 刷新后优化结果完全保留（进度、当前句子、优化结果）
+- ✅ 无需手动保存，提升开发效率
+
+**相关错误**:
+- 错误33 - 工作流快照持久化时机问题
+- 错误50 - OpenAI 配置持久化丢失
+
+**修复日期**: 2026-01-08
 
 ---
 
