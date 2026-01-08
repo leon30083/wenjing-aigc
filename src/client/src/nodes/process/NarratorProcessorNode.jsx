@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Handle, Position, useNodeId } from 'reactflow';
 import { useReactFlow } from 'reactflow';
+import { WorkflowStorage } from '../../utils/workflowStorage';
 
 /**
  * NarratorProcessorNode - 旁白处理器节点
@@ -141,9 +142,12 @@ export default function NarratorProcessorNode({ data }) {
   const isInitialLoadRef = React.useRef(true);
 
   useEffect(() => {
+    console.log('[NarratorProcessorNode] 🔧 同步 useEffect 触发:', { currentIndex, isInitialLoad: isInitialLoadRef.current });
+
     // 跳过初始加载（避免覆盖从 data 恢复的数据）
     if (isInitialLoadRef.current) {
       isInitialLoadRef.current = false;
+      console.log('[NarratorProcessorNode] ⏭️ 跳过初始加载');
       return;
     }
 
@@ -151,27 +155,46 @@ export default function NarratorProcessorNode({ data }) {
     // 避免同步过多数据导致无限循环
     const hasOptimizedData = sentences.some(s => s.optimized);
     if (!hasOptimizedData) {
+      console.log('[NarratorProcessorNode] ⏭️ 没有优化数据，跳过同步');
       return; // 没有优化数据时不同步（避免覆盖旧数据）
     }
 
+    console.log('[NarratorProcessorNode] ✅ 有优化数据，开始同步...');
+
     setNodes((nds) =>
-      nds.map((node) =>
-        node.id === nodeId
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                sentences,  // ⭐ 最重要：优化后的句子数组
-                currentIndex,
-                style,
-                targetDuration,
-                optimizationDirection,
-                customStyleDescription
-                // ⚠️ 不同步：isOptimizing, progress（运行时状态不需要保存）
-              }
-            }
-          : node
-      )
+      nds.map((node) => {
+        if (node.id !== nodeId) return node;
+
+        // ⭐ 在回调内部比较，使用 node.data 而不是 data prop
+        const needsUpdate =
+          JSON.stringify(node.data.sentences) !== JSON.stringify(sentences) ||
+          node.data.currentIndex !== currentIndex ||
+          node.data.style !== style ||
+          node.data.targetDuration !== targetDuration ||
+          node.data.optimizationDirection !== optimizationDirection ||
+          node.data.customStyleDescription !== customStyleDescription;
+
+        if (!needsUpdate) {
+          console.log('[NarratorProcessorNode] ⏭️ 数据未变化，跳过同步');
+          return node;
+        }
+
+        console.log('[NarratorProcessorNode] ✅ 数据已变化，同步到 node.data:', { currentIndex });
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            sentences,  // ⭐ 最重要：优化后的句子数组
+            currentIndex,
+            style,
+            targetDuration,
+            optimizationDirection,
+            customStyleDescription
+            // ⚠️ 不同步：isOptimizing, progress（运行时状态不需要保存）
+          }
+        };
+      })
     );
   }, [sentences, currentIndex, style, targetDuration, optimizationDirection, customStyleDescription, nodeId, setNodes]);
 
@@ -273,6 +296,37 @@ export default function NarratorProcessorNode({ data }) {
   };
 
   /**
+   * 从上游节点加载旁白
+   * ⭐ 新增：支持在 sentences 为空时主动加载
+   */
+  const loadFromSourceNode = async () => {
+    const edges = getEdges();
+    const narratorEdge = edges.find(
+      (e) => e.target === nodeId && e.targetHandle === 'narrator-input'
+    );
+
+    if (narratorEdge) {
+      const sourceNode = getNodes().find(n => n.id === narratorEdge.source);
+      if (sourceNode?.type === 'narratorNode' && sourceNode.data?.sentences) {
+        const sourceSentences = sourceNode.data.sentences || [];
+
+        console.log('[NarratorProcessorNode] 🔄 从上游节点加载旁白（', sourceSentences.length, '个句子）');
+
+        setSentences(sourceSentences);
+        setStyle(sourceNode.data.style || 'picture-book');
+        setTargetDuration(sourceNode.data.targetDuration || 10);
+        setOptimizationDirection(sourceNode.data.optimizationDirection || 'balanced');
+        setCustomStyleDescription(sourceNode.data.customStyleDescription || '');
+        setConnectedCharacters(sourceNode.data.connectedCharacters || []);
+
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  /**
    * 批量优化所有句子
    */
   const optimizeAllSentences = async () => {
@@ -281,9 +335,16 @@ export default function NarratorProcessorNode({ data }) {
       return;
     }
 
+    // ⭐ 如果 sentences 为空，先从上游节点加载
     if (sentences.length === 0) {
-      alert('没有可优化的句子');
-      return;
+      console.log('[NarratorProcessorNode] sentences 为空，尝试从上游节点加载...');
+      const loaded = await loadFromSourceNode();
+      if (!loaded) {
+        alert('请先连接旁白输入节点或输入旁白文本');
+        return;
+      }
+      // 等待状态更新
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     setIsOptimizing(true);
@@ -407,6 +468,30 @@ export default function NarratorProcessorNode({ data }) {
   const goToPrevious = () => {
     if (currentIndex > 0) {
       const newIndex = currentIndex - 1;
+
+      // ⭐ 先同步到 node.data（确保工作流保存最新状态）
+      setNodes((nds) => {
+        const updatedNodes = nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, currentIndex: newIndex } }
+            : node
+        );
+
+        // ⭐ 立即保存工作流到 localStorage（防止 App 的 useEffect 覆盖）
+        const currentWorkflowName = WorkflowStorage.getCurrentWorkflowName();
+        if (currentWorkflowName) {
+          const edges = getEdges();
+          const result = WorkflowStorage.saveWorkflow(currentWorkflowName, updatedNodes, edges);
+          if (result.success) {
+            console.log(`[NarratorProcessorNode] ✅ 已保存工作流 "${currentWorkflowName}" (currentIndex: ${newIndex})`);
+          } else {
+            console.error(`[NarratorProcessorNode] ❌ 保存工作流失败: ${result.error}`);
+          }
+        }
+
+        return updatedNodes;
+      });
+
       setCurrentIndex(newIndex);
       setCurrentPrompt(sentences[newIndex].optimized);
       updateVideoGenerateNode(sentences[newIndex].optimized, sentences, newIndex);
@@ -419,6 +504,30 @@ export default function NarratorProcessorNode({ data }) {
   const goToNext = () => {
     if (currentIndex < sentences.length - 1) {
       const newIndex = currentIndex + 1;
+
+      // ⭐ 先同步到 node.data（确保工作流保存最新状态）
+      setNodes((nds) => {
+        const updatedNodes = nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, currentIndex: newIndex } }
+            : node
+        );
+
+        // ⭐ 立即保存工作流到 localStorage（防止 App 的 useEffect 覆盖）
+        const currentWorkflowName = WorkflowStorage.getCurrentWorkflowName();
+        if (currentWorkflowName) {
+          const edges = getEdges();
+          const result = WorkflowStorage.saveWorkflow(currentWorkflowName, updatedNodes, edges);
+          if (result.success) {
+            console.log(`[NarratorProcessorNode] ✅ 已保存工作流 "${currentWorkflowName}" (currentIndex: ${newIndex})`);
+          } else {
+            console.error(`[NarratorProcessorNode] ❌ 保存工作流失败: ${result.error}`);
+          }
+        }
+
+        return updatedNodes;
+      });
+
       setCurrentIndex(newIndex);
       setCurrentPrompt(sentences[newIndex].optimized);
       updateVideoGenerateNode(sentences[newIndex].optimized, sentences, newIndex);
@@ -429,7 +538,19 @@ export default function NarratorProcessorNode({ data }) {
    * 重新优化当前句子
    */
   const reoptimizeCurrent = async () => {
-    if (sentences.length === 0 || currentIndex >= sentences.length) {
+    // ⭐ 如果 sentences 为空，先从上游节点加载
+    if (sentences.length === 0) {
+      console.log('[NarratorProcessorNode] sentences 为空，尝试从上游节点加载...');
+      const loaded = await loadFromSourceNode();
+      if (!loaded) {
+        alert('请先连接旁白输入节点或输入旁白文本');
+        return;
+      }
+      // 等待状态更新
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    if (currentIndex >= sentences.length) {
       return;
     }
 
@@ -638,7 +759,7 @@ export default function NarratorProcessorNode({ data }) {
         <button
           className="nodrag"
           onClick={optimizeAllSentences}
-          disabled={isOptimizing || sentences.length === 0 || !openaiConfig}
+          disabled={isOptimizing || !openaiConfig}
           style={{
             padding: '6px 10px',
             fontSize: '11px',
@@ -647,7 +768,7 @@ export default function NarratorProcessorNode({ data }) {
             border: 'none',
             borderRadius: '4px',
             cursor: isOptimizing ? 'not-allowed' : 'pointer',
-            opacity: isOptimizing || sentences.length === 0 || !openaiConfig ? 0.5 : 1
+            opacity: isOptimizing || !openaiConfig ? 0.5 : 1
           }}
         >
           {isOptimizing ? '🔄 优化中...' : '🚀 全部优化'}
@@ -656,7 +777,7 @@ export default function NarratorProcessorNode({ data }) {
         <button
           className="nodrag"
           onClick={reoptimizeCurrent}
-          disabled={isOptimizing || !currentSentence}
+          disabled={isOptimizing || !openaiConfig}
           style={{
             padding: '6px 10px',
             fontSize: '11px',
@@ -664,8 +785,8 @@ export default function NarratorProcessorNode({ data }) {
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: isOptimizing || !currentSentence ? 'not-allowed' : 'pointer',
-            opacity: isOptimizing || !currentSentence ? 0.5 : 1
+            cursor: isOptimizing || !openaiConfig ? 'not-allowed' : 'pointer',
+            opacity: isOptimizing || !openaiConfig ? 0.5 : 1
           }}
         >
           🔄 重新优化

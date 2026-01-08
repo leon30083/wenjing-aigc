@@ -132,34 +132,6 @@ function VideoGenerateNode({ data }) {
     }
   }, [manualPrompt, nodeId, setNodes, data.manualPrompt]);
 
-  // ⭐ 接收旁白模式数据（来自 NarratorProcessorNode）
-  useEffect(() => {
-    console.log('[VideoGenerateNode] 旁白数据变化:', {
-      narratorMode: data.narratorMode,
-      narratorIndex: data.narratorIndex,
-      narratorTotal: data.narratorTotal,
-      narratorSentencesCount: data.narratorSentences?.length || 0,
-      manualPrompt: data.manualPrompt?.substring(0, 50)
-    });
-
-    if (data.narratorMode !== undefined) {
-      console.log('[VideoGenerateNode] 设置 narratorMode =', data.narratorMode);
-      setNarratorMode(data.narratorMode);
-    }
-    if (data.narratorIndex !== undefined) {
-      console.log('[VideoGenerateNode] 设置 narratorIndex =', data.narratorIndex);
-      setNarratorIndex(data.narratorIndex);
-    }
-    if (data.narratorTotal !== undefined) {
-      console.log('[VideoGenerateNode] 设置 narratorTotal =', data.narratorTotal);
-      setNarratorTotal(data.narratorTotal);
-    }
-    if (data.narratorSentences !== undefined) {
-      console.log('[VideoGenerateNode] 设置 narratorSentences =', data.narratorSentences.length, '个句子');
-      setNarratorSentences(data.narratorSentences);
-    }
-  }, [data.narratorMode, data.narratorIndex, data.narratorTotal, data.narratorSentences]);
-
   // ⭐ 关键修复：同步内部 narratorIndex 变化到 node.data（修复 UI 不更新问题）
   useEffect(() => {
     // 只在旁白模式下同步
@@ -193,6 +165,22 @@ function VideoGenerateNode({ data }) {
       }
     }
   }, [narratorIndex, manualPrompt, narratorMode, nodeId, setNodes, getNodes]);
+
+  // ⭐ 关键修复：从 data.narratorIndex 同步到内部状态（修复 currentIndex 不同步问题）
+  useEffect(() => {
+    const dataIndex = data.narratorIndex;
+    const dataIndexDefined = dataIndex !== undefined && dataIndex !== null;
+
+    // ⭐ 只在 data.narratorIndex 存在且与内部状态不同时更新
+    if (dataIndexDefined && dataIndex !== narratorIndex) {
+      console.log('[VideoGenerateNode] data.narratorIndex 变化，同步到内部状态:', {
+        oldIndex: narratorIndex,
+        newIndex: dataIndex
+      });
+
+      setNarratorIndex(dataIndex);
+    }
+  }, [data.narratorIndex, narratorIndex]);
 
   // Resize handling - use capture phase and prevent default
   const handleResizeMouseDown = (e) => {
@@ -381,18 +369,66 @@ function VideoGenerateNode({ data }) {
 
   // ⭐ 加载当前旁白（从 NarratorProcessorNode 读取当前句子）
   const loadCurrentSentence = () => {
-    // 查找连接的 NarratorProcessorNode
+    console.log('[VideoGenerateNode] 📥 加载当前旁白 - 开始');
+
+    // ⭐ 关键修复：优先使用内部状态，避免 getNodes() 快照延迟问题
+    // 内部状态通过反向同步 useEffect 保持与 NarratorProcessorNode 同步
+    if (narratorMode && narratorSentences.length > 0) {
+      const currentSentence = narratorSentences[narratorIndex];
+
+      console.log('[VideoGenerateNode] 📊 使用内部状态:', {
+        narratorIndex,
+        narratorTotal: narratorSentences.length,
+        currentSentenceExists: !!currentSentence,
+        currentSentenceText: currentSentence?.text?.substring(0, 50),
+        hasOptimized: !!currentSentence?.optimized,
+        optimizedPrompt: currentSentence?.optimized?.substring(0, 50)
+      });
+
+      if (currentSentence?.optimized) {
+        setManualPrompt(currentSentence.optimized);
+        console.log('[VideoGenerateNode] ✅ 旁白加载成功（内部状态）:', {
+          index: narratorIndex,
+          total: narratorSentences.length,
+          prompt: currentSentence.optimized?.substring(0, 50)
+        });
+        return;
+      }
+    }
+
+    // 降级：如果内部状态不可用，从 NarratorProcessorNode 读取
+    console.log('[VideoGenerateNode] ⚠️ 内部状态不可用，尝试从源节点读取');
     const edges = getEdges();
     const narratorEdge = edges.find(
       (e) => e.target === nodeId && e.sourceHandle === 'sentence-output'
     );
 
+    console.log('[VideoGenerateNode] 🔍 查找连接:', {
+      hasEdge: !!narratorEdge,
+      edgeSource: narratorEdge?.source
+    });
+
     if (narratorEdge) {
       const narratorNode = getNodes().find(n => n.id === narratorEdge.source);
+      console.log('[VideoGenerateNode] 🔍 源节点:', {
+        found: !!narratorNode,
+        type: narratorNode?.type,
+        isCorrectType: narratorNode?.type === 'narratorProcessorNode'
+      });
+
       if (narratorNode?.type === 'narratorProcessorNode') {
         const currentIndex = narratorNode.data?.currentIndex || 0;
         const sentences = narratorNode.data?.sentences || [];
         const currentSentence = sentences[currentIndex];
+
+        console.log('[VideoGenerateNode] 📊 数据状态（源节点）:', {
+          currentIndex,
+          sentencesCount: sentences.length,
+          currentSentenceExists: !!currentSentence,
+          currentSentenceText: currentSentence?.text?.substring(0, 50),
+          hasOptimized: !!currentSentence?.optimized,
+          optimizedPrompt: currentSentence?.optimized?.substring(0, 50)
+        });
 
         if (currentSentence?.optimized) {
           setNarratorMode(true);
@@ -401,27 +437,39 @@ function VideoGenerateNode({ data }) {
           setNarratorSentences(sentences);
           setManualPrompt(currentSentence.optimized);
 
-          console.log('[VideoGenerateNode] 加载当前旁白:', {
+          console.log('[VideoGenerateNode] ✅ 旁白加载成功（源节点）:', {
             currentIndex,
             total: sentences.length,
             prompt: currentSentence.optimized?.substring(0, 50)
           });
+        } else {
+          console.warn('[VideoGenerateNode] ⚠️ 当前句子没有优化结果:', {
+            currentIndex,
+            sentenceText: currentSentence?.text
+          });
         }
       }
+    } else {
+      console.warn('[VideoGenerateNode] ⚠️ 未找到连接的 NarratorProcessorNode');
     }
   };
 
-  // ⭐ 加载下一个句子（旁白模式）
+  // ⭐ 加载下一个句子（旁白模式，支持循环）
   const loadNextSentence = () => {
-    if (narratorMode && narratorIndex < narratorTotal - 1) {
-      const nextIndex = narratorIndex + 1;
-      const nextSentence = narratorSentences[nextIndex];
+    if (!narratorMode || narratorSentences.length === 0) {
+      return;
+    }
 
-      if (nextSentence && nextSentence.optimized) {
-        setNarratorIndex(nextIndex);
-        setManualPrompt(nextSentence.optimized);
-        console.log('[VideoGenerateNode] 加载下一个句子:', nextIndex);
-      }
+    // ⭐ 使用模运算实现循环：8 → 0（第9句回到第1句）
+    const nextIndex = (narratorIndex + 1) % narratorTotal;
+    const nextSentence = narratorSentences[nextIndex];
+
+    if (nextSentence?.optimized) {
+      setNarratorIndex(nextIndex);
+      setManualPrompt(nextSentence.optimized);
+      console.log('[VideoGenerateNode] 加载下一个句子:', nextIndex, '(循环)');
+    } else {
+      console.warn('[VideoGenerateNode] ⚠️ 下一个句子没有优化结果:', nextIndex);
     }
   };
 
@@ -611,20 +659,19 @@ function VideoGenerateNode({ data }) {
             <button
               className="nodrag"
               onClick={loadNextSentence}
-              disabled={narratorIndex >= narratorTotal - 1}
               style={{
                 flex: 1,
                 padding: '4px 8px',
                 fontSize: '11px',
-                backgroundColor: narratorIndex >= narratorTotal - 1 ? '#9ca3af' : '#0ea5e9',
+                backgroundColor: '#0ea5e9',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
-                cursor: narratorIndex >= narratorTotal - 1 ? 'not-allowed' : 'pointer',
-                opacity: narratorIndex >= narratorTotal - 1 ? 0.5 : 1
+                cursor: 'pointer',
+                opacity: 1
               }}
             >
-            {narratorIndex >= narratorTotal - 1 ? '✓ 完成' : '⏭️ 下一个'}
+            ⏭️ 下一个
           </button>
           </div>
         </div>

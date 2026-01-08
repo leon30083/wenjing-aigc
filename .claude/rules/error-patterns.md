@@ -1,7 +1,7 @@
 # WinJin AIGC - 错误模式参考
 
 > **说明**: 本文档按类型分类，包含所有已知的错误模式和解决方案。
-> **更新日期**: 2026-01-08 (新增错误53)
+> **更新日期**: 2026-01-08 (新增错误54)
 
 ---
 
@@ -10,7 +10,7 @@
 | 类型 | 错误数量 | 关键词 |
 |------|----------|--------|
 | [API 相关](#api-相关) | 9个 | 双平台、轮询、端点、模型、故事板、输出格式 |
-| [React Flow 相关](#react-flow-相关) | 8个 | 数据传递、Handle、连接、事件、竞态条件、旁白模式 |
+| [React Flow 相关](#react-flow-相关) | 9个 | 数据传递、Handle、连接、事件、竞态条件、旁白模式、快照延迟 |
 | [角色系统相关](#角色系统相关) | 6个 | 引用、显示、焦点、双显示、优化 |
 | [表单/输入相关](#表单输入相关) | 2个 | id/name、验证 |
 | [存储/持久化相关](#存储持久化相关) | 7个 | localStorage、工作流、配置持久化、优化结果持久化 |
@@ -1648,6 +1648,138 @@ useEffect(() => {
 **相关错误**:
 - 错误33 - 工作流快照持久化时机问题
 - 错误50 - OpenAI 配置持久化丢失
+
+**修复日期**: 2026-01-08
+
+---
+
+### 错误54: VideoGenerateNode loadCurrentSentence 从 getNodes() 读取快照数据导致状态不同步 `React Flow` `状态管理` ⭐⭐⭐ 2026-01-08 新增
+
+**现象**:
+- NarratorProcessorNode 点击"上一句"从句子8回到句子7，保存 currentIndex: 6
+- VideoGenerateNode 反向同步生效（narratorIndex 更新为 6）
+- 但点击"📥 加载当前旁白"后加载的是句子8（错误）
+- 控制台显示 `loadCurrentSentence` 读取到的 `currentIndex: 8`
+
+**根本原因**:
+`loadCurrentSentence` 函数使用 `getNodes()` 从 NarratorProcessorNode 读取 `currentIndex`，但 React Flow 的 `getNodes()` 返回的是**快照数据**，可能包含延迟或过时的值。
+
+**数据流分析**:
+```
+NarratorProcessorNode.goToPrevious()
+  ↓ setNodes() 更新 currentIndex: 6
+  ↓ saveWorkflow() 保存到 localStorage ✅
+  ↓ updateVideoGenerateNode() 更新 VideoGenerateNode.node.data.narratorIndex: 6 ✅
+  ↓ VideoGenerateNode 反向同步 useEffect 触发 ✅
+  ↓   narratorIndex 内部状态更新为 6 ✅
+  ↓ 用户点击 "📥 加载当前旁白"
+  ↓ loadCurrentSentence() 调用 getNodes() ❌
+  ↓   返回快照数据（ currentIndex: 8 旧值） ❌
+  ↓   加载句子8而不是句子7 ❌
+```
+
+**错误示例**:
+```javascript
+// ❌ 错误：loadCurrentSentence 从 getNodes() 读取快照数据
+const loadCurrentSentence = () => {
+  const edges = getEdges();
+  const narratorEdge = edges.find(
+    (e) => e.target === nodeId && e.sourceHandle === 'sentence-output'
+  );
+
+  if (narratorEdge) {
+    // ❌ getNodes() 返回快照数据，可能包含延迟或过时的值
+    const narratorNode = getNodes().find(n => n.id === narratorEdge.source);
+
+    if (narratorNode?.type === 'narratorProcessorNode') {
+      // ❌ currentIndex 可能是旧值（如 8），而不是最新值（如 6）
+      const currentIndex = narratorNode.data?.currentIndex || 0;
+      const sentences = narratorNode.data?.sentences || [];
+      const currentSentence = sentences[currentIndex];
+
+      if (currentSentence?.optimized) {
+        setManualPrompt(currentSentence.optimized);
+      }
+    }
+  }
+};
+```
+
+**正确示例**:
+```javascript
+// ✅ 正确：loadCurrentSentence 优先使用内部状态
+const loadCurrentSentence = () => {
+  // ⭐ 关键修复：优先使用内部状态，避免 getNodes() 快照延迟问题
+  // 内部状态通过反向同步 useEffect 保持与 NarratorProcessorNode 同步
+  if (narratorMode && narratorSentences.length > 0) {
+    const currentSentence = narratorSentences[narratorIndex];
+
+    console.log('[VideoGenerateNode] 📊 使用内部状态:', {
+      narratorIndex,
+      narratorTotal: narratorSentences.length,
+      currentSentenceExists: !!currentSentence,
+      hasOptimized: !!currentSentence?.optimized
+    });
+
+    if (currentSentence?.optimized) {
+      setManualPrompt(currentSentence.optimized);
+      console.log('[VideoGenerateNode] ✅ 旁白加载成功（内部状态）');
+      return;  // ✅ 使用内部状态，直接返回
+    }
+  }
+
+  // ⚠️ 降级：如果内部状态不可用，从 NarratorProcessorNode 读取
+  console.log('[VideoGenerateNode] ⚠️ 内部状态不可用，尝试从源节点读取');
+  const edges = getEdges();
+  const narratorEdge = edges.find(
+    (e) => e.target === nodeId && e.sourceHandle === 'sentence-output'
+  );
+
+  if (narratorEdge) {
+    const narratorNode = getNodes().find(n => n.id === narratorEdge.source);
+
+    if (narratorNode?.type === 'narratorProcessorNode') {
+      const currentIndex = narratorNode.data?.currentIndex || 0;
+      const sentences = narratorNode.data?.sentences || [];
+      const currentSentence = sentences[currentIndex];
+
+      if (currentSentence?.optimized) {
+        setNarratorMode(true);
+        setNarratorIndex(currentIndex);
+        setNarratorTotal(sentences.length);
+        setNarratorSentences(sentences);
+        setManualPrompt(currentSentence.optimized);
+
+        console.log('[VideoGenerateNode] ✅ 旁白加载成功（源节点降级）');
+      }
+    }
+  }
+};
+```
+
+**关键点**:
+1. **优先使用内部状态**: `narratorMode`、`narratorIndex`、`narratorSentences` 是反向同步 useEffect 维护的最新状态
+2. **避免 getNodes() 快照延迟**: React Flow 的 `getNodes()` 返回快照数据，可能在 setNodes() 之后仍包含旧值
+3. **双向同步机制**: 内部状态 ←反向同步→ node.data ←正向同步→ 内部状态
+4. **降级策略**: 如果内部状态不可用，才从源节点读取（作为降级方案）
+5. **数据一致性**: 使用内部状态确保读取到的 currentIndex 和 sentences 始终一致
+
+**修复文件**:
+- `src/client/src/nodes/process/VideoGenerateNode.jsx` (Lines 169-183: 反向同步 useEffect)
+- `src/client/src/nodes/process/VideoGenerateNode.jsx` (Lines 371-429: loadCurrentSentence 优化)
+
+**验证结果**:
+- ✅ NarratorProcessorNode 点击"上一句"到句子6，VideoGenerateNode 自动同步到句子6
+- ✅ 点击"📥 加载当前旁白"正确加载句子6（而非句子7或8）
+- ✅ 输入框显示正确的优化提示词："动画风格的视频。在阳光明媚、充满活力的城市建设工地上，@783316a1d.diggyloade 正以夸张且富有弹性的流畅动作..."
+- ✅ 控制台日志显示 `[VideoGenerateNode] 📊 使用内部状态`（证明使用了内部状态而非 getNodes()）
+- ✅ **2026-01-08 验证通过**: 完整的导航和加载测试通过
+
+**相关错误**:
+- 错误16 - React Flow 节点间数据传递错误
+- 错误37 - TaskResultNode 任务ID竞态条件
+- 错误52 - NarratorProcessorNode 推送数据后 VideoGenerateNode 未显示旁白模式
+- 错误53 - NarratorProcessorNode 优化结果刷新后丢失
 
 **修复日期**: 2026-01-08
 

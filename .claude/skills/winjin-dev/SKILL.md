@@ -269,6 +269,7 @@ useEffect(() => {
 8. **错误50**: OpenAI 配置持久化丢失 ⭐⭐ 2026-01-07 新增
 9. **错误51**: 任务结果节点轮询 interval 竞态条件 ⭐⭐⭐ 2026-01-07 新增
 10. **错误53**: NarratorProcessorNode 优化结果刷新后丢失 ⭐⭐⭐ 2026-01-08 新增
+11. **错误54**: VideoGenerateNode loadCurrentSentence 从 getNodes() 读取快照数据导致状态不同步 ⭐⭐⭐ 2026-01-08 新增
 
 **查看完整错误模式**: [`.claude/rules/error-patterns.md`](../../rules/error-patterns.md)
 
