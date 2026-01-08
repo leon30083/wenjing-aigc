@@ -32,9 +32,9 @@ WinJin AIGC 开源重构版本，基于 Electron + Express + React Flow 的可�
 |---------|------|------|
 | Electron | ^28.0.0 | 桌面应用框架 |
 | Express | ^4.18.2 | HTTP 服务器 |
-| React | ^19.0.0 | 前端 UI 框架（工作流编辑器） |
-| React Flow | ^11.0.0 | 节点编辑器库（可视化工作流） |
-| Vite | ^5.0.0 | 前端构建工具 |
+| React | ^19.2.0 | 前端 UI 框架（工作流编辑器） |
+| React Flow | ^11.11.4 | 节点编辑器库（可视化工作流） |
+| Vite | ^7.2.4 | 前端构建工具 |
 | axios | ^1.6.5 | HTTP 客户端 |
 | dotenv | ^17.2.3 | 环境变量管理 |
 
@@ -53,18 +53,39 @@ src/server/
 
 **前端架构** (React + React Flow):
 ```
-src/client/
+src/client/                      # React 前端 (工作流编辑器) ⭐ 流式画布
 ├── src/
-│   ├── App.jsx           # 主应用组件 (React Flow)
-│   ├── nodes/            # 自定义节点
-│   │   ├── input/        # 输入节点 (文本、图片、角色库、API配置)
-│   │   ├── process/      # 处理节点 (视频生成、故事板、优化)
-│   │   └── output/       # 输出节点 (任务结果、角色结果)
-│   ├── components/       # UI 组件
-│   ├── hooks/            # 自定义 Hooks
-│   └── utils/
-│       └── workflowStorage.js  # 工作流存储管理
-└── package.json
+│   ├── App.jsx                  # 主应用组件 (React Flow)
+│   ├── main.jsx                 # React 入口
+│   ├── nodes/                   # 自定义节点
+│   │   ├── input/               # 输入节点
+│   │   │   ├── TextNode.jsx                    # 文本输入
+│   │   │   ├── ReferenceImageNode.jsx          # 参考图片
+│   │   │   ├── CharacterLibraryNode.jsx        # 角色库选择
+│   │   │   └── APISettingsNode.jsx             # API 配置
+│   │   ├── process/             # 处理节点
+│   │   │   ├── VideoGenerateNode.jsx           # 视频生成
+│   │   │   ├── CharacterCreateNode.jsx         # 角色创建
+│   │   │   ├── StoryboardNode.jsx              # 故事板
+│   │   │   └── VideoNode.jsx                   # 视频节点
+│   │   └── output/              # 输出节点
+│   │       ├── TaskResultNode.jsx              # 任务结果
+│   │       └── CharacterResultNode.jsx         # 角色结果
+│   ├── hooks/                  # 自定义 Hooks
+│   │   ├── useWorkflowExecution.js            # 工作流执行
+│   │   └── useNodeResize.js                   # 节点大小调整
+│   └── utils/                  # 工具函数
+│       └── workflowStorage.js              # 工作流存储管理
+├── package.json
+├── vite.config.js
+└── index.html
+```
+
+**前端架构** (原生 HTML - 已停止维护):
+```
+src/renderer/
+└── public/
+    └── index.html              # 原生 HTML 前端 (旧版，已停止开发)
 ```
 
 ---
@@ -197,8 +218,24 @@ const getUserData = (userId) => {
 | 命令 | 说明 |
 |------|------|
 | `npm start` | 启动 Electron 应用 |
-| `npm run server` | 仅启动 HTTP 服务器 |
-| `npm run dev` | 开发模式 (前端 Vite) |
+| `npm run server` | 仅启动 HTTP 服务器（端口 9000） |
+| `cd src/client && npm run dev` | 启动流式画布（Vite 开发服务器，端口 5173） ⭐ |
+
+### 流式画布开发命令 ⭐
+
+```bash
+# 进入前端目录
+cd src/client
+
+# 安装依赖（首次运行）
+npm install
+
+# 启动开发服务器
+npm run dev          # Vite 开发服务器 (http://localhost:5173)
+npm run build        # 构建生产版本
+npm run preview      # 预览生产构建
+npm run lint         # ESLint 检查
+```
 
 ### Git 命令
 
@@ -217,6 +254,7 @@ const getUserData = (userId) => {
 | `/sandbox` | 查看允许的命令 |
 | `/hooks` | 查看生命周期配置 |
 | `/skills` | 查看可用技能 |
+| `/skills reactflow-dev` | 创建 React Flow 节点 ⭐ |
 | `/plan` | 进入计划模式 |
 
 ---
@@ -293,6 +331,7 @@ PORT=9000
 
 4. **技能层** (.claude/skills/)
    - 提示词测试 (prompt-tester)
+   - **React Flow 节点开发 (reactflow-dev)** ⭐
    - 工作流测试 (workflow-tester)
    - 自动报告 (auto-reporter)
    - 代码审查 (code-reviewer)
@@ -320,6 +359,7 @@ PORT=9000
 
 # 使用技能
 /skills prompt-tester --versions=v1.0,v1.1
+/skills reactflow-dev --type=process --name=MyCustomNode  # ⭐ 创建 React Flow 节点
 /skills workflow-tester
 /skills auto-reporter
 
@@ -332,6 +372,28 @@ PORT=9000
 ---
 
 ## 常见问题
+
+### Q: 如何启动流式画布？
+
+A: 运行以下命令：
+```bash
+# 终端 1：启动后端服务器
+npm run server
+
+# 终端 2：启动流式画布
+cd src/client
+npm install  # 首次运行
+npm run dev
+```
+然后访问 `http://localhost:5173`
+
+### Q: 如何创建新的节点？
+
+A: 使用 `/skills reactflow-dev --type=input|process|output --name=MyNode`
+
+### Q: 如何调试节点连接问题？
+
+A: 参考 `.claude/rules/reactflow.md` 中的"连接验证规范"章节
 
 ### Q: 如何测试提示词效果？
 
@@ -354,14 +416,20 @@ A: 使用 `/learner report` 查看改进报告
 ## 参考文档
 
 **内部文档**:
-- `.claude/rules/` - 开发规则
+- `.claude/rules/base.md` - 基础技术栈规则
+- `.claude/rules/code.md` - 代码规范
+- `.claude/rules/reactflow.md` - React Flow 开发规则 ⭐
+- `.claude/rules/prompt-optimizer.md` - 提示词优化规则
+- `.claude/rules/error-patterns.md` - 错误模式参考
 - `.claude/skills/` - 技能说明
 - `用户输入文件夹/开发对话/开发交接书.md` - 项目交接
 
 **外部文档**:
 - [Electron 官方文档](https://electronjs.org/docs/latest)
 - [Express.js 官方文档](https://expressjs.com/)
-- [React Flow 官方文档](https://reactflow.dev/)
+- [React Flow 官方文档](https://reactflow.dev/) ⭐
+- [React 官方文档](https://react.dev/)
+- [Vite 官方文档](https://vitejs.dev/)
 - [Node.js 官方文档](https://nodejs.org/docs)
 
 ---

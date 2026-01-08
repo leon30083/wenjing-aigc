@@ -29,7 +29,13 @@
       "Bash(powershell:*)",
       "Bash(timeout:*)",
       "mcp__chrome-devtools__new_page",
-      "mcp__chrome-devtools__evaluate_script"
+      "mcp__chrome-devtools__evaluate_script",
+      "Bash(git checkout:*)",
+      "Bash(echo:*)",
+      "mcp__chrome-devtools__list_console_messages",
+      "Bash(xargs:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(npm run dev)"
     ]
   }
 }
