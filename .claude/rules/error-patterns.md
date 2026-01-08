@@ -1,7 +1,7 @@
 # WinJin AIGC - 错误模式参考
 
 > **说明**: 本文档按类型分类，包含所有已知的错误模式和解决方案。
-> **更新日期**: 2026-01-08 (新增错误54)
+> **更新日期**: 2026-01-08 (新增错误55)
 
 ---
 
@@ -11,7 +11,7 @@
 |------|----------|--------|
 | [API 相关](#api-相关) | 9个 | 双平台、轮询、端点、模型、故事板、输出格式 |
 | [React Flow 相关](#react-flow-相关) | 9个 | 数据传递、Handle、连接、事件、竞态条件、旁白模式、快照延迟 |
-| [角色系统相关](#角色系统相关) | 6个 | 引用、显示、焦点、双显示、优化 |
+| [角色系统相关](#角色系统相关) | 7个 | 引用、显示、焦点、双显示、优化、匹配失败 |
 | [表单/输入相关](#表单输入相关) | 2个 | id/name、验证 |
 | [存储/持久化相关](#存储持久化相关) | 7个 | localStorage、工作流、配置持久化、优化结果持久化 |
 | [UI/渲染相关](#ui渲染相关) | 3个 | 布局抖动、对象渲染、CSS语法 |
@@ -1108,6 +1108,75 @@ const insertCharacterAtCursor = (username, alias) => {
 **验证结果**: ✅ 2026-01-06 验证通过 - 优化节点使用真实ID，AI成功保留角色引用并添加空格
 
 **修复日期**: 2026-01-06
+
+---
+
+### 错误55: NarratorProcessorNode 角色引用丢失（匹配失败） `Character` `React Flow` ⭐⭐⭐ 2026-01-08 新增
+
+**现象**:
+- 旁白优化后丢失了角色引用
+- 输入: "没错，它就是我们建筑工地上的装载机！ @783316a1d.diggyloade"
+- 输出: "一只拟人化的卡通装载机..." ❌ **没有 @username**
+
+**用户反馈**: "角色优化保留昨天都是正常的"
+
+**根本原因**:
+控制台日志显示角色匹配失败：
+```javascript
+{
+  "sentence":"没错，它就是我们建筑工地上的装载机！ @783316a1d.diggyloade",
+  "referencedUsernames":["783316a1d.diggyloade"],  // ✅ 识别到
+  "totalConnected":1,                              // ✅ 有1个连接
+  "matchedReferences":0                            // ❌ 匹配0个
+}
+```
+
+虽然识别到 `@783316a1d.diggyloade`，也有1个连接的角色，但 `matchedReferences: 0` 说明 `latestConnectedCharacters[0].username` !== `"783316a1d.diggyloade"`
+
+**问题代码** (NarratorProcessorNode.jsx Lines 272-274):
+```javascript
+// ❌ 问题：latestConnectedCharacters 中的角色 username 字段不匹配
+const referencedCharacters = latestConnectedCharacters.filter(char =>
+  referencedUsernames.includes(char.username)
+);
+
+// ✅ 正确：添加调试日志确认数据结构
+console.log('[NarratorProcessorNode] 🔍 调试角色匹配:', {
+  referencedUsernames,
+  latestConnectedCharacters: latestConnectedCharacters.map(c => ({
+    id: c.id,
+    username: c.username,
+    hasUsername: 'username' in c,
+    allKeys: Object.keys(c)
+  })),
+  totalConnected: latestConnectedCharacters.length
+});
+
+const referencedCharacters = latestConnectedCharacters.filter(char =>
+  referencedUsernames.includes(char.username)
+);
+```
+
+**关键点**:
+1. **数据源头验证**: characters.json 中角色 `username` 是 `"783316a1d.diggyloade"` ✅
+2. **引用格式验证**: 用户输入 `@783316a1d.diggyloade` ✅
+3. **识别验证**: `referencedUsernames: ["783316a1d.diggyloade"]` ✅
+4. **问题定位**: `latestConnectedCharacters[0].username` 与预期不匹配 ❌
+
+**调试步骤**:
+1. 添加详细日志打印 `latestConnectedCharacters` 的实际内容
+2. 检查 `username` 字段是否存在、值是否正确
+3. 追溯数据流：CharacterLibraryNode → NarratorNode → NarratorProcessorNode
+4. 根据日志结果修复对应环节
+
+**修复文件**:
+- `src/client/src/nodes/process/NarratorProcessorNode.jsx` - Lines 267-281（添加调试日志）
+
+**相关错误**:
+- 错误48 - 优化节点错误使用双显示功能导致角色引用丢失
+- 错误16 - React Flow 节点间数据传递错误
+
+**修复日期**: 2026-01-08
 
 ---
 

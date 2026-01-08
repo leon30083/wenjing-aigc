@@ -302,6 +302,7 @@ useEffect(() => {
 3. **优化节点**: 始终使用真实ID（`@ebfb9a758.sunnykitte`）
 4. **视频生成节点**: 双显示（输入框显示别名，API使用真实ID）
 5. **不描述外观**: Sora2 会使用角色真实外观，只需描述活动
+6. **角色匹配调试**: 当 `matchedReferences: 0` 时，添加详细日志检查 `latestConnectedCharacters` 的实际内容 ⭐ 2026-01-08 新增
 
 ### 4. UI/交互优先级 ⭐⭐
 
