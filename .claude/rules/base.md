@@ -861,7 +861,7 @@ Scene: 老鹰降落在山顶
 
 | 目标端口 | 允许的源节点类型 | 用途 |
 |---------|----------------|------|
-| `prompt-input` | `textNode` | 文本提示词输入 |
+| `prompt-input` | `textNode`, `promptOptimizerNode`, `narratorProcessorNode` | 文本提示词输入和优化 ⭐ 更新 (2026-01-09) |
 | `character-input` | `characterLibraryNode` | 角色库数据传递 |
 | `images-input` | `referenceImageNode` | 参考图片传递 |
 | `task-input` | `videoGenerateNode`, `storyboardNode`, `juxinStoryboardNode`, `zhenzhenStoryboardNode`, `characterCreateNode` | 任务结果监听 |
@@ -904,6 +904,38 @@ useEffect(() => {
         } else {
           // ❌ 源节点类型无效，清除数据
           newData.connectedImages = undefined;
+        }
+      }
+
+      // 验证 prompt-input 连接 ⭐ 新增 (2026-01-09)
+      const promptEdge = incomingEdges.find((e) => e.targetHandle === 'prompt-input');
+      if (promptEdge) {
+        const sourceNode = nds.find((n) => n.id === promptEdge.source);
+
+        // ✅ 定义允许的源节点类型
+        const validPromptSourceTypes = [
+          'textNode',
+          'promptOptimizerNode',
+          'narratorProcessorNode'  // ⭐ 旁白处理器支持
+        ];
+
+        if (sourceNode && validPromptSourceTypes.includes(sourceNode.type)) {
+          // 源节点类型有效，传递数据
+          if (sourceNode.type === 'textNode') {
+            newData.connectedPrompt = sourceNode.data.value || '';
+          } else if (sourceNode.type === 'promptOptimizerNode') {
+            newData.connectedPrompt = sourceNode.data.optimizedPrompt || '';
+          } else if (sourceNode.type === 'narratorProcessorNode') {
+            // ⭐ 从 NarratorProcessorNode 接收旁白数据
+            newData.manualPrompt = sourceNode.data.currentPrompt || '';
+            newData.narratorMode = sourceNode.data.narratorMode || false;
+            newData.narratorIndex = sourceNode.data.currentIndex || 0;
+            newData.narratorTotal = sourceNode.data.total || 0;
+            newData.narratorSentences = sourceNode.data.sentences || [];
+          }
+        } else {
+          // ❌ 源节点类型无效，清除数据（静默失败）
+          newData.connectedPrompt = undefined;
         }
       }
 
