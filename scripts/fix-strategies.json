@@ -1,0 +1,107 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-01-09",
+  "description": "WinJin 自动修复策略配置文件",
+  "strategies": {
+    "orphaned_node": {
+      "name": "孤立节点引用修复",
+      "description": "修复文档中引用的不存在节点",
+      "errorPattern": "文档中引用的节点在节点注册表中找不到",
+      "fixer": "orphaned-node-fixer.js",
+      "autoFixable": true,
+      "confidence": 95,
+      "risk": "low",
+      "scope": ["documentation"],
+      "requiresUserConfirmation": false,
+      "notes": "复用 validate-docs.js 中的修复逻辑"
+    },
+    "missing_dependency": {
+      "name": "useEffect 依赖缺失修复",
+      "description": "自动添加缺失的 useEffect 依赖",
+      "errorPattern": "useEffect 依赖数组中缺少 data.xxx 字段",
+      "fixer": "missing-dependency-fixer.js",
+      "autoFixable": true,
+      "confidence": 80,
+      "risk": "medium",
+      "scope": ["nodes"],
+      "requiresUserConfirmation": true,
+      "reason": "可能影响组件渲染性能，需要手动确认"
+    },
+    "source_not_writing": {
+      "name": "源节点未写入修复",
+      "description": "在源节点的 setNodes() 中添加缺失的字段",
+      "errorPattern": "源节点没有写入目标节点需要读取的数据字段",
+      "fixer": "source-not-writing-fixer.js",
+      "autoFixable": true,
+      "confidence": 60,
+      "risk": "high",
+      "scope": ["nodes"],
+      "requiresUserConfirmation": true,
+      "reason": "可能影响其他节点，需要手动确认"
+    },
+    "data_flow_break": {
+      "name": "数据流断裂修复",
+      "description": "修复节点间的数据传递问题",
+      "errorPattern": "源节点写入的数据字段与目标节点读取的不匹配",
+      "fixer": "data-flow-fixer.js",
+      "autoFixable": false,
+      "confidence": 50,
+      "risk": "high",
+      "scope": ["nodes", "app"],
+      "requiresUserConfirmation": true,
+      "reason": "需要理解业务逻辑，建议手动修复",
+      "notes": "半自动修复，提供修复建议"
+    },
+    "missing_file": {
+      "name": "文件不存在",
+      "description": "引用的文件不存在",
+      "errorPattern": "文档或代码中引用的文件路径不存在",
+      "fixer": null,
+      "autoFixable": false,
+      "confidence": 0,
+      "risk": "critical",
+      "scope": ["documentation", "code"],
+      "requiresUserConfirmation": false,
+      "reason": "无法自动创建文件",
+      "action": "manual"
+    },
+    "syntax_error": {
+      "name": "语法错误",
+      "description": "JavaScript/JSX 语法错误",
+      "errorPattern": "编译错误或 Babel 转换失败",
+      "fixer": null,
+      "autoFixable": false,
+      "confidence": 0,
+      "risk": "critical",
+      "scope": ["code"],
+      "requiresUserConfirmation": false,
+      "reason": "需要手动修复代码",
+      "action": "manual"
+    },
+    "invalid_handle": {
+      "name": "无效的 Handle ID",
+      "description": "节点使用了不存在的 Handle ID",
+      "errorPattern": "Handle ID 与节点定义不匹配",
+      "fixer": null,
+      "autoFixable": false,
+      "confidence": 70,
+      "risk": "medium",
+      "scope": ["nodes", "app"],
+      "requiresUserConfirmation": true,
+      "reason": "需要确定正确的 Handle ID",
+      "action": "semi-auto"
+    }
+  },
+  "metadata": {
+    "totalStrategies": 7,
+    "autoFixableCount": 3,
+    "semiAutoFixableCount": 2,
+    "manualFixCount": 2,
+    "riskLevels": {
+      "low": 1,
+      "medium": 3,
+      "high": 2,
+      "critical": 1
+    }
+  }
+}

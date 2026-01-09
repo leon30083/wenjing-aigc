@@ -22,7 +22,12 @@
     "analyze:impact": "node scripts/analyze-node-impact.js",
     "test:affected": "node scripts/test-affected-nodes.js",
     "validate:all": "npm run validate:registry && npm run validate:nodes && npm run validate:docs",
-    "validate:phase2": "npm run detect:contracts && npm run validate:data-flow"
+    "validate:phase2": "npm run detect:contracts && npm run validate:data-flow",
+    "fix:scan": "node scripts/auto-fix.js --scan",
+    "fix:all": "node scripts/auto-fix.js --fix",
+    "fix:error": "node scripts/auto-fix.js --fix",
+    "fix:dry-run": "node scripts/auto-fix.js --fix --dry-run",
+    "fix:backup": "node scripts/auto-fix.js --fix --backup"
   },
   "keywords": [
     "aigc",
