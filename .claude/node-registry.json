@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-01-09T04:26:20.056Z",
+  "generatedAt": "2026-01-09T04:41:48.475Z",
   "nodes": {
     "aPISettingsNode": {
       "nodeType": "aPISettingsNode",
@@ -22,7 +22,35 @@
       "filePath": "..\\src\\client\\src\\nodes\\input\\CharacterLibraryNode.jsx",
       "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\input\\CharacterLibraryNode.jsx",
       "category": null,
-      "componentName": "CharacterLibraryNode",
+      "componentName": "React",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "narratorNode": {
+      "nodeType": "narratorNode",
+      "fileName": "NarratorNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\input\\NarratorNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\input\\NarratorNode.jsx",
+      "category": null,
+      "componentName": "function",
+      "label": "📖 绘本风格",
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "openAIConfigNode": {
+      "nodeType": "openAIConfigNode",
+      "fileName": "OpenAIConfigNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\input\\OpenAIConfigNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\input\\OpenAIConfigNode.jsx",
+      "category": null,
+      "componentName": "OpenAIConfigNode",
       "label": null,
       "handles": {
         "inputs": [],
@@ -100,6 +128,48 @@
       },
       "exists": true
     },
+    "juxinStoryboardNode": {
+      "nodeType": "juxinStoryboardNode",
+      "fileName": "JuxinStoryboardNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\process\\JuxinStoryboardNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\process\\JuxinStoryboardNode.jsx",
+      "category": null,
+      "componentName": "JuxinStoryboardNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "narratorProcessorNode": {
+      "nodeType": "narratorProcessorNode",
+      "fileName": "NarratorProcessorNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\process\\NarratorProcessorNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\process\\NarratorProcessorNode.jsx",
+      "category": null,
+      "componentName": "function",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "promptOptimizerNode": {
+      "nodeType": "promptOptimizerNode",
+      "fileName": "PromptOptimizerNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\process\\PromptOptimizerNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\process\\PromptOptimizerNode.jsx",
+      "category": null,
+      "componentName": "PromptOptimizerNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
     "storyboardNode": {
       "nodeType": "storyboardNode",
       "fileName": "StoryboardNode.jsx",
@@ -141,10 +211,24 @@
         "outputs": []
       },
       "exists": true
+    },
+    "zhenzhenStoryboardNode": {
+      "nodeType": "zhenzhenStoryboardNode",
+      "fileName": "ZhenzhenStoryboardNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\process\\ZhenzhenStoryboardNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\process\\ZhenzhenStoryboardNode.jsx",
+      "category": null,
+      "componentName": "ZhenzhenStoryboardNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
     }
   },
   "summary": {
     "byCategory": {},
-    "total": 10
+    "total": 16
   }
 }
