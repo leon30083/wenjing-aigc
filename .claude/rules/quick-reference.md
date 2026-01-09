@@ -442,10 +442,25 @@ winjin/
 │       │   ├── components/  # UI 组件
 │       │   └── hooks/       # 业务逻辑
 │       └── package.json     # 前端依赖
-├── .claude/rules/           # 开发规范
-│   ├── quick-reference.md   # 本文件（快速参考）⭐
-│   ├── base.md              # 技术栈规范
-│   └── code.md              # 代码规范
+├── scripts/                 # 验证和修复脚本 ⭐ Phase 3
+│   ├── auto-fix.js          # 自动修复工具
+│   ├── fix-strategies.json  # 修复策略配置
+│   ├── fixers/              # 修复器模块
+│   ├── metrics/             # 指标收集和存储
+│   ├── validate-*.js        # 验证脚本
+│   └── detect-*.js          # 检测脚本
+├── docs/                    # 项目文档 ⭐ Phase 3
+│   └── validation-guide.md  # 验证系统使用指南
+├── .claude/
+│   ├── rules/               # 开发规范
+│   │   ├── quick-reference.md   # 本文件（快速参考）⭐
+│   │   ├── base.md              # 技术栈规范
+│   │   ├── code.md              # 代码规范
+│   │   └── error-patterns.md    # 错误模式参考
+│   ├── templates/           # 错误模式模板 ⭐ Phase 3
+│   │   └── error-template.md
+│   └── metrics/             # 指标数据存储 ⭐ Phase 3
+│       └── validation-metrics.json
 └── 用户输入文件夹/开发对话/  # 项目文档
     └── 开发交接书.md         # 主要交接文档
 ```
@@ -459,12 +474,78 @@ winjin/
 | **快速参考** | `.claude/rules/quick-reference.md` | **本文件，开发前必读** ⭐ |
 | 技术规范 | `.claude/rules/base.md` | 技术栈、API 规范 |
 | 代码规范 | `.claude/rules/code.md` | 代码示例、错误模式 |
+| 错误模式 | `.claude/rules/error-patterns.md` | 所有已知的错误模式 |
 | 开发经验 | `用户输入文件夹/开发经验/Sora2_Character_Best_Practices.md` | Sora2 最佳实践 |
 | 交接书 | `用户输入文件夹/开发对话/开发交接书.md` | 项目交接文档 |
+| **验证指南** ⭐ Phase 3 | `docs/validation-guide.md` | 验证系统完整使用指南 |
+| **错误模板** ⭐ Phase 3 | `.claude/templates/error-template.md` | 快速创建新错误文档 |
 
 ---
 
-## 8. 技术栈速记
+## 8. Phase 3 验证系统 ⭐ 新增 (2026-01-09)
+
+> **重要**: Phase 3 提供自动修复和指标追踪能力，提升开发效率
+
+### 快速命令
+
+```bash
+# 运行所有验证
+npm run validate:all
+
+# 扫描可修复的问题
+npm run fix:scan
+
+# 干运行测试修复
+npm run fix:dry-run
+
+# 应用修复（备份模式）
+npm run fix:backup
+
+# 查看指标趋势
+npm run metrics:trend
+```
+
+### Phase 3 功能
+
+| 功能 | 命令 | 说明 |
+|------|------|------|
+| **扫描问题** | `fix:scan` | 扫描可自动修复的问题 |
+| **应用修复** | `fix:all` | 应用所有修复 |
+| **干运行** | `fix:dry-run` | 模拟修复（不实际修改） |
+| **备份修复** | `fix:backup` | 修复前自动备份 |
+| **指标趋势** | `metrics:trend` | 查看验证趋势报告 |
+
+### 修复策略
+
+| 策略 | 类型 | 置信度 | 风险 |
+|------|------|--------|------|
+| 孤立节点引用修复 | orphaned_node | 95% | low |
+| useEffect 依赖缺失修复 | missing_dependency | 80% | medium |
+| 源节点未写入修复 | source_not_writing | 60% | high |
+| 数据流断裂修复 | data_flow_break | 50% | high |
+
+### 指标分析
+
+```bash
+npm run metrics:trend
+```
+
+**输出包含**:
+- 总运行次数和数据收集时间
+- 按类型统计（运行次数、错误数、警告数）
+- 最近 7 天统计
+- 趋势分析（改善/恶化/稳定）
+- 最近 10 次运行历史
+
+### 相关文档
+
+- [验证系统使用指南](../../docs/validation-guide.md) - 完整的使用文档 ⭐
+- [错误模式参考](./error-patterns.md) - 所有已知的错误模式
+- [错误模式模板](../templates/error-template.md) - 快速创建新错误文档
+
+---
+
+## 9. 技术栈速记
 
 | 类别 | 技术 | 版本 |
 |------|------|------|
@@ -475,5 +556,5 @@ winjin/
 
 ---
 
-**最后更新**: 2026-01-01
+**最后更新**: 2026-01-09
 **维护者**: Claude Code 开发团队
