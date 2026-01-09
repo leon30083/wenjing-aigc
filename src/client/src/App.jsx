@@ -264,17 +264,24 @@ function App() {
           newData.onSizeChange = handleNodeSizeChange;
         }
 
-        // Check for prompt input from text node or prompt optimizer node
+        // Check for prompt input from text node, prompt optimizer node, or narrator processor node
         const promptEdge = incomingEdges.find((e) => e.targetHandle === 'prompt-input');
         if (promptEdge) {
           const sourceNode = nds.find((n) => n.id === promptEdge.source);
-          // ✅ TextNode 和 PromptOptimizerNode 都可以连接到 prompt-input
-          const validPromptSourceTypes = ['textNode', 'promptOptimizerNode'];
+          // ✅ TextNode, PromptOptimizerNode, NarratorProcessorNode 都可以连接到 prompt-input
+          const validPromptSourceTypes = ['textNode', 'promptOptimizerNode', 'narratorProcessorNode'];
           if (sourceNode && validPromptSourceTypes.includes(sourceNode.type)) {
             if (sourceNode.type === 'textNode') {
               newData.connectedPrompt = sourceNode.data.value || '';
             } else if (sourceNode.type === 'promptOptimizerNode') {
               newData.connectedPrompt = sourceNode.data.optimizedPrompt || '';
+            } else if (sourceNode.type === 'narratorProcessorNode') {
+              // ⭐ 从 NarratorProcessorNode 接收旁白数据
+              newData.manualPrompt = sourceNode.data.currentPrompt || '';
+              newData.narratorMode = sourceNode.data.narratorMode || false;
+              newData.narratorIndex = sourceNode.data.currentIndex || 0;
+              newData.narratorTotal = sourceNode.data.total || 0;
+              newData.narratorSentences = sourceNode.data.sentences || [];
             }
           } else {
             // ❌ 源节点类型无效，清除连接数据
