@@ -14,8 +14,12 @@
     "registry:build": "node scripts/node-registry.js --build",
     "registry:check": "node scripts/node-registry.js --check",
     "registry:list": "node scripts/node-registry.js --list",
+    "validate:registry": "node scripts/validate-registry.js",
+    "validate:nodes": "node scripts/validate-nodes.js",
     "validate:docs": "node scripts/validate-docs.js",
-    "validate:all": "npm run registry:build && npm run validate:docs"
+    "analyze:impact": "node scripts/analyze-node-impact.js",
+    "test:affected": "node scripts/test-affected-nodes.js",
+    "validate:all": "npm run validate:registry && npm run validate:nodes && npm run validate:docs"
   },
   "keywords": [
     "aigc",
