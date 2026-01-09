@@ -17,9 +17,12 @@
     "validate:registry": "node scripts/validate-registry.js",
     "validate:nodes": "node scripts/validate-nodes.js",
     "validate:docs": "node scripts/validate-docs.js",
+    "validate:data-flow": "node scripts/validate-data-flow.js",
+    "detect:contracts": "node scripts/detect-data-contracts.js",
     "analyze:impact": "node scripts/analyze-node-impact.js",
     "test:affected": "node scripts/test-affected-nodes.js",
-    "validate:all": "npm run validate:registry && npm run validate:nodes && npm run validate:docs"
+    "validate:all": "npm run validate:registry && npm run validate:nodes && npm run validate:docs",
+    "validate:phase2": "npm run detect:contracts && npm run validate:data-flow"
   },
   "keywords": [
     "aigc",
