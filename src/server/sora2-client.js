@@ -197,9 +197,18 @@ class Sora2Client {
         body.size = size === 'large' ? 'large' : 'small';
       }
 
+      // ⭐ 调试日志：打印实际发送的请求
+      const authHeaders = this._getAuthHeaders();
+      console.log('[Sora2Client] 发送请求到聚鑫 API:');
+      console.log('  URL:', this.platform.baseURL + this.platform.videoEndpoint);
+      console.log('  Authorization:', authHeaders.Authorization ? `Bearer ${authHeaders.Authorization.substring(0, 20)}...` : 'MISSING');
+      console.log('  请求体:', JSON.stringify(body, null, 2));
+
       const response = await this.client.post(this.platform.videoEndpoint, body, {
-        headers: this._getAuthHeaders(),
+        headers: authHeaders,
       });
+
+      console.log('[Sora2Client] 聚鑫 API 响应:', JSON.stringify(response.data, null, 2));
 
       return {
         success: true,
