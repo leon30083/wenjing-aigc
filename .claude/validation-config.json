@@ -1,0 +1,96 @@
+{
+  "version": "1.0.0",
+  "description": "验证与诊断系统配置",
+
+  "enabled": {
+    "nodeRegistry": true,
+    "documentation": true,
+    "naming": true,
+    "gitHooks": true
+  },
+
+  "severity": {
+    "orphanedNode": "error",
+    "missingFile": "warning",
+    "brokenLink": "error",
+    "namingMismatch": "error"
+  },
+
+  "nodeRegistry": {
+    "autoBuild": true,
+    "buildOnStart": false,
+    "watchMode": false,
+    "outputFile": ".claude/node-registry.json",
+    "scanDirectories": [
+      "src/client/src/nodes"
+    ],
+    "excludePatterns": [
+      "*.test.js",
+      "*.test.jsx",
+      "*.spec.js",
+      "*.spec.jsx",
+      "node_modules/**"
+    ]
+  },
+
+  "documentation": {
+    "scanDirectories": [
+      ".claude/rules",
+      ".claude/skills"
+    ],
+    "includePatterns": [
+      "*.md"
+    ],
+    "excludeFiles": [
+      "node_modules/**",
+      ".git/**"
+    ],
+    "autoFix": {
+      "enabled": true,
+      "dryRun": false,
+      "backup": true
+    }
+  },
+
+  "naming": {
+    "enforceConventions": true,
+    "conventions": {
+      "nodeFiles": {
+        "pattern": "^[A-Z][a-zA-Z]*Node\\.(jsx|js)$",
+        "description": "节点文件名必须是 PascalCase + Node.jsx"
+      },
+      "nodeTypes": {
+        "pattern": "^[a-z][a-zA-Z]*Node$",
+        "description": "节点类型标识符必须是 camelCase + Node"
+      },
+      "handleIds": {
+        "input": "^[a-z]+-input$",
+        "output": "^[a-z]+-output$",
+        "description": "Handle ID 必须遵循 {类型}-{数据类型}-input/output 格式"
+      }
+    }
+  },
+
+  "gitHooks": {
+    "preCommit": {
+      "enabled": true,
+      "stagedOnly": true,
+      "skipFlag": "--no-verify"
+    },
+    "prePush": {
+      "enabled": false
+    }
+  },
+
+  "diagnostics": {
+    "logLevel": "info",
+    "outputFormat": "human",
+    "reportFile": ".claude/validation-report.json"
+  },
+
+  "ci": {
+    "enabled": false,
+    "failOnError": true,
+    "commentOnPR": true
+  }
+}

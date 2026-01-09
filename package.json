@@ -10,7 +10,12 @@
     "dev:main": "nodemon --exec electron . --watch src/main",
     "build": "vite build && electron-builder",
     "build:dir": "vite build && electron-builder --dir",
-    "server": "node src/server/index.js"
+    "server": "node src/server/index.js",
+    "registry:build": "node scripts/node-registry.js --build",
+    "registry:check": "node scripts/node-registry.js --check",
+    "registry:list": "node scripts/node-registry.js --list",
+    "validate:docs": "node scripts/validate-docs.js",
+    "validate:all": "npm run registry:build && npm run validate:docs"
   },
   "keywords": [
     "aigc",

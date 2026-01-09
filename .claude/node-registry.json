@@ -1,0 +1,150 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-01-09T04:26:20.056Z",
+  "nodes": {
+    "aPISettingsNode": {
+      "nodeType": "aPISettingsNode",
+      "fileName": "APISettingsNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\input\\APISettingsNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\input\\APISettingsNode.jsx",
+      "category": null,
+      "componentName": "APISettingsNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "characterLibraryNode": {
+      "nodeType": "characterLibraryNode",
+      "fileName": "CharacterLibraryNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\input\\CharacterLibraryNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\input\\CharacterLibraryNode.jsx",
+      "category": null,
+      "componentName": "CharacterLibraryNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "referenceImageNode": {
+      "nodeType": "referenceImageNode",
+      "fileName": "ReferenceImageNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\input\\ReferenceImageNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\input\\ReferenceImageNode.jsx",
+      "category": null,
+      "componentName": "ReferenceImageNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "textNode": {
+      "nodeType": "textNode",
+      "fileName": "TextNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\input\\TextNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\input\\TextNode.jsx",
+      "category": null,
+      "componentName": "TextNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "characterResultNode": {
+      "nodeType": "characterResultNode",
+      "fileName": "CharacterResultNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\output\\CharacterResultNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\output\\CharacterResultNode.jsx",
+      "category": null,
+      "componentName": "CharacterResultNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "taskResultNode": {
+      "nodeType": "taskResultNode",
+      "fileName": "TaskResultNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\output\\TaskResultNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\output\\TaskResultNode.jsx",
+      "category": null,
+      "componentName": "TaskResultNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "characterCreateNode": {
+      "nodeType": "characterCreateNode",
+      "fileName": "CharacterCreateNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\process\\CharacterCreateNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\process\\CharacterCreateNode.jsx",
+      "category": null,
+      "componentName": "CharacterCreateNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "storyboardNode": {
+      "nodeType": "storyboardNode",
+      "fileName": "StoryboardNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\process\\StoryboardNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\process\\StoryboardNode.jsx",
+      "category": null,
+      "componentName": "StoryboardNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "videoGenerateNode": {
+      "nodeType": "videoGenerateNode",
+      "fileName": "VideoGenerateNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\process\\VideoGenerateNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\process\\VideoGenerateNode.jsx",
+      "category": null,
+      "componentName": "VideoGenerateNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "videoNode": {
+      "nodeType": "videoNode",
+      "fileName": "VideoNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\process\\VideoNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\process\\VideoNode.jsx",
+      "category": null,
+      "componentName": "VideoNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    }
+  },
+  "summary": {
+    "byCategory": {},
+    "total": 10
+  }
+}
