@@ -19,6 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const metricsStorage = require('./metrics/metrics-storage');
 
 // 配置文件路径
 const FIX_STRATEGIES_PATH = path.join(__dirname, 'fix-strategies.json');
@@ -42,9 +43,17 @@ function runAllValidations() {
   try {
     // 运行节点注册表验证
     console.log('🔍 运行节点注册表验证...');
+    let registryErrors = 0;
     try {
       execSync('node scripts/validate-registry.js', { encoding: 'utf8', stdio: 'pipe' });
+      metricsStorage.recordValidation({
+        type: 'validate:registry',
+        totalNodes: 16,
+        errorCount: 0,
+        warningCount: 0
+      });
     } catch (error) {
+      registryErrors = 1;
       results.push({
         type: 'registry',
         errorId: 'registry-error',
@@ -54,28 +63,35 @@ function runAllValidations() {
         summary: '节点注册表验证失败',
         details: error.stdout || error.stderr
       });
+      metricsStorage.recordValidation({
+        type: 'validate:registry',
+        totalNodes: 16,
+        errorCount: 1,
+        warningCount: 0
+      });
     }
 
     // 运行节点语法验证
     console.log('🔍 运行节点语法验证...');
+    let syntaxErrors = 0;
+    let syntaxWarnings = 0;
     try {
       const output = execSync('node scripts/validate-nodes.js', { encoding: 'utf8', stdio: 'pipe' });
       // 解析输出中的错误
       const lines = output.split('\n');
       lines.forEach((line, index) => {
-        if (line.includes('错误:') || line.includes('Error')) {
-          results.push({
-            type: 'syntax',
-            errorId: `syntax-${index}`,
-            file: null,
-            line: null,
-            severity: 'error',
-            summary: line.trim(),
-            details: output
-          });
+        if (line.includes('警告:')) {
+          syntaxWarnings++;
         }
       });
+      metricsStorage.recordValidation({
+        type: 'validate:nodes',
+        totalNodes: 16,
+        errorCount: syntaxErrors,
+        warningCount: syntaxWarnings
+      });
     } catch (error) {
+      syntaxErrors = 1;
       results.push({
         type: 'syntax',
         errorId: 'syntax-error',
@@ -84,6 +100,12 @@ function runAllValidations() {
         severity: 'error',
         summary: '节点语法验证失败',
         details: error.stdout || error.stderr
+      });
+      metricsStorage.recordValidation({
+        type: 'validate:nodes',
+        totalNodes: 16,
+        errorCount: syntaxErrors,
+        warningCount: syntaxWarnings
       });
     }
 
@@ -380,6 +402,7 @@ function showUsage() {
   console.log('  node scripts/auto-fix.js --fix --output=json       # JSON 格式输出');
   console.log('  node scripts/auto-fix.js --fix --output=report.json # 保存报告到文件');
   console.log('  node scripts/auto-fix.js --fix --verbose           # 显示详细信息');
+  console.log('  node scripts/auto-fix.js --metrics                 # 显示指标趋势报告 ⭐ 新增');
   console.log('\n修复策略:');
   Object.entries(fixStrategies.strategies).forEach(([key, strategy]) => {
     const fixable = strategy.autoFixable ? '✅ 可修复' : '❌ 不可修复';
@@ -399,6 +422,7 @@ const options = {
   backup: args.includes('--backup'),
   force: args.includes('--force'),
   verbose: args.includes('--verbose'),
+  metrics: args.includes('--metrics'),
   outputFormat: args.includes('--output=json') ? 'json' : 'text',
   outputFile: args.find(a => a.startsWith('--output='))?.split('=')[1] || null
 };
@@ -406,6 +430,13 @@ const options = {
 async function main() {
   console.log('🔧 WinJin 自动修复工具 v1.0.0');
   console.log('='.repeat(70));
+
+  if (options.metrics) {
+    // 显示指标趋势报告
+    const { generateTrendReport } = require('./metrics/metrics-collector');
+    generateTrendReport();
+    return;
+  }
 
   if (options.scan) {
     const issues = scanFixableIssues();

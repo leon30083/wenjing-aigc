@@ -27,7 +27,11 @@
     "fix:all": "node scripts/auto-fix.js --fix",
     "fix:error": "node scripts/auto-fix.js --fix",
     "fix:dry-run": "node scripts/auto-fix.js --fix --dry-run",
-    "fix:backup": "node scripts/auto-fix.js --fix --backup"
+    "fix:backup": "node scripts/auto-fix.js --fix --backup",
+    "metrics:trend": "node scripts/metrics/metrics-collector.js --trend",
+    "metrics:clear": "node scripts/metrics/metrics-collector.js --clear",
+    "metrics:cleanup": "node scripts/metrics/metrics-collector.js --cleanup",
+    "metrics:export": "node scripts/metrics/metrics-collector.js --export"
   },
   "keywords": [
     "aigc",
