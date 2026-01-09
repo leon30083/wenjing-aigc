@@ -343,6 +343,92 @@ useEffect(() => {
 
 ---
 
+## 验证系统 ⭐ Phase 3 新增 (2026-01-09)
+
+WinJin 项目拥有完整的自动化验证系统，包括基础验证、数据流验证和自动修复能力。
+
+### 快速命令
+
+```bash
+# 运行所有验证
+npm run validate:all
+
+# 扫描可修复问题
+npm run fix:scan
+
+# 干运行测试修复
+npm run fix:dry-run
+
+# 应用修复（备份模式）
+npm run fix:backup
+
+# 查看质量趋势
+npm run metrics:trend
+```
+
+### 自动运行场景
+
+**Git 提交时自动运行**（通过 pre-commit hook）：
+- ✅ 节点注册表验证 (validate:registry)
+- ✅ 节点文件语法验证 (validate:nodes)
+- ✅ 文档引用完整性验证 (validate:docs)
+- ✅ 数据流完整性验证 (validate:data-flow)
+
+### 手动运行场景
+
+**开发后验证**：
+```bash
+npm run validate:all
+```
+
+**扫描可修复问题**：
+```bash
+npm run fix:scan        # 扫描
+npm run fix:dry-run      # 干运行
+npm run fix:backup       # 修复前备份
+npm run fix:all          # 应用所有修复
+```
+
+**查看质量趋势**：
+```bash
+npm run metrics:trend     # 查看趋势报告
+npm run metrics:cleanup   # 清理过期数据
+npm run metrics:export    # 导出指标数据
+```
+
+### 修复策略
+
+| 策略 | 类型 | 置信度 | 风险 | 可自动修复 |
+|------|------|--------|------|-----------|
+| 孤立节点引用修复 | orphaned_node | 95% | low | ✅ |
+| useEffect 依赖缺失修复 | missing_dependency | 80% | medium | ✅ |
+| 源节点未写入修复 | source_not_writing | 60% | high | ✅ |
+| 数据流断裂修复 | data_flow_break | 50% | high | ❌ (仅建议) |
+
+### 开发流程集成
+
+```
+开发代码
+    ↓
+npm run validate:all  ← 快速验证
+    ↓
+npm run fix:scan      ← 如有问题，扫描可修复项
+    ↓
+npm run fix:dry-run    ← 干运行测试
+    ↓
+npm run fix:backup     ← 应用修复
+    ↓
+git commit -m "..."    ← Git hook 自动验证
+```
+
+### 相关文档
+
+- **完整使用指南**: [docs/validation-guide.md](../../../docs/validation-guide.md) ⭐ 必读
+- **错误模式模板**: [.claude/templates/error-template.md](../../../templates/error-template.md)
+- **错误模式参考**: [.claude/rules/error-patterns.md](../../rules/error-patterns.md)
+
+---
+
 ## 参考文档
 
 | 文档 | 位置 | 用途 |
