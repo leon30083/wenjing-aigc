@@ -483,6 +483,94 @@ ${characterInstruction}${examplesSection}
   }
 
   /**
+   * 识别句子中的角色
+   * @param {string} sentence - 句子文本
+   * @param {Array} characters - 角色列表
+   * @returns {Promise<Array>} 匹配结果
+   */
+  async identifyCharacters(sentence, characters) {
+    if (!characters || characters.length === 0) {
+      return [];
+    }
+
+    const characterList = characters.map(c => {
+      const alias = c.alias || c.username;
+      return `  - @${c.username} (${c.alias || '无别名'})`;
+    }).join('\n');
+
+    const systemPrompt = `你是角色识别专家。
+
+任务：从句子中识别提到的角色，并返回匹配的角色 username。
+
+可用角色：
+${characterList}
+
+规则：
+1. ⭐ 问句检测：如果是问句（包含"吗"、"呢"、"吧"、"有没有"、"是否"等），通常不插入角色引用（除非直接问角色本身）
+2. ⭐ 识别所有角色：识别句子中提到的**所有**角色，包括：
+   - 主语（执行动作的角色）：如"阳光小猫看着"中的"阳光小猫"
+   - 宾语（被影响/被观察的角色）：如"看着装载机"中的"装载机"
+   - 任何明确提到的角色名称
+3. ⭐ 优先识别描述性句子：陈述句中描述角色活动/动作时才插入引用
+4. 识别角色别名、昵称、指代词（但问句中的代词"它/他/她"不触发引用）
+5. 置信度 > 0.7 才返回
+6. 返回格式：JSON 数组
+
+示例分析：
+✅ "没错，它就是我们建筑工地上的装载机！" → 插入引用（陈述句，明确描述角色）
+✅ "它轰隆隆地工作着" → 插入引用（描述动作）
+✅ "阳光小猫看着装载机工作" → 插入2个引用（主语"阳光小猫" + 宾语"装载机"）
+✅ "装载机和小猫一起玩耍" → 插入2个引用（两个角色都明确提到）
+❌ "你有没有发现，没有它，我们的城市就少了很多忙碌的身影呢？" → 不插入（问句，引导思考）
+❌ "今天天气真好" → 不插入（无角色）
+
+输出示例：
+[
+  {"username": "783316a1d.diggyloade", "confidence": 0.95, "keyword": "装载机"},
+  {"username": "ebfb9a758.sunnykitte", "confidence": 0.82, "keyword": "小猫"}
+]
+
+多角色示例：
+输入: "阳光小猫看着装载机工作"
+输出: [
+  {"username": "5562be00d.sunbeamkit", "confidence": 0.92, "keyword": "阳光小猫"},
+  {"username": "783316a1d.diggyloade", "confidence": 0.88, "keyword": "装载机"}
+]`;
+
+    try {
+      console.log('[OpenAIClient] 识别角色:', { sentence, characterCount: characters.length });
+
+      const response = await this.client.post(
+        `${this.baseUrl}/v1/chat/completions`,
+        {
+          model: this.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `句子: "${sentence}"` }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.3
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const result = JSON.parse(response.data.choices[0].message.content);
+
+      console.log('[OpenAIClient] 角色识别成功:', result);
+
+      return result || [];
+    } catch (error) {
+      console.error('[OpenAIClient] 角色识别失败:', error.message);
+      return [];
+    }
+  }
+
+  /**
    * 解析错误信息
    * @private
    */

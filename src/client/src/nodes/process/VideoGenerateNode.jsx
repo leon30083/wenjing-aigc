@@ -182,6 +182,44 @@ function VideoGenerateNode({ data }) {
     }
   }, [data.narratorIndex, narratorIndex]);
 
+  // ⭐ 新增：从 data.narratorSentences 和 data.narratorTotal 同步到内部状态
+  useEffect(() => {
+    const dataSentences = data.narratorSentences;
+    const dataTotal = data.narratorTotal;
+    const dataIndex = data.narratorIndex;
+
+    // 检查是否有新的旁白数据
+    const hasNewSentences = dataSentences && dataSentences.length > 0;
+    const hasNewTotal = dataTotal !== undefined && dataTotal !== null;
+
+    if (hasNewSentences || hasNewTotal) {
+      console.log('[VideoGenerateNode] 🔄 同步旁白数据:', {
+        hasNewSentences,
+        hasNewTotal,
+        dataSentencesLength: dataSentences?.length,
+        dataTotal,
+        dataIndex,
+        currentSentencesLength: narratorSentences.length,
+        currentTotal: narratorTotal,
+        currentIndex: narratorIndex
+      });
+
+      // 更新内部状态
+      if (hasNewSentences && dataSentences !== narratorSentences) {
+        setNarratorSentences(dataSentences);
+      }
+      if (hasNewTotal && dataTotal !== narratorTotal) {
+        setNarratorTotal(dataTotal);
+      }
+      // 同步索引（防止越界）
+      if (dataIndex !== undefined && dataIndex !== null && dataIndex !== narratorIndex) {
+        if (dataIndex >= 0 && dataIndex < (dataTotal || narratorSentences.length)) {
+          setNarratorIndex(dataIndex);
+        }
+      }
+    }
+  }, [data.narratorSentences, data.narratorTotal, data.narratorIndex]);
+
   // Resize handling - use capture phase and prevent default
   const handleResizeMouseDown = (e) => {
     // Only left button
@@ -621,8 +659,8 @@ function VideoGenerateNode({ data }) {
         </select>
       </div>
 
-      {/* ⭐ 旁白模式显示 */}
-      {narratorMode && (
+      {/* ⭐ 旁白模式显示（只在有句子数据时显示） */}
+      {narratorMode && narratorTotal > 0 && (
         <div style={{
           padding: '8px',
           backgroundColor: '#e0f2fe',

@@ -352,6 +352,27 @@ export default function NarratorProcessorNode({ data }) {
         setCustomStyleDescription(sourceNode.data.customStyleDescription || '');
         setConnectedCharacters(sourceNode.data.connectedCharacters || []);
 
+        // ⭐ 同步到 node.data（确保 VideoGenerateNode 能读取到最新数据）
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    sentences: sourceSentences,
+                    currentIndex: 0,
+                    total: sourceSentences.length,
+                    narratorMode: sourceSentences.length > 0,
+                    progress: 0,
+                    currentPrompt: '',
+                    isOptimizing: false
+                  }
+                }
+              : node
+          )
+        );
+
         return true;
       }
     }
@@ -648,6 +669,77 @@ export default function NarratorProcessorNode({ data }) {
   };
 
   /**
+   * ⭐ 新增：重新加载旁白（从源节点）
+   * 用途：当用户在 NarratorNode 修改旁白后，点击此按钮重新加载
+   */
+  const handleReloadNarrative = async () => {
+    console.log('[NarratorProcessorNode] 🔄 重新加载旁白...');
+
+    const loaded = await loadFromSourceNode();
+    if (loaded) {
+      // 重置所有状态
+      setCurrentIndex(0);
+      setCurrentPrompt('');
+      setProgress(0);
+      setIsOptimizing(false);
+
+      // ⭐ 清空 VideoGenerateNode 的旁白状态（避免显示旧的优化数据）
+      const edges = getEdges();
+      console.log('[NarratorProcessorNode] 🔍 调试清除逻辑:', {
+        currentNodeId: nodeId,
+        totalEdges: edges.length,
+        allEdges: edges.map(e => ({
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle
+        }))
+      });
+
+      const videoEdges = edges.filter(
+        (e) => e.source === nodeId && e.sourceHandle === 'sentence-output'
+      );
+
+      console.log('[NarratorProcessorNode] 🔍 过滤后的 edges:', {
+        videoEdgesCount: videoEdges.length,
+        videoEdges: videoEdges.map(e => ({
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle
+        }))
+      });
+
+      videoEdges.forEach((edge) => {
+        const targetNode = getNodes().find(n => n.id === edge.target);
+        if (targetNode?.type === 'videoGenerateNode') {
+          setNodes((nds) =>
+            nds.map((node) =>
+              node.id === targetNode.id
+                ? {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      narratorMode: false,
+                      narratorSentences: [],
+                      narratorIndex: 0,
+                      narratorTotal: 0
+                    }
+                  }
+                : node
+            )
+          );
+          console.log('[NarratorProcessorNode] ✅ 已清空 VideoGenerateNode 的旁白状态');
+        }
+      });
+
+      alert(`✅ 已重新加载旁白（${sentences.length} 个句子）\n请点击"🚀 全部优化"开始优化`);
+    } else {
+      alert('❌ 加载失败，请检查旁白输入节点是否连接');
+    }
+  };
+
+  /**
    * 重新优化当前句子
    */
   const reoptimizeCurrent = async () => {
@@ -928,6 +1020,25 @@ export default function NarratorProcessorNode({ data }) {
           }}
         >
           🔄 重新优化
+        </button>
+
+        <button
+          className="nodrag"
+          onClick={handleReloadNarrative}
+          disabled={isOptimizing}
+          style={{
+            padding: '6px 10px',
+            fontSize: '11px',
+            backgroundColor: '#10b981',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: isOptimizing ? 'not-allowed' : 'pointer',
+            opacity: isOptimizing ? 0.5 : 1
+          }}
+          title="从旁白输入节点重新加载旁白"
+        >
+          🔄 重新加载旁白
         </button>
 
         <button

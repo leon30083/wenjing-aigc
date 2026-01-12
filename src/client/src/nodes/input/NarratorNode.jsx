@@ -47,6 +47,8 @@ export default function NarratorNode({ data }) {
   const [rawText, setRawText] = useState(data.rawText || '');
   const [sentences, setSentences] = useState(data.sentences || []);
   const [connectedCharacters, setConnectedCharacters] = useState(data.connectedCharacters || []);
+  const [openaiConfig, setOpenaiConfig] = useState(data.openaiConfig || null);
+  const [isMatching, setIsMatching] = useState(false);
   const [style, setStyle] = useState(data.style || 'picture-book');
   const [targetDuration, setTargetDuration] = useState(data.targetDuration || 10);
   const [optimizationDirection, setOptimizationDirection] = useState(data.optimizationDirection || 'balanced');
@@ -153,6 +155,134 @@ export default function NarratorNode({ data }) {
   }, [data.connectedCharacters]);
 
   /**
+   * ⭐ 接收来自 OpenAIConfigNode 的配置数据（直接连接）
+   */
+  useEffect(() => {
+    if (data.openaiConfig) {
+      console.log('[NarratorNode] ✅ 从直接连接获取 OpenAI 配置:', {
+        base_url: data.openaiConfig.base_url,
+        model: data.openaiConfig.model
+      });
+      setOpenaiConfig(data.openaiConfig);
+    } else {
+      setOpenaiConfig(null);
+    }
+  }, [data.openaiConfig]);
+
+  /**
+   * ⭐ 动态获取 OpenAI 配置（支持直接连接和继承）
+   * 优先使用内部状态，如果没有则尝试从 NarratorProcessorNode 继承
+   */
+  const getOpenAIConfig = () => {
+    // 如果已经有配置，直接返回
+    if (openaiConfig) {
+      return openaiConfig;
+    }
+
+    // 尝试从连接的 NarratorProcessorNode 继承
+    const edges = getEdges();
+    const outgoingEdges = edges.filter((e) => e.source === nodeId);
+
+    for (const edge of outgoingEdges) {
+      const targetNode = getNodes().find(n => n.id === edge.target);
+      if (targetNode?.type === 'narratorProcessorNode' && targetNode.data?.openaiConfig) {
+        console.log('[NarratorNode] ✅ 从 NarratorProcessorNode 继承 OpenAI 配置:', {
+          targetNodeId: targetNode.id,
+          base_url: targetNode.data.openaiConfig.base_url,
+          model: targetNode.data.openaiConfig.model
+        });
+        // 更新内部状态，下次可以直接使用
+        setOpenaiConfig(targetNode.data.openaiConfig);
+        return targetNode.data.openaiConfig;
+      }
+    }
+
+    return null;
+  };
+
+  /**
+   * ⭐ 判断是否有可用的 OpenAI 配置（用于 UI 显示）
+   */
+  const hasOpenAIConfig = useMemo(() => {
+    return !!getOpenAIConfig();
+  }, [openaiConfig, getEdges, getNodes]);
+
+  /**
+   * ⭐ 新增：智能匹配角色
+   */
+  const handleSmartMatch = async () => {
+    // ⭐ 动态获取 OpenAI 配置（支持直接连接和继承）
+    const config = getOpenAIConfig();
+    if (!config) {
+      alert('⚠️ 请先连接 OpenAI 配置节点');
+      return;
+    }
+
+    if (connectedCharacters.length === 0) {
+      alert('⚠️ 请先连接角色库节点并选择角色');
+      return;
+    }
+
+    const lines = rawText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    if (lines.length === 0) {
+      alert('⚠️ 请先输入旁白文本');
+      return;
+    }
+
+    setIsMatching(true);
+
+    try {
+      let matchedCount = 0;
+
+      // 逐行识别角色
+      const newLines = await Promise.all(lines.map(async (line) => {
+        // 检查是否已有角色引用
+        if (/@[\w.-]+/.test(line)) {
+          return line;  // 已有引用，跳过
+        }
+
+        // 调用 API 识别角色
+        const response = await fetch(`${API_BASE}/api/openai/identify-characters`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sentence: line,
+            characters: connectedCharacters,
+            base_url: config.base_url,
+            api_key: config.api_key,
+            model: config.model
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success && result.data.matches && result.data.matches.length > 0) {
+          // ⭐ 支持多角色：插入所有置信度 > 0.8 的角色引用
+          const validMatches = result.data.matches.filter(m => m.confidence > 0.8);
+          if (validMatches.length > 0) {
+            matchedCount += validMatches.length;
+            // 在开头插入所有角色引用（用空格分隔）
+            const characterRefs = validMatches.map(m => `@${m.username}`).join(' ');
+            return `${characterRefs} ${line}`;
+          }
+        }
+
+        return line;
+      }));
+
+      // 更新 rawText
+      setRawText(newLines.join('\n'));
+      alert(`✅ 完成！已匹配 ${matchedCount} 个角色引用`);
+
+    } catch (error) {
+      console.error('[智能匹配] 失败:', error);
+      alert('❌ 匹配失败，请检查网络和配置');
+    } finally {
+      setIsMatching(false);
+    }
+  };
+
+  /**
    * 同步状态到 node.data（用于工作流保存）
    */
   useEffect(() => {
@@ -166,6 +296,7 @@ export default function NarratorNode({ data }) {
                 rawText,
                 sentences,
                 connectedCharacters,
+                openaiConfig,
                 style,
                 targetDuration,
                 optimizationDirection,
@@ -175,7 +306,7 @@ export default function NarratorNode({ data }) {
           : node
       )
     );
-  }, [rawText, sentences, connectedCharacters, style, targetDuration, optimizationDirection, customStyleDescription, nodeId, setNodes]);
+  }, [rawText, sentences, connectedCharacters, openaiConfig, style, targetDuration, optimizationDirection, customStyleDescription, nodeId, setNodes]);
 
   /**
    * 创建用户名到别名的映射
@@ -311,6 +442,34 @@ export default function NarratorNode({ data }) {
         角色
       </div>
 
+      {/* 输入端口 - OpenAI 配置 */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="openai-config"
+        style={{
+          background: '#f59e0b',
+          width: 10,
+          height: 10,
+          top: '30%',
+          left: '-5px'
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          left: '-90px',
+          top: '30%',
+          transform: 'translateY(-50%)',
+          fontSize: '10px',
+          color: '#f59e0b',
+          fontWeight: 'bold',
+          whiteSpace: 'nowrap'
+        }}
+      >
+        OpenAI
+      </div>
+
       {/* 候选角色显示 */}
       {connectedCharacters.length > 0 && (
         <div style={{ marginBottom: '10px' }}>
@@ -383,6 +542,56 @@ export default function NarratorNode({ data }) {
           </div>
         </div>
       )}
+
+      {/* 智能匹配按钮 */}
+      <div style={{ marginBottom: '10px' }}>
+        <button
+          onClick={handleSmartMatch}
+          disabled={isMatching || !hasOpenAIConfig || connectedCharacters.length === 0}
+          className="nodrag"
+          style={{
+            width: '100%',
+            padding: '6px 12px',
+            background: isMatching
+              ? '#9ca3af'
+              : (!hasOpenAIConfig
+                ? '#e5e7eb'
+                : connectedCharacters.length === 0
+                  ? '#fef3c7'
+                  : '#8b5cf6'),
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: (isMatching || !hasOpenAIConfig) ? 'not-allowed' : 'pointer',
+            fontSize: '12px',
+            fontWeight: '500',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            if (!isMatching && hasOpenAIConfig && connectedCharacters.length > 0) {
+              e.currentTarget.style.background = '#7c3aed';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isMatching && hasOpenAIConfig && connectedCharacters.length > 0) {
+              e.currentTarget.style.background = '#8b5cf6';
+            }
+          }}
+        >
+          {isMatching
+            ? '🔄 匹配中...'
+            : !hasOpenAIConfig
+              ? '🪄 智能匹配角色（未连接 OpenAI）'
+              : connectedCharacters.length === 0
+                ? '🪄 智能匹配角色（未选择角色）'
+                : '🪄 智能匹配角色'}
+        </button>
+        {!hasOpenAIConfig && (
+          <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '4px' }}>
+            💡 提示：连接 OpenAI 配置节点或旁白处理器节点以启用智能匹配
+          </div>
+        )}
+      </div>
 
       {/* 风格和时长设置 */}
       <div style={{ marginBottom: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
