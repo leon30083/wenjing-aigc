@@ -436,34 +436,24 @@ export default function NarratorProcessorNode({ data }) {
     // ⭐ 立即更新状态，确保 UI 显示正确（readyCount = 0）
     setSentences(tempSentences);
 
-    // ⭐ 添加日志：开始优化循环
-    console.log('[NarratorProcessorNode] ========== 开始优化循环 ==========');
+    // ⭐ 添加日志：开始并发优化循环
+    console.log('[NarratorProcessorNode] ========== 开始串行优化循环 ==========');
     console.log('[NarratorProcessorNode] 待优化句子数:', tempSentences.length);
 
+    // ⭐ 串行优化：逐个优化（保持原有逻辑，确保角色数据正确传递）
     for (let i = 0; i < tempSentences.length; i++) {
       console.log(`[NarratorProcessorNode] [${i + 1}/${tempSentences.length}] 开始优化`);
 
-      // 更新本地变量
-      tempSentences[i] = {
-        ...tempSentences[i],
-        status: 'optimizing'
-      };
-
-      // ⭐ 实时更新 UI（isOptimizingRef 会防止同步 useEffect）
+      // 标记为优化中
+      tempSentences[i] = { ...tempSentences[i], status: 'optimizing' };
       setSentences([...tempSentences]);
 
       try {
         // 优化句子
         const optimized = await optimizeSentence(tempSentences[i]);
         results.push(optimized);
-
-        // 更新本地变量
         tempSentences[i] = optimized;
-
-        // ⭐ 实时更新 UI（显示优化完成的句子）
         setSentences([...tempSentences]);
-
-        // 实时更新进度百分比
         setProgress(Math.round(((i + 1) / tempSentences.length) * 100));
 
         console.log(`[NarratorProcessorNode] [${i + 1}/${tempSentences.length}] 优化成功`, {
@@ -472,17 +462,12 @@ export default function NarratorProcessorNode({ data }) {
         });
       } catch (error) {
         console.error(`[NarratorProcessorNode] [${i + 1}/${tempSentences.length}] 优化失败:`, error);
-        tempSentences[i] = {
-          ...tempSentences[i],
-          status: 'error',
-          error: error.message
-        };
-        // ⭐ 实时更新 UI（显示失败的句子）
+        tempSentences[i] = { ...tempSentences[i], status: 'error', error: error.message };
         setSentences([...tempSentences]);
       }
     }
 
-    console.log('[NarratorProcessorNode] ========== 优化循环完成 ==========');
+    console.log('[NarratorProcessorNode] ========== 串行优化循环完成 ==========');
     console.log('[NarratorProcessorNode] 优化结果统计:', {
       总数: tempSentences.length,
       成功: results.filter(r => r.optimized).length,
@@ -523,6 +508,19 @@ export default function NarratorProcessorNode({ data }) {
           successCount: results.filter(r => r.optimized).length
         }
       }));
+
+      // ⭐ 新增：派发批量优化完成事件（用于批量生成视频）
+      if (results.length > 1) {
+        console.log('[NarratorProcessorNode] 🎬 检测到批量模式，派发批量事件');
+        window.dispatchEvent(new CustomEvent('narrator-batch-optimization-complete', {
+          detail: {
+            sourceNodeId: nodeId,
+            sentences: results,  // ⭐ 传递完整的优化结果数组
+            totalSentences: results.length,
+            optimizedCount: results.filter(r => r.optimized).length
+          }
+        }));
+      }
     }
     } finally {
       // ⭐ 确保标记总是被清除（即使发生错误）

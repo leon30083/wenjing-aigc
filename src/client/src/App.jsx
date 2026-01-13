@@ -34,6 +34,7 @@ import NarratorProcessorNode from './nodes/process/NarratorProcessorNode';
 import PromptOptimizerNode from './nodes/process/PromptOptimizerNode';
 import TaskResultNode from './nodes/output/TaskResultNode';
 import CharacterResultNode from './nodes/output/CharacterResultNode';
+import BatchResultNode from './nodes/output/BatchResultNode';
 
 // Initial nodes for testing
 const initialNodes = [
@@ -157,6 +158,7 @@ function App() {
     promptOptimizerNode: PromptOptimizerNode,
     taskResultNode: TaskResultNode,
     characterResultNode: CharacterResultNode,
+    batchResultNode: BatchResultNode,  // ⭐ 批量结果节点
   }), []);
 
   // ✅ 加载当前命名工作流（替代旧的自动保存系统）
