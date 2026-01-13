@@ -166,22 +166,38 @@ function BatchResultNode({ data }) {
         alignItems: 'center'
       }}>
         <span>进度: {completedJobs.length}/{totalJobs} 完成</span>
-        <button
-          onClick={handleRefresh}
-          disabled={polling}
-          className="nodrag"
-          style={{
-            padding: '3px 8px',
-            fontSize: '11px',
-            background: polling ? '#e2e8f0' : '#3b82f6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: polling ? 'not-allowed' : 'pointer'
-          }}
-        >
-          {polling ? '轮询中...' : '🔄 刷新'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '10px', color: '#6b7280' }}>
+            {polling ? '自动轮询中 (30秒)' : '自动轮询暂停'}
+          </span>
+          <button
+            onClick={handleRefresh}
+            className="nodrag"
+            style={{
+              padding: '6px 12px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              background: '#8b5cf6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(139, 92, 246, 0.2)',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#7c3aed';
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = '#8b5cf6';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+            title="立即刷新所有任务状态"
+          >
+            🔄 立即刷新
+          </button>
+        </div>
       </div>
 
       {/* 进度条 */}
