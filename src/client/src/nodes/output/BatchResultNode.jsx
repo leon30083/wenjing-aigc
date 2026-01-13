@@ -104,13 +104,13 @@ function BatchResultNode({ data }) {
     }
   };
 
-  const getStatusText = (status) => {
+  const getStatusText = (status, progress = 0) => {
     switch (status) {
-      case 'completed': return '✓ 完成';
+      case 'completed': return `✓ 完成 ${progress}%`;
       case 'failed': return '✗ 失败';
-      case 'submitted': return '⏳ 已提交';
+      case 'submitted': return `⏳ 已提交 ${progress}%`;
       case 'submitting': return '🔄 提交中';
-      default: return '⏳ 处理中';
+      default: return `⏳ 处理中 ${progress}%`;
     }
   };
 
@@ -260,7 +260,7 @@ function BatchResultNode({ data }) {
               }}>
                 <span>视频 {index + 1}</span>
                 <span style={{ color: getStatusColor(status.status) }}>
-                  {getStatusText(status.status)}
+                  {getStatusText(status.status, status.progress || 0)}
                 </span>
               </div>
 

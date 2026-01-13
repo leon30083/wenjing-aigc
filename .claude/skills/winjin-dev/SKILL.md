@@ -326,6 +326,34 @@ useEffect(() => {
 
 **验证成功案例**: 错误53修复后，浏览器刷新显示 "优化进度: 8/9 (89%)"，证明持久化机制正常工作
 
+### 7. 批量任务管理优先级 ⭐⭐⭐ 2026-01-13 新增
+
+1. **BatchResultNode 自动创建**: 批量任务提交后自动创建 BatchResultNode，不需要手动添加到右键菜单
+2. **进度显示**: 后端 BatchQueue API 必须返回 `progress` 字段（0-100%）
+3. **节点缩放**: 使用 `useNodeResize` hook 实现节点大小调整（参考 CharacterLibraryNode）
+4. **默认高度**: 显示多个任务的节点默认高度至少 500px，避免内容被截断
+5. **API 响应格式**: 批量任务 API 返回 `{ success, data: { jobs: [{ jobId, status, taskId, result, error, progress }] } }`
+
+**关键代码**:
+```javascript
+// 后端: 添加 progress 到 API 响应
+jobs: batch.jobs.map((j) => ({
+  jobId: j.jobId,
+  status: j.status,
+  taskId: j.taskId,
+  result: j.result,
+  error: j.error,
+  progress: j.taskData?.progress || 0,  // ⭐ 必须包含
+}))
+
+// 前端: 显示进度百分比
+const getStatusText = (status, progress = 0) => {
+  case 'completed': return `✓ 完成 ${progress}%`;
+  case 'submitted': return `⏳ 已提交 ${progress}%`;
+  default: return `⏳ 处理中 ${progress}%`;
+}
+```
+
 ---
 
 ## 文档更新流程 ⭐ 必读

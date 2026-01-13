@@ -207,6 +207,7 @@ class BatchQueue {
           taskId: j.taskId,
           result: j.result,
           error: j.error,
+          progress: j.taskData?.progress || 0,  // ⭐ 添加进度字段
         })),
       },
     };
@@ -242,6 +243,7 @@ class BatchQueue {
           taskId: j.taskId,
           result: j.result,
           error: j.error,
+          progress: j.taskData?.progress || 0,  // ⭐ 添加进度字段
         })),
       },
     };
