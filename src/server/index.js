@@ -693,6 +693,90 @@ app.get('/api/backup/info', (req, res) => {
   }
 });
 
+// ==================== Metrics API ====================
+
+const metricsStorage = require('../../scripts/metrics/metrics-storage');
+
+/**
+ * GET /api/metrics
+ * 获取所有验证指标
+ */
+app.get('/api/metrics', (req, res) => {
+  try {
+    const metrics = metricsStorage.getMetrics();
+    res.json({ success: true, data: metrics });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/metrics/trends
+ * 获取趋势分析数据
+ */
+app.get('/api/metrics/trends', (req, res) => {
+  try {
+    const trends = metricsStorage.getTrends();
+    res.json({ success: true, data: trends });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/metrics/history
+ * 获取历史记录
+ * Query: limit (可选，默认 10)
+ */
+app.get('/api/metrics/history', (req, res) => {
+  try {
+    const { limit } = req.query;
+    const history = metricsStorage.getHistory(limit ? parseInt(limit) : 10);
+    res.json({ success: true, data: history });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/metrics/by-type
+ * 获取按类型分组的指标
+ */
+app.get('/api/metrics/by-type', (req, res) => {
+  try {
+    const byType = metricsStorage.getMetricsByType();
+    res.json({ success: true, data: byType });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/metrics/by-date
+ * 获取按日期分组的指标
+ */
+app.get('/api/metrics/by-date', (req, res) => {
+  try {
+    const byDate = metricsStorage.getMetricsByDate();
+    res.json({ success: true, data: byDate });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/metrics/clear
+ * 清空所有指标数据
+ */
+app.post('/api/metrics/clear', (req, res) => {
+  try {
+    metricsStorage.clear();
+    res.json({ success: true, message: '指标数据已清空' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // ==================== OpenAI API 集成 ====================
 
 app.use('/api/openai', openaiRoutes);

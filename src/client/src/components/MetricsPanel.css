@@ -1,0 +1,485 @@
+/**
+ * MetricsPanel 样式
+ * 验证指标可视化面板
+ */
+
+.metrics-panel {
+  min-width: 320px;
+  max-width: 480px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 14px;
+  color: #1f2937;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ============ 加载状态 ============ */
+.metrics-loading,
+.metrics-error,
+.metrics-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.metrics-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: metrics-spin 0.8s linear infinite;
+}
+
+@keyframes metrics-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.metrics-empty-icon,
+.metrics-error-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.metrics-empty-hint {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 8px;
+}
+
+/* ============ 头部 ============ */
+.metrics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.metrics-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.metrics-title-icon {
+  font-size: 18px;
+}
+
+.metrics-title-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.metrics-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ============ 按钮 ============ */
+.metrics-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.metrics-btn:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.metrics-btn:active:not(:disabled) {
+  background: #f3f4f6;
+  transform: translateY(1px);
+}
+
+.metrics-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.metrics-btn-primary {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.metrics-btn-primary:hover:not(:disabled) {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.metrics-btn-secondary {
+  background: #ffffff;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.metrics-btn-danger {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #ffffff;
+}
+
+.metrics-btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+/* ============ 概览卡片 ============ */
+.metrics-overview {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.metrics-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  border-radius: 8px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.metrics-card-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.metrics-card-value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.metrics-card-unit {
+  font-size: 10px;
+  font-weight: 500;
+  color: #9ca3af;
+}
+
+.metrics-card-primary .metrics-card-value {
+  color: #3b82f6;
+}
+
+.metrics-card-success .metrics-card-value {
+  color: #10b981;
+}
+
+.metrics-card-error .metrics-card-value {
+  color: #ef4444;
+}
+
+.metrics-card-warning .metrics-card-value {
+  color: #f59e0b;
+}
+
+/* ============ 章节标题 ============ */
+.metrics-section {
+  margin-bottom: 16px;
+}
+
+.metrics-section:last-child {
+  margin-bottom: 0;
+}
+
+.metrics-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.metrics-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+/* ============ 趋势标签 ============ */
+.metrics-trend-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.metrics-trend-improving {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.metrics-trend-worsening {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.metrics-trend-stable {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.metrics-trend-unknown {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* ============ 图表 ============ */
+.metrics-chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  height: 80px;
+  padding: 8px 0;
+  background: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.metrics-chart-bar-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+}
+
+.metrics-chart-bar-container {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.metrics-chart-bar {
+  width: 100%;
+  max-width: 24px;
+  min-height: 4px;
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  transition: height 0.3s ease;
+  cursor: pointer;
+}
+
+.metrics-chart-bar:hover {
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+.metrics-chart-bar-value {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.metrics-chart-label {
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+/* ============ 详情区域 ============ */
+.metrics-details {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* ============ 表格 ============ */
+.metrics-table-container {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.metrics-table thead {
+  background: #f9fafb;
+}
+
+.metrics-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.metrics-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.metrics-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.metrics-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.metrics-table-empty {
+  text-align: center;
+  padding: 24px;
+  color: #9ca3af;
+}
+
+.metrics-table-type {
+  font-weight: 500;
+  color: #374151;
+}
+
+.metrics-table-number {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.metrics-error {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.metrics-warning {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.metrics-table-time {
+  color: #6b7280;
+  font-size: 11px;
+}
+
+/* ============ 历史记录列表 ============ */
+.metrics-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.metrics-history-empty {
+  text-align: center;
+  padding: 24px;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.metrics-history-item {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.metrics-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.metrics-history-type {
+  font-weight: 600;
+  color: #374151;
+}
+
+.metrics-history-status {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.metrics-history-success {
+  color: #10b981;
+}
+
+.metrics-history-error {
+  color: #ef4444;
+}
+
+.metrics-history-details {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.metrics-history-time {
+  font-family: monospace;
+}
+
+/* ============ 底部操作 ============ */
+.metrics-footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* ============ 响应式 ============ */
+@media (max-width: 640px) {
+  .metrics-panel {
+    min-width: unset;
+    max-width: unset;
+  }
+
+  .metrics-overview {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .metrics-chart {
+    height: 60px;
+  }
+
+  .metrics-chart-bar-value {
+    font-size: 9px;
+  }
+}
