@@ -13,15 +13,16 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const NODES_DIR = path.join(__dirname, '../src/client/src/nodes');
+const ROOT_DIR = path.join(__dirname, '..');
 
 console.log('🔍 验证节点文件语法...');
 console.log('━'.repeat(60));
 
 let hasErrors = false;
 let errors = [];
-let warnings = []; // 新增：用于存储非 babel 验证的警告
+let warnings = [];
 let validatedCount = 0;
-let usingBabel = false; // 标记是否使用了 babel
+let usingBabel = false;
 
 /**
  * 递归查找所有 JSX 文件
@@ -45,35 +46,70 @@ function findJSXFiles(dir, fileList = []) {
 
 /**
  * 使用 Babel 验证单个文件语法
+ * 通过编译到 /dev/null 来验证语法
  */
-function validateFile(filePath) {
+function validateFileWithBabel(filePath) {
   try {
-    // 使用 babel 检查语法（如果安装了 @babel/cli）
-    execSync(`npx babel --check "${filePath}"`, {
-      stdio: 'ignore',
-      cwd: path.join(__dirname, '../src/client')
+    // 使用 babel 编译到空设备来检查语法
+    // --out-file /dev/null 不会生成文件，但会执行完整的语法检查
+    execSync(`npx babel "${filePath}" --out-file /dev/null`, {
+      stdio: 'pipe',
+      cwd: ROOT_DIR
     });
-    usingBabel = true; // 标记使用了 babel
+    usingBabel = true;
     return { success: true, file: filePath };
   } catch (error) {
-    // 如果 babel 失败，可能是 babel 未安装或真正的语法错误
-    // 检查是否是 babel 命令不存在
-    if (error.message && error.message.includes('babel')) {
-      // babel 未安装，将使用 esprima 验证（降级到警告）
+    // 检查错误信息
+    const stderr = error.stderr ? error.stderr.toString() : '';
+    const stdout = error.stdout ? error.stdout.toString() : '';
+
+    // 如果包含 "unknown option" 或其他 babel 相关错误，说明 babel 配置有问题
+    if (stderr.includes('unknown option') || stdout.includes('unknown option')) {
       return { success: false, file: filePath, error: error.message, isBabelMissing: true };
     }
+
+    // 真正的语法错误
+    const errorMsg = stderr || stdout || error.message;
     return {
       success: false,
       file: filePath,
-      error: error.message || '语法错误'
+      error: errorMsg.split('\n').filter(l => l.includes('Error:')).slice(0, 3).join('\n') || '语法错误'
     };
   }
 }
 
 /**
- * 备用方案：使用 esprima 验证
+ * 使用 ESLint 验证单个文件语法（备用方案）
  */
-function validateFileWithEsprima(filePath) {
+function validateFileWithEslint(filePath) {
+  try {
+    const relativePath = path.relative(ROOT_DIR, filePath);
+    execSync(`npx eslint "${relativePath}" --format compact`, {
+      stdio: 'pipe',
+      cwd: ROOT_DIR
+    });
+    return { success: true, file: filePath };
+  } catch (error) {
+    const stdout = error.stdout ? error.stdout.toString() : '';
+    const stderr = error.stderr ? error.stderr.toString() : '';
+
+    // ESLint 未安装
+    if (stderr.includes('command not found') || stderr.includes('not found')) {
+      return { success: false, file: filePath, error: 'eslint not found', isEslintMissing: true };
+    }
+
+    return {
+      success: false,
+      file: filePath,
+      error: stdout || stderr || 'ESLint error'
+    };
+  }
+}
+
+/**
+ * 备用方案：使用基础语法检查
+ */
+function validateFileWithBasicCheck(filePath) {
   try {
     const content = fs.readFileSync(filePath, 'utf8');
 
@@ -98,12 +134,14 @@ function validateFileWithEsprima(filePath) {
     if (content.includes('export default') && !content.includes('export default function')) {
       // 检查是否正确导出组件
       if (!content.match(/export default\s+(function|class|const)/)) {
-        issues.push('export default 语法可能不正确');
+        // 如果没有匹配到正确的导出语法，但这不一定是个错误
+        // 可能是 export default SomeComponent，所以只是警告
+        issues.push('export default 语法可能不正确 (使用基础验证)');
       }
     }
 
     if (issues.length > 0) {
-      return { success: false, file: filePath, error: issues.join('; ') };
+      return { success: false, file: filePath, error: issues.join('; '), isBasicCheck: true };
     }
 
     return { success: true, file: filePath };
@@ -141,25 +179,35 @@ try {
   nodeFiles.forEach(filePath => {
     const relativePath = path.relative(process.cwd(), filePath);
 
-    // 先尝试 babel，失败则使用 esprima
-    let result = validateFile(filePath);
-    let babelWasMissing = false;
+    // 尝试按优先级验证：Babel -> ESLint -> Basic Check
+    let result = validateFileWithBabel(filePath);
+    let validationMethod = 'babel';
 
-    if (!result.success && result.error && result.error.includes('babel')) {
-      // babel 未安装或失败，使用备用方案
-      babelWasMissing = true;
-      result = validateFileWithEsprima(filePath);
+    if (!result.success && result.isBabelMissing) {
+      // Babel 不可用，尝试 ESLint
+      result = validateFileWithEslint(filePath);
+      validationMethod = 'eslint';
+
+      if (!result.success && result.isEslintMissing) {
+        // ESLint 也不可用，使用基础检查
+        result = validateFileWithBasicCheck(filePath);
+        validationMethod = 'basic';
+      }
     }
 
     validatedCount++;
 
     if (result.success) {
       console.log(`✅ ${relativePath}`);
-    } else if (babelWasMissing) {
-      // babel 缺失，使用 esprima 验证 - 只显示警告，不作为错误
+    } else if (result.isBabelMissing || result.isEslintMissing || result.isBasicCheck) {
+      // 工具缺失或基础验证 - 只显示警告，不作为错误
       console.log(`⚠️  ${relativePath}`);
-      console.log(`   警告: ${result.error} (babel 未安装，使用基础验证)`);
-      warnings.push(`${relativePath}: ${result.error}`);
+      if (result.isBasicCheck) {
+        console.log(`   警告: ${result.error}`);
+      }
+      if (!usingBabel && validationMethod === 'basic') {
+        warnings.push(`${relativePath}: ${result.error}`);
+      }
     } else {
       // 真正的语法错误
       console.log(`❌ ${relativePath}`);
@@ -180,14 +228,17 @@ console.log('━'.repeat(60));
 if (hasErrors) {
   console.log(`\n❌ 验证失败！${validatedCount} 个文件中 ${errors.length} 个有错误\n`);
   if (warnings.length > 0) {
-    console.log(`⚠️  另外有 ${warnings.length} 个警告（babel 未安装）\n`);
+    console.log(`⚠️  另外有 ${warnings.length} 个警告（使用基础验证）\n`);
   }
   process.exit(1);
 } else if (warnings.length > 0) {
   console.log(`\n⚠️  验证通过但有 ${warnings.length} 个警告`);
-  console.log(`💡 安装 @babel/cli 以获得更准确的验证: npm install --save-dev @babel/cli @babel/core @babel/preset-react\n`);
+  if (!usingBabel) {
+    console.log(`💡 Babel 验证未启用，使用基础语法检查\n`);
+  }
   process.exit(0); // 警告不阻止提交
 } else {
-  console.log(`\n✅ 所有 ${validatedCount} 个节点文件验证通过！\n`);
+  const method = usingBabel ? 'Babel' : '基础语法检查';
+  console.log(`\n✅ 所有 ${validatedCount} 个节点文件验证通过！(使用 ${method})\n`);
   process.exit(0);
 }
