@@ -325,6 +325,7 @@ useEffect(() => {
 9. **错误51**: 任务结果节点轮询 interval 竞态条件 ⭐⭐⭐ 2026-01-07 新增
 10. **错误53**: NarratorProcessorNode 优化结果刷新后丢失 ⭐⭐⭐ 2026-01-08 新增
 11. **错误54**: VideoGenerateNode loadCurrentSentence 从 getNodes() 读取快照数据导致状态不同步 ⭐⭐⭐ 2026-01-08 新增
+12. **错误56**: API 配置节点平台选择刷新后丢失（useState 异步闭包） ⭐⭐⭐ 2026-01-13 新增
 
 **查看完整错误模式**: [`.claude/rules/error-patterns.md`](../../rules/error-patterns.md)
 
@@ -407,6 +408,66 @@ const getStatusText = (status, progress = 0) => {
   case 'completed': return `✓ 完成 ${progress}%`;
   case 'submitted': return `⏳ 已提交 ${progress}%`;
   default: return `⏳ 处理中 ${progress}%`;
+}
+```
+
+### 8. Context + Hooks 架构优先级 ⭐⭐⭐ 2026-01-14 新增
+
+1. **单一数据源**: 使用 Context 提供全局状态（如 APIConfig），避免多个节点各自维护状态
+2. **useState 异步问题**: 不在 useEffect 中依赖 useState 的值（闭包陷阱），使用函数式更新或 useRef
+3. **智能模型验证**: 后端必须验证前端传来的模型是否匹配当前平台，不匹配时自动修正
+4. **平台模型映射**:
+   - 聚鑫: `['sora-2-all']`
+   - 贞贞: `['sora-2', 'sora-2-pro']`
+5. **Hooks 封装**: 将重复逻辑封装为自定义 Hook（如 useNodeConnections, useValidation）
+
+**关键代码**:
+```javascript
+// ❌ 错误：useState 异步闭包问题
+useEffect(() => {
+  const { config } = useAPIConfig();  // ❌ 闭包中的 config 是旧值
+  setNodes((nds) =>
+    nds.map((node) =>
+      node.id === nodeId
+        ? { ...node, data: { ...node.data, apiConfig: config } }  // ❌ 旧值
+        : node
+    )
+  );
+}, [config, nodeId, setNodes]);
+
+// ✅ 正确：Context 提供最新值，函数式更新
+const { config, updateConfig } = useAPIConfig();
+
+useEffect(() => {
+  // ⭐ 直接使用最新的 config（从 Context 获取）
+  setNodes((nds) =>
+    nds.map((node) =>
+      node.id === nodeId
+        ? { ...node, data: { ...node.data, apiConfig: config } }  // ✅ 最新值
+        : node
+    )
+  );
+}, [config, nodeId, setNodes]);
+```
+
+**后端模型验证**:
+```javascript
+// ⭐ 智能模型选择和验证
+const PLATFORM_MODELS = {
+  JUXIN: ['sora-2-all'],
+  ZHENZHEN: ['sora-2', 'sora-2-pro'],
+};
+
+let finalModel;
+if (model) {
+  if (validModelsForPlatform.includes(model)) {
+    finalModel = model;
+  } else {
+    // ⚠️ 模型不匹配当前平台，自动修正
+    const defaultModel = validModelsForPlatform[0];
+    console.warn(`⚠️ 模型 ${model} 不支持平台 ${this.platform.name}，自动修正为 ${defaultModel}`);
+    finalModel = defaultModel;
+  }
 }
 ```
 

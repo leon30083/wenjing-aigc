@@ -414,6 +414,109 @@ _buildUserPrompt(prompt, style, context) {
 
 ## 前端架构 - 工作流管理 ⭐ 新增
 
+### Context + Hooks 三层架构 ⭐ 2026-01-14 新增
+
+**架构设计**: Penguin Magic 三层架构模式
+
+```
+┌─────────────────────────────────────────────────┐
+│          Layer 1: React Context                 │
+│  (全局主题、API 配置、工作流状态)                 │
+└─────────────────────────────────────────────────┘
+                      ↓
+┌─────────────────────────────────────────────────┐
+│          Layer 2: Custom Hooks                  │
+│  (useDesktopState, useCreativeIdeas, ...)       │
+│  - 封装业务逻辑                                   │
+│  - 处理 API 调用                                  │
+│  - 管理 React State                              │
+└─────────────────────────────────────────────────┘
+                      ↓
+┌─────────────────────────────────────────────────┐
+│          Layer 3: Local State                    │
+│  (组件内部 useState)                             │
+└─────────────────────────────────────────────────┘
+```
+
+**已实现的 Context 和 Hooks**:
+
+| Context/Hook | 文件位置 | 功能 |
+|--------------|----------|------|
+| **APIConfigContext** | `src/client/src/contexts/APIConfigContext.jsx` | 全局 API 配置（解决错误56） |
+| **useAPIConfig** | 待实现 | API 配置 Hook |
+| **useNodeConnections** | `src/client/src/hooks/useNodeConnections.js` | 节点连接验证 |
+| **useValidation** | `src/client/src/hooks/useValidation.js` | 验证逻辑 |
+| **useAutoFix** | `src/client/src/hooks/useAutoFix.js` | 自动修复 |
+
+**关键设计模式**:
+
+1. **单一数据源**: Context 提供全局状态，所有组件从 Context 获取数据
+2. **自动同步**: 无需手动处理节点间通信，Context 自动同步到所有订阅者
+3. **业务逻辑抽象**: Hooks 封装业务逻辑，组件只负责 UI 渲染
+4. **状态验证**: 后端验证前端传来的参数，不匹配时自动修正
+
+**示例代码**:
+```javascript
+// Context 层: APIConfigContext.jsx
+export const APIConfigProvider = ({ children }) => {
+  const [config, setConfig] = useState(() => {
+    // 从 localStorage 初始化
+    const saved = localStorage.getItem('winjin-api-config');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // ⭐ 自动修正不匹配的模型
+      const validModel = getValidModelForPlatform(parsed.platform, parsed.model);
+      if (validModel !== parsed.model) {
+        parsed.model = validModel;
+      }
+      return parsed;
+    }
+    return { platform: 'juxin', model: 'sora-2-all', aspect: '16:9', watermark: false };
+  });
+
+  const updateConfig = useCallback((updates) => {
+    setConfig((prev) => {
+      let newConfig = { ...prev, ...updates };
+      // ⭐ 智能模型切换：如果切换了平台，自动切换到有效的模型
+      if (updates.platform && updates.platform !== prev.platform) {
+        const validModel = getValidModelForPlatform(updates.platform, newConfig.model);
+        if (validModel !== newConfig.model) {
+          newConfig.model = validModel;
+        }
+      }
+      localStorage.setItem('winjin-api-config', JSON.stringify(newConfig));
+      return newConfig;
+    });
+  }, []);
+
+  return (
+    <APIConfigContext.Provider value={{ config, updateConfig }}>
+      {children}
+    </APIConfigContext.Provider>
+  );
+};
+
+// Hooks 层: useNodeConnections.js
+export const useNodeConnections = () => {
+  const { getNodes, getEdges } = useReactFlow();
+
+  const validateConnection = useCallback((targetHandle, sourceNodeType) => {
+    const rule = CONNECTION_RULES[targetHandle];
+    if (!rule || !rule.allowedSourceTypes.includes(sourceNodeType)) {
+      return { valid: false, reason: `端口 "${targetHandle}" 不允许连接 ${sourceNodeType} 类型节点` };
+    }
+    return { valid: true };
+  }, []);
+
+  return { validateConnection, isValidConnection, CONNECTION_RULES };
+};
+```
+
+**解决的问题**:
+- ✅ **错误56**: useState 异步闭包问题导致配置丢失
+- ✅ **平台模型验证**: 前端发送错误模型时，后端自动修正
+- ✅ **节点连接验证**: 集中管理连接规则，避免硬编码
+
 ### 工作流持久化方案
 
 **存储位置**: `localStorage`
@@ -451,25 +554,24 @@ _buildUserPrompt(prompt, style, context) {
 
 ### 视频生成节点参数 ⭐ 更新
 
-**API 配置节点拆分** ⭐ 新增 (2025-12-30):
-- **设计目标**: 将通用 API 配置提取到独立节点，避免重复配置
-- **APISettingsNode**: 输入节点（蓝色系），包含以下配置：
-  - `platform`: 聚鑫 / 贞贞
-  - `model`:
-    - 聚鑫: `sora-2-all` ⭐ 唯一选项 (2026-01-02 更新)
+**API 配置架构（Context + Hooks）** ⭐ 更新 (2026-01-14):
+- **设计目标**: 使用 Context 提供全局 API 配置，避免多个节点各自维护状态
+- **APIConfigContext** (`src/client/src/contexts/APIConfigContext.jsx`):
+  - 全局 API 配置状态管理（platform, model, aspect, watermark）
+  - 智能模型切换：平台切换时自动选择有效的模型
+  - 模型自动修正：localStorage 恢复时验证并修正不匹配的模型
+  - 自动持久化：配置变化时自动保存到 localStorage
+- **APISettingsNode**: 输入节点（蓝色系），提供配置界面
+  - 动态模型选项：根据平台显示支持的模型
+    - 聚鑫: `sora-2-all` ⭐ 唯一选项
     - 贞贞: `sora-2` / `sora-2-pro`
-  - `aspect`: 16:9 / 9:16
-  - `watermark`: true / false
+  - 平台切换时自动调整模型
 - **数据传递**:
-  - APISettingsNode 通过 `useEffect` + `useReactFlow.setNodes()` 主动推送配置
-  - 输出端口: `api-config`
-  - 下游节点通过 `data.apiConfig` 接收配置
-- **节点特有配置**:
-  - VideoGenerateNode 保留 `duration` 配置（10, 15, 25秒） ⭐ 更新 (2026-01-02)
-  - StoryboardNode 每个镜头独立设置时长
+  - 所有节点通过 `useAPIConfig()` Hook 获取最新配置
+  - 无需手动处理节点间通信，Context 自动同步
 - **向后兼容**:
-  - 未连接 APISettingsNode 时使用默认配置
-  - 默认配置: `{ platform: 'juxin', model: 'sora-2-all', aspect: '16:9', watermark: false }` ⭐ (2026-01-02 更新)
+  - 未使用 Context 时使用默认配置
+  - 默认配置: `{ platform: 'juxin', model: 'sora-2-all', aspect: '16:9', watermark: false }`
 
 **时长参数**:
 - **有效值**: 10, 15, 25（秒） ⭐ 更新 (2026-01-02)

@@ -266,6 +266,150 @@ const prompt2 = '@783316a1d.diggyloade 在工地上干活';
 const prompt3 = '@{6f2dbf2b3.zenwhisper} 在工地上干活';
 ```
 
+### Context + Hooks 最佳实践 ⭐ 2026-01-14 新增
+
+**useState 异步闭包问题（错误56）**:
+
+```javascript
+// ❌ 错误：useEffect 依赖 useState 的值（闭包陷阱）
+function APISettingsNode({ data }) {
+  const [config, setConfig] = useState(() => {
+    return data.apiConfig || { platform: 'juxin' };
+  });
+
+  useEffect(() => {
+    // ⚠️ 早期恢复：从下游节点恢复配置
+    const targetNode = getNodes().find(n => n.id === edge.target);
+    if (targetNode?.data?.apiConfig?.platform !== config.platform) {
+      // ❌ 问题：setConfig() 是异步的，config 在闭包中仍是旧值
+      setConfig(targetNode.data.apiConfig);
+
+      // ❌ 同步 useEffect 运行时，config 还是旧值
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, apiConfig: config } }  // ❌ 旧值
+            : node
+        )
+      );
+    }
+  }, [nodeId, getEdges, getNodes]);
+}
+
+// ✅ 正确：使用 Context 提供全局状态
+function APIConfigProvider({ children }) {
+  const [config, setConfig] = useState(() => {
+    // 从 localStorage 初始化
+    const saved = localStorage.getItem('winjin-api-config');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // ⭐ 自动修正不匹配的模型
+      const validModel = getValidModelForPlatform(parsed.platform, parsed.model);
+      if (validModel !== parsed.model) {
+        parsed.model = validModel;
+      }
+      return parsed;
+    }
+    return { platform: 'juxin', model: 'sora-2-all', aspect: '16:9', watermark: false };
+  });
+
+  const updateConfig = useCallback((updates) => {
+    setConfig((prev) => {
+      let newConfig = { ...prev, ...updates };
+
+      // ⭐ 智能模型切换：如果切换了平台，自动切换到有效的模型
+      if (updates.platform && updates.platform !== prev.platform) {
+        const validModel = getValidModelForPlatform(updates.platform, newConfig.model);
+        if (validModel !== newConfig.model) {
+          console.log('[APIConfigContext] 切换平台，自动调整模型:', {
+            oldPlatform: prev.platform,
+            newPlatform: updates.platform,
+            oldModel: newConfig.model,
+            newModel: validModel,
+          });
+          newConfig.model = validModel;
+        }
+      }
+
+      localStorage.setItem('winjin-api-config', JSON.stringify(newConfig));
+      return newConfig;
+    });
+  }, []);
+
+  return (
+    <APIConfigContext.Provider value={{ config, updateConfig }}>
+      {children}
+    </APIConfigContext.Provider>
+  );
+}
+
+// ✅ 正确：组件从 Context 获取最新值
+function APISettingsNode({ data }) {
+  const { config, updateConfig } = useAPIConfig();
+
+  // ⭐ 直接使用最新的 config（从 Context 获取，无需担心闭包）
+  return (
+    <select
+      value={config.platform}
+      onChange={(e) => {
+        const newPlatform = e.target.value;
+        // ⭐ 平台切换时自动调整模型
+        const newModel = newPlatform === 'juxin' ? 'sora-2-all' : 'sora-2';
+        updateConfig({ platform: newPlatform, model: newModel });
+      }}
+      className="nodrag"
+    >
+      <option value="juxin">聚鑫</option>
+      <option value="zhenzhen">贞贞</option>
+    </select>
+  );
+}
+```
+
+**后端模型验证**:
+
+```javascript
+// ❌ 错误：后端直接使用前端传来的 model（不验证平台）
+async createVideo(options) {
+  const { model } = options;
+  const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
+  // ⚠️ 问题：如果前端传来的 model 是 'sora-2-all'，但 platformType 是 'ZHENZHEN'，会使用错误的模型
+}
+
+// ✅ 正确：后端验证模型是否匹配当前平台
+async createVideo(options) {
+  const { model } = options;
+
+  // ⭐ 平台模型映射
+  const PLATFORM_MODELS = {
+    JUXIN: ['sora-2-all'],           // 聚鑫只支持 sora-2-all
+    ZHENZHEN: ['sora-2', 'sora-2-pro'], // 贞贞支持 sora-2 和 sora-2-pro
+  };
+
+  // 获取当前平台支持的模型列表
+  const validModelsForPlatform = PLATFORM_MODELS[this.platformType] || [];
+
+  // ⭐ 智能模型选择和验证
+  let finalModel;
+  if (model) {
+    if (validModelsForPlatform.includes(model)) {
+      // 模型匹配当前平台，直接使用
+      finalModel = model;
+    } else {
+      // ⚠️ 模型不匹配当前平台，自动修正
+      const defaultModel = validModelsForPlatform[0];
+      console.warn(`[Sora2Client] ⚠️ 模型 ${model} 不支持平台 ${this.platform.name}，自动修正为 ${defaultModel}`);
+      finalModel = defaultModel;
+    }
+  } else {
+    // 前端未传入 model，使用平台默认模型
+    finalModel = validModelsForPlatform[0];
+  }
+
+  // 继续处理...
+}
+```
+
 ## API 路由规范
 
 ### 创建视频 - 保存历史记录（兼容双平台）
