@@ -13,6 +13,7 @@ import 'reactflow/dist/style.css';
 import './App.css';
 import { useWorkflowExecution } from './hooks/useWorkflowExecution';
 import { WorkflowStorage } from './utils/workflowStorage';
+import { useNodeConnections } from './hooks/useNodeConnections';
 
 // API base URL
 const API_BASE = 'http://localhost:9000';
@@ -142,6 +143,9 @@ const nodeTemplates = [
 ];
 
 function App() {
+  // ⭐ 使用 useNodeConnections Hook 进行连接验证（Phase 2）
+  const { isValidConnection } = useNodeConnections();
+
   // ✅ 使用 useMemo 包装 nodeTypes，避免 HMR 时重新创建
   const nodeTypes = useMemo(() => ({
     textNode: TextNode,
@@ -273,9 +277,8 @@ function App() {
         const promptEdge = incomingEdges.find((e) => e.targetHandle === 'prompt-input');
         if (promptEdge) {
           const sourceNode = nds.find((n) => n.id === promptEdge.source);
-          // ✅ TextNode, PromptOptimizerNode, NarratorProcessorNode 都可以连接到 prompt-input
-          const validPromptSourceTypes = ['textNode', 'promptOptimizerNode', 'narratorProcessorNode'];
-          if (sourceNode && validPromptSourceTypes.includes(sourceNode.type)) {
+          // ⭐ 使用 useNodeConnections Hook 进行验证
+          if (sourceNode && isValidConnection('prompt-input', sourceNode.type)) {
             if (sourceNode.type === 'textNode') {
               newData.connectedPrompt = sourceNode.data.value || '';
             } else if (sourceNode.type === 'promptOptimizerNode') {
@@ -299,10 +302,8 @@ function App() {
         if (characterEdge) {
           const sourceNode = nds.find((n) => n.id === characterEdge.source);
 
-          // ✅ 验证源节点类型（只有 CharacterLibraryNode 可以连接到 character-input）
-          const validCharacterSourceTypes = ['characterLibraryNode'];
-
-          if (sourceNode && validCharacterSourceTypes.includes(sourceNode.type)) {
+          // ⭐ 使用 useNodeConnections Hook 进行验证
+          if (sourceNode && isValidConnection('character-input', sourceNode.type)) {
             // 源节点类型有效，允许传递角色数据
             // For video generate node: get selected character(s)
             // ⭐ 支持 connectedCharacters 数组（CharacterLibraryNode 传递）
@@ -330,8 +331,8 @@ function App() {
         const imagesEdge = incomingEdges.find((e) => e.targetHandle === 'images-input');
         if (imagesEdge) {
           const sourceNode = nds.find((n) => n.id === imagesEdge.source);
-          // ✅ 只有 ReferenceImageNode 可以连接到 images-input
-          if (sourceNode?.type === 'referenceImageNode') {
+          // ⭐ 使用 useNodeConnections Hook 进行验证
+          if (sourceNode && isValidConnection('images-input', sourceNode.type)) {
             // ⭐ 关键修复：ReferenceImageNode 保存 selectedImages 为数组
             // 如果有选中的图片数组，直接使用；否则传递所有图片
             const selectedImagesArray = sourceNode.data?.selectedImages;
@@ -357,8 +358,8 @@ function App() {
         const openaiConfigEdge = incomingEdges.find((e) => e.targetHandle === 'openai-config');
         if (openaiConfigEdge) {
           const sourceNode = nds.find((n) => n.id === openaiConfigEdge.source);
-          // ✅ 只有 OpenAIConfigNode 可以连接到 openai-config
-          if (sourceNode?.type === 'openaiConfigNode') {
+          // ⭐ 使用 useNodeConnections Hook 进行验证
+          if (sourceNode && isValidConnection('openai-config', sourceNode.type)) {
             newData.openaiConfig = sourceNode.data.openaiConfig || null;
           } else {
             // ❌ 源节点类型无效，清除配置
@@ -373,8 +374,8 @@ function App() {
         const apiConfigEdge = incomingEdges.find((e) => e.targetHandle === 'api-config');
         if (apiConfigEdge) {
           const sourceNode = nds.find((n) => n.id === apiConfigEdge.source);
-          // ✅ 只有 APISettingsNode 可以连接到 api-config
-          if (sourceNode?.type === 'apiSettingsNode' && sourceNode.data?.apiConfig) {
+          // ⭐ 使用 useNodeConnections Hook 进行验证
+          if (sourceNode && isValidConnection('api-config', sourceNode.type) && sourceNode.data?.apiConfig) {
             newData.apiConfig = sourceNode.data.apiConfig;
             console.log('[App] ✅ API 配置已同步:', {
               targetNode: node.type,
@@ -394,8 +395,8 @@ function App() {
         const narratorEdge = incomingEdges.find((e) => e.targetHandle === 'narrator-input');
         if (narratorEdge) {
           const sourceNode = nds.find((n) => n.id === narratorEdge.source);
-          // ✅ 只有 NarratorNode 可以连接到 narrator-input
-          if (sourceNode?.type === 'narratorNode') {
+          // ⭐ 使用 useNodeConnections Hook 进行验证
+          if (sourceNode && isValidConnection('narrator-input', sourceNode.type)) {
             // 传递句子数组和相关配置
             if (sourceNode.data?.sentences) {
               newData.sentences = sourceNode.data.sentences;
@@ -439,17 +440,8 @@ function App() {
         if (videoEdge) {
           const sourceNode = nds.find((n) => n.id === videoEdge.source);
 
-          // ✅ 验证源节点类型
-          const validVideoSourceTypes = [
-            'videoGenerateNode',   // 视频生成节点
-            'storyboardNode',
-            // ⚠️ 停用平台专用故事板节点 (2026-01-07)
-            // 'juxinStoryboardNode',
-            // 'zhenzhenStoryboardNode',      // 故事板节点
-            'characterCreateNode'  // 角色创建节点
-          ];
-
-          if (sourceNode && validVideoSourceTypes.includes(sourceNode.type)) {
+          // ⭐ 使用 useNodeConnections Hook 进行验证
+          if (sourceNode && isValidConnection('task-input', sourceNode.type)) {
             // 源节点类型有效，允许设置 connectedSourceId
             if (sourceNode?.data?.taskId) {
               newData.taskId = sourceNode.data.taskId;

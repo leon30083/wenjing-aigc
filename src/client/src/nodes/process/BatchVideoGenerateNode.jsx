@@ -1,11 +1,18 @@
 import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNodeResize } from '../../hooks/useNodeResize';
+import { useAPIConfig } from '../../contexts/APIConfigContext';
 
 const API_BASE = 'http://localhost:9000';
 
 /**
  * BatchVideoGenerateNode - 批量视频生成节点
+ *
+ * ⭐ 重构：使用 APIConfigContext 统一管理配置状态
+ * - 移除本地 useState 管理的 apiConfig
+ * - 使用 useAPIConfig Hook 获取全局配置
+ * - 移除所有 useEffect 同步逻辑（Context 自动处理）
+ * - 移除恢复机制（Context 自动处理）
  *
  * 功能：
  * - 接收 NarratorProcessorNode 的批量优化完成事件
@@ -14,10 +21,15 @@ const API_BASE = 'http://localhost:9000';
  * - 支持编辑选中的句子
  * - 调用后端 BatchQueue API 批量生成
  * - 创建 BatchResultNode 显示进度
+ *
+ * 解决问题：错误56 - useState 异步闭包问题导致配置丢失
  */
 function BatchVideoGenerateNode({ data }) {
   const nodeId = useNodeId();
   const { getEdges, getNodes, setNodes, addNodes, addEdges } = useReactFlow();
+
+  // ⭐ 从 Context 获取全局 API 配置（单一数据源）
+  const { config } = useAPIConfig();
 
   // 从 data 初始化状态（支持工作流恢复）
   const [sentences, setSentences] = useState(data.sentences || []);
@@ -30,80 +42,6 @@ function BatchVideoGenerateNode({ data }) {
   const [batchStatus, setBatchStatus] = useState(data.batchStatus || 'idle');
   const [batchId, setBatchId] = useState(data.batchId || null);
   const [duration, setDuration] = useState(data.duration || 15);  // ⭐ 默认15秒
-
-  // ⭐ API 配置状态（用于显示）- 从 data.apiConfig 初始化，支持工作流恢复
-  const [apiConfig, setApiConfig] = useState(() => {
-    if (data.apiConfig && typeof data.apiConfig === 'object') {
-      return {
-        platform: data.apiConfig.platform || 'juxin',
-        model: data.apiConfig.model || 'sora-2-all',
-        aspect: data.apiConfig.aspect || '16:9',
-        watermark: data.apiConfig.watermark || false,
-        apiKey: data.apiConfig.apiKey || '',
-      };
-    }
-    // 默认配置
-    return {
-      platform: 'juxin',
-      model: 'sora-2-all',
-      aspect: '16:9',
-      watermark: false,
-      apiKey: '',
-    };
-  });
-
-  // ⭐ 同步 apiConfig 到 node.data（工作流持久化）
-  const isInitialSyncRef = useRef(true);
-
-  useEffect(() => {
-    if (nodeId) {
-      // ⭐ 深度比较，避免无限循环
-      const currentApiConfig = data.apiConfig;
-      const needsUpdate = !currentApiConfig ||
-        currentApiConfig.platform !== apiConfig.platform ||
-        currentApiConfig.model !== apiConfig.model ||
-        currentApiConfig.aspect !== apiConfig.aspect ||
-        currentApiConfig.watermark !== apiConfig.watermark ||
-        currentApiConfig.apiKey !== apiConfig.apiKey;
-
-      if (needsUpdate) {
-        setNodes((nds) =>
-          nds.map((node) =>
-            node.id === nodeId
-              ? {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    apiConfig: apiConfig
-                  }
-                }
-              : node
-          )
-        );
-        console.log('[BatchVideoGenerateNode] ✅ API配置已同步到 node.data:', apiConfig);
-      }
-
-      isInitialSyncRef.current = false;
-    }
-  }, [apiConfig, nodeId, setNodes]); // ⭐ 移除 data.apiConfig 依赖，只监听 apiConfig 变化
-
-  // ⭐ 恢复机制：监听 data.apiConfig 变化（由 APISettingsNode 推送）
-  useEffect(() => {
-    // 当 APISettingsNode 推送新配置时，同步到本地状态
-    if (data.apiConfig && typeof data.apiConfig === 'object') {
-      const needsUpdate =
-        apiConfig.platform !== data.apiConfig.platform ||
-        apiConfig.model !== data.apiConfig.model ||
-        apiConfig.aspect !== data.apiConfig.aspect ||
-        apiConfig.watermark !== data.apiConfig.watermark ||
-        apiConfig.apiKey !== data.apiConfig.apiKey;
-
-      if (needsUpdate) {
-        console.log('[BatchVideoGenerateNode] 🔄 从 data.apiConfig 同步配置:', data.apiConfig);
-        setApiConfig(data.apiConfig);
-      }
-    }
-  }, [data.apiConfig]); // ⭐ 只依赖 data.apiConfig
 
   // ⭐ 手动编辑提示词（直接编辑模式，无需手动模式开关）
   const [manualPrompts, setManualPrompts] = useState(data.manualPrompts || {});
@@ -198,49 +136,11 @@ function BatchVideoGenerateNode({ data }) {
     }
   }, [manualPrompts, nodeId, setNodes, data.manualPrompts]);
 
-  // ⭐ 监听 API 配置变化（从 APISettingsNode 或 data.apiConfig）
-  useEffect(() => {
-    const edges = getEdges();
-    const apiConfigEdge = edges.find(
-      (e) => e.target === nodeId && e.targetHandle === 'api-config'
-    );
-
-    let newApiConfig = null;
-
-    // 优先从连接的 APISettingsNode 获取
-    if (apiConfigEdge) {
-      const sourceNode = getNodes().find(n => n.id === apiConfigEdge.source);
-      if (sourceNode?.type === 'apiSettingsNode' && sourceNode.data?.apiConfig) {
-        newApiConfig = sourceNode.data.apiConfig;
-      }
-    }
-
-    // 降级到 data.apiConfig（工作流恢复）
-    if (!newApiConfig && data.apiConfig) {
-      newApiConfig = data.apiConfig;
-    }
-
-    // 更新状态
-    if (JSON.stringify(newApiConfig) !== JSON.stringify(apiConfig)) {
-      setApiConfig(newApiConfig);
-      // 同步到 node.data
-      if (newApiConfig) {
-        setNodes((nds) =>
-          nds.map((node) =>
-            node.id === nodeId
-              ? { ...node, data: { ...node.data, apiConfig: newApiConfig } }
-              : node
-          )
-        );
-      }
-    }
-  }, [getEdges, getNodes, nodeId, setNodes, data.apiConfig, apiConfig]);
-
-  // ⭐ 监听工作流保存前事件，强制同步最新状态
+  // ⭐ 监听工作流保存前事件，强制同步最新状态（不再同步 apiConfig，由 Context 管理）
   useEffect(() => {
     const handleBeforeSave = () => {
       console.log('[BatchVideoGenerateNode] 📥 收到 workflow-before-save 事件，强制同步最新状态');
-      // 立即同步当前状态到 node.data
+      // 立即同步当前状态到 node.data（apiConfig 由 Context 管理，无需同步）
       setNodes((nds) =>
         nds.map((node) => {
           if (node.id !== nodeId) return node;
@@ -255,7 +155,6 @@ function BatchVideoGenerateNode({ data }) {
               duration,
               batchStatus,
               batchId,
-              apiConfig,
             }
           };
         })
@@ -266,7 +165,7 @@ function BatchVideoGenerateNode({ data }) {
     return () => {
       window.removeEventListener('workflow-before-save', handleBeforeSave);
     };
-  }, [sentences, selectedSentences, manualPrompts, duration, batchStatus, batchId, apiConfig, nodeId, setNodes]);
+  }, [sentences, selectedSentences, manualPrompts, duration, batchStatus, batchId, nodeId, setNodes]);
 
   // ⭐ 监听 BatchResultNode 的数据更新事件（同步 jobStatuses 到 node.data）
   useEffect(() => {
@@ -357,9 +256,8 @@ function BatchVideoGenerateNode({ data }) {
       return;
     }
 
-    // ⭐ 使用组件状态中的 apiConfig（它已经通过 useEffect 同步最新值）
-    // 如果没有 apiConfig，使用默认配置
-    const finalApiConfig = apiConfig || {
+    // ⭐ 使用全局 config（来自 Context，单一数据源）
+    const finalConfig = config || {
       platform: 'juxin',
       model: 'sora-2-all',
       aspect: '16:9',
@@ -381,7 +279,7 @@ function BatchVideoGenerateNode({ data }) {
 
     console.log('[BatchVideoGenerateNode] 🎬 开始批量生成:', {
       selectedCount: selectedSentences.size,
-      platform: finalApiConfig.platform,
+      platform: finalConfig.platform,
       imagesCount: connectedImages.length
     });
 
@@ -396,7 +294,7 @@ function BatchVideoGenerateNode({ data }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          platform: finalApiConfig.platform,
+          platform: finalConfig.platform,
           jobs: jobs
             .filter(s => s.optimized)
             .map((s, arrIndex) => {
@@ -405,10 +303,10 @@ function BatchVideoGenerateNode({ data }) {
               const finalPrompt = manualPrompts[sentenceIndex] || s.optimized || s.text;
               return {
                 prompt: finalPrompt,
-                model: finalApiConfig.model === 'sora-2' ? 'sora-2-all' : finalApiConfig.model,
+                model: finalConfig.model === 'sora-2' ? 'sora-2-all' : finalConfig.model,
                 duration: duration,  // ⭐ 使用状态值（默认15秒）
-                aspect_ratio: finalApiConfig.aspect === '16:9' ? 'landscape' : 'portrait',
-                watermark: finalApiConfig.watermark,
+                aspect_ratio: finalConfig.aspect === '16:9' ? 'landscape' : 'portrait',
+                watermark: finalConfig.watermark,
                 images: connectedImages.length > 0 ? connectedImages : []
               };
             })
@@ -460,7 +358,7 @@ function BatchVideoGenerateNode({ data }) {
         position: { x: posX, y: posY },
         data: {
           batchId: newBatchId,
-          platform: finalApiConfig.platform,
+          platform: finalConfig.platform,
           totalJobs: submitBatchResult.data.totalJobs,
           jobs: submitBatchResult.data.jobs,
           sentences: jobs,
@@ -630,8 +528,8 @@ function BatchVideoGenerateNode({ data }) {
         </span>
       </div>
 
-      {/* API 配置信息显示 ⭐ */}
-      {apiConfig && (
+      {/* API 配置信息显示 ⭐ 使用全局 config */}
+      {config && (
         <div style={{
           padding: '8px',
           backgroundColor: '#eff6ff',
@@ -643,7 +541,7 @@ function BatchVideoGenerateNode({ data }) {
             ⚙️ API 配置
           </div>
           <div style={{ fontSize: '10px', color: '#1e3a8a' }}>
-            {apiConfig.platform === 'juxin' ? '聚鑫' : '贞贞'} | {apiConfig.model.toUpperCase()} | {apiConfig.aspect} | {apiConfig.watermark ? '水印' : '无水印'}
+            {config.platform === 'juxin' ? '聚鑫' : '贞贞'} | {config.model.toUpperCase()} | {config.aspect} | {config.watermark ? '水印' : '无水印'}
           </div>
         </div>
       )}
