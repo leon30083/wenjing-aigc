@@ -1,7 +1,7 @@
 # WinJin AIGC - 错误模式参考
 
 > **说明**: 本文档按类型分类，包含所有已知的错误模式和解决方案。
-> **更新日期**: 2026-01-08 (新增错误55)
+> **更新日期**: 2026-01-13 (新增错误56)
 
 ---
 
@@ -10,7 +10,7 @@
 | 类型 | 错误数量 | 关键词 |
 |------|----------|--------|
 | [API 相关](#api-相关) | 9个 | 双平台、轮询、端点、模型、故事板、输出格式 |
-| [React Flow 相关](#react-flow-相关) | 9个 | 数据传递、Handle、连接、事件、竞态条件、旁白模式、快照延迟 |
+| [React Flow 相关](#react-flow-相关) | 10个 | 数据传递、Handle、连接、事件、竞态条件、旁白模式、快照延迟、配置恢复 |
 | [角色系统相关](#角色系统相关) | 7个 | 引用、显示、焦点、双显示、优化、匹配失败 |
 | [表单/输入相关](#表单输入相关) | 2个 | id/name、验证 |
 | [存储/持久化相关](#存储持久化相关) | 7个 | localStorage、工作流、配置持久化、优化结果持久化 |
@@ -879,6 +879,101 @@ const loadNextSentence = () => {
 2. **单向数据流**: 避免双向同步导致无限循环
 3. **用户需求优先**: 根据实际使用场景调整交互设计
 4. **数据流循环识别**: 节点持续跳动/闪烁 = 数据流循环的典型症状
+
+---
+
+### 错误56: API 配置节点平台选择刷新后丢失 `React Flow` `状态` `持久化` ⭐⭐⭐ 2026-01-13 新增
+
+**现象**:
+- 用户在 APISettingsNode 选择"贞贞"平台
+- 刷新页面后，APISettingsNode 正确显示"贞贞"
+- 但 batchVideoGenerateNode 显示"聚鑫 | SORA-2-ALL"（错误平台）
+- API 请求发送到错误平台
+
+**根本原因**:
+1. **localStorage 保存旧配置**: 工作流保存的 `apiConfig` 是旧的 `juxin` 配置
+2. **初始化顺序问题**: APISettingsNode 从旧数据初始化状态（juxin）
+3. **useState 异步特性**: `setConfig(zhenzhen)` 是异步的，useEffect 闭包中的 `config` 仍是旧值
+4. **同步先于恢复运行**: 同步 useEffect 在恢复完成前就运行，推送旧配置到下游节点
+
+**错误流程**:
+```
+页面加载
+↓
+APISettingsNode 初始化: useState(() => {
+  return data.apiConfig || { platform: 'juxin' }  // ❌ 旧数据
+})
+↓
+早期恢复 useEffect 运行: setConfig(zhenzhen)
+↓
+同步 useEffect 运行（但 config 仍是旧值 juxin）
+↓
+推送旧配置到 batchVideoGenerateNode ❌
+↓
+setConfig() 完成，但已经太晚
+```
+
+**尝试的修复方案（未完全解决）**:
+1. ✅ 添加早期恢复机制：在同步前从下游节点恢复配置
+2. ✅ 添加 `isRecoveryDoneRef`：让同步等待恢复完成
+3. ✅ 早期恢复直接更新下游节点：绕过状态异步问题
+4. ❌ 问题：useEffect 闭包中的 `config` 变量仍是旧值
+
+**错误示例**:
+```javascript
+// ❌ 问题：config 在 useEffect 闭包中是旧值
+const [config, setConfig] = useState(() => {
+  return data.apiConfig || { platform: 'juxin' };  // 旧数据
+});
+
+// 早期恢复调用 setConfig(zhenzhen)，但这是异步的
+useEffect(() => {
+  const targetNode = getNodes().find(n => n.id === edge.target);
+  if (targetNode.data.apiConfig.platform !== config.platform) {
+    setConfig(targetNode.data.apiConfig);  // ⚠️ 异步，config 仍是旧值
+    setNodes(...);  // 直接更新节点
+  }
+}, [nodeId, getEdges, getNodes]);
+
+// 同步 useEffect 运行时，config 仍是旧值 juxin
+useEffect(() => {
+  if (!isRecoveryDoneRef.current) return;  // ⚠️ 即使等待恢复完成
+  // config 在闭包中仍是旧值！
+  setNodes((nds) =>
+    nds.map((node) =>
+      node.id === nodeId
+        ? { ...node, data: { ...node.data, apiConfig: config } }  // ❌ 旧值
+        : node
+    )
+  );
+}, [config, nodeId, setNodes]);
+```
+
+**可能的解决方案**:
+1. **方案 A**: 使用函数式更新 + refs
+   - 将配置存储在 ref 中
+   - 恢复时直接更新 ref
+   - 同步时从 ref 读取最新值
+
+2. **方案 B**: 延迟同步 useEffect
+   - 使用 setTimeout 延迟同步
+   - 确保恢复完成后再同步
+
+3. **方案 C**: 修改初始化逻辑
+   - 初始化时先检查下游节点
+   - 如果下游有新配置，直接使用
+   - 否则才使用 data.apiConfig
+
+**相关文件**:
+- `src/client/src/nodes/input/APISettingsNode.jsx` - API 设置节点
+- `src/client/src/nodes/process/BatchVideoGenerateNode.jsx` - 批量视频生成节点 (节点类型: batchVideoGenerateNode)
+
+**相关错误**:
+- 错误16 - React Flow 节点间数据传递错误
+- 错误54 - VideoGenerateNode 从 getNodes() 读取快照数据导致状态不同步
+- 错误33 - 工作流快照持久化时机问题
+
+**修复日期**: 2026-01-13 (问题记录，待修复)
 
 ---
 

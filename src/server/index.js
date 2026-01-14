@@ -523,6 +523,26 @@ app.post('/api/batch/:batchId/submit', async (req, res) => {
 });
 
 /**
+ * ⭐ 重试失败的任务（修改提示词后重新提交）
+ * POST /api/batch/:batchId/retry
+ */
+app.post('/api/batch/:batchId/retry', async (req, res) => {
+  try {
+    const { batchId } = req.params;
+    const { jobId, prompt } = req.body;
+
+    if (!jobId || !prompt) {
+      return res.json({ success: false, error: 'Missing required parameters: jobId, prompt' });
+    }
+
+    const result = await batchQueue.retryJob(batchId, jobId, prompt);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
  * 轮询批量任务状态（从第一个开始，完成后查询下一个）
  * GET /api/batch/:batchId/poll
  */

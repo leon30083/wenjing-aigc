@@ -4,14 +4,26 @@ import { useNodeResize } from '../../hooks/useNodeResize';
 
 function APISettingsNode({ data }) {
   const nodeId = useNodeId();
-  const { setNodes, getEdges, edges } = useReactFlow();
+  const { setNodes, getEdges, edges, getNodes } = useReactFlow();
 
-  const [config, setConfig] = useState({
-    platform: 'juxin',         // 'juxin' | 'zhenzhen'
-    model: 'sora-2-all',     // 'sora-2-all' | 'sora-2' | 'sora-2-pro'
-    aspect: '16:9',         // '16:9' | '9:16'
-    watermark: false,       // true | false
-    apiKey: '',            // API Key（用户自定义）
+  // ⭐ 从 data.apiConfig 初始化状态（支持工作流恢复），否则使用默认值
+  const [config, setConfig] = useState(() => {
+    if (data.apiConfig && typeof data.apiConfig === 'object') {
+      return {
+        platform: data.apiConfig.platform || 'juxin',
+        model: data.apiConfig.model || 'sora-2-all',
+        aspect: data.apiConfig.aspect || '16:9',
+        watermark: data.apiConfig.watermark || false,
+        apiKey: data.apiConfig.apiKey || '',
+      };
+    }
+    return {
+      platform: 'juxin',         // 'juxin' | 'zhenzhen'
+      model: 'sora-2-all',     // 'sora-2-all' | 'sora-2' | 'sora-2-pro'
+      aspect: '16:9',         // '16:9' | '9:16'
+      watermark: false,       // true | false
+      apiKey: '',            // API Key（用户自定义）
+    };
   });
 
   const onSizeChangeRef = useRef(data.onSizeChange);
@@ -19,6 +31,137 @@ function APISettingsNode({ data }) {
   useEffect(() => {
     onSizeChangeRef.current = data.onSizeChange;
   }, [data.onSizeChange]);
+
+  // ⭐ 同步 config 到 node.data（让 App.jsx 和下游节点能够读取）
+  const isInitialSyncRef = useRef(true);
+  const isRecoveryDoneRef = useRef(false); // ⭐ 新增：跟踪恢复是否完成
+
+  // ⭐ 新增：早期恢复机制 - 在初始同步之前运行
+  useEffect(() => {
+    if (nodeId && !isRecoveryDoneRef.current) {
+      const edges = getEdges();
+      const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+      // 查找下游节点是否有更新的 apiConfig
+      for (const edge of outgoingEdges) {
+        const targetNode = getNodes().find(n => n.id === edge.target);
+        if (targetNode?.data?.apiConfig && targetNode.data.apiConfig.platform) {
+          // ⭐ 比较配置：如果下游节点的平台与本地初始化的不同，则恢复
+          const needsRecovery = targetNode.data.apiConfig.platform !== config.platform;
+
+          if (needsRecovery) {
+            const recoveredConfig = targetNode.data.apiConfig;
+            console.log('[APISettingsNode] 🔄 早期恢复：从下游节点恢复配置:', recoveredConfig);
+            console.log('[APISettingsNode] 🔄 当前本地配置（旧）:', config);
+
+            // ⭐ 关键修复：直接更新本地状态和下游节点（绕过异步问题）
+            setConfig(recoveredConfig);
+
+            // ⭐ 同时立即更新自己 node.data 和下游节点（确保数据一致性）
+            setNodes((nds) =>
+              nds.map((node) => {
+                // 更新自己
+                if (node.id === nodeId) {
+                  return {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      apiConfig: recoveredConfig
+                    }
+                  };
+                }
+                // 更新下游节点
+                const isConnected = outgoingEdges.some(e => e.target === node.id);
+                if (isConnected) {
+                  return {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      apiConfig: recoveredConfig,
+                      apiConfigSourceId: nodeId,
+                      apiConfigSourceLabel: data.label || 'API 设置'
+                    }
+                  };
+                }
+                return node;
+              })
+            );
+
+            isRecoveryDoneRef.current = true;
+            break;
+          }
+        }
+      }
+      // 即使没有恢复，也标记为已完成
+      isRecoveryDoneRef.current = true;
+    }
+  }, [nodeId, getEdges, getNodes]); // ⭐ 不依赖 config，避免无限循环
+
+  useEffect(() => {
+    // ⭐ 等待恢复完成后再进行同步（避免旧配置被推送到下游）
+    if (!isRecoveryDoneRef.current) {
+      console.log('[APISettingsNode] ⏸️ 等待恢复完成，跳过同步');
+      return;
+    }
+
+    if (nodeId) {
+      // ⭐ 深度比较，避免无限循环
+      const currentApiConfig = data.apiConfig;
+      const needsUpdate = !currentApiConfig ||
+        currentApiConfig.platform !== config.platform ||
+        currentApiConfig.model !== config.model ||
+        currentApiConfig.aspect !== config.aspect ||
+        currentApiConfig.watermark !== config.watermark ||
+        currentApiConfig.apiKey !== config.apiKey;
+
+      if (needsUpdate) {
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    apiConfig: config
+                  }
+                }
+              : node
+          )
+        );
+        console.log('[APISettingsNode] ✅ 配置已同步到 node.data:', config);
+      }
+
+      isInitialSyncRef.current = false;
+    }
+  }, [config, nodeId, setNodes]); // ⭐ 移除 data.apiConfig 依赖，只监听 config 变化
+
+  // ⭐ 恢复机制：如果 data.apiConfig 为 undefined 或与下游节点不一致，尝试恢复
+  useEffect(() => {
+    if (isInitialSyncRef.current === false && nodeId) { // ⭐ 修复：改为 false 才运行（初始同步完成后）
+      const edges = getEdges();
+      const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+      // 查找下游节点是否有 apiConfig
+      for (const edge of outgoingEdges) {
+        const targetNode = getNodes().find(n => n.id === edge.target);
+        if (targetNode?.data?.apiConfig && targetNode.data.apiConfig.platform) {
+          // ⭐ 比较配置，如果不同才恢复
+          const needsRecovery = !data.apiConfig ||
+            data.apiConfig.platform !== targetNode.data.apiConfig.platform ||
+            data.apiConfig.model !== targetNode.data.apiConfig.model ||
+            data.apiConfig.aspect !== targetNode.data.apiConfig.aspect ||
+            data.apiConfig.watermark !== targetNode.data.apiConfig.watermark ||
+            data.apiConfig.apiKey !== targetNode.data.apiConfig.apiKey;
+
+          if (needsRecovery) {
+            console.log('[APISettingsNode] 🔄 从下游节点恢复配置:', targetNode.data.apiConfig);
+            setConfig(targetNode.data.apiConfig);
+            break;
+          }
+        }
+      }
+    }
+  }, [data.apiConfig, nodeId, getEdges, getNodes]);
 
   // 传递配置到下游节点
   useEffect(() => {

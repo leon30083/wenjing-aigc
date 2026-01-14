@@ -25,6 +25,7 @@ import APISettingsNode from './nodes/input/APISettingsNode';
 import OpenAIConfigNode from './nodes/input/OpenAIConfigNode';
 import NarratorNode from './nodes/input/NarratorNode';
 import CharacterCreateNode from './nodes/process/CharacterCreateNode';
+import BatchVideoGenerateNode from './nodes/process/BatchVideoGenerateNode';
 import VideoGenerateNode from './nodes/process/VideoGenerateNode';
 import StoryboardNode from './nodes/process/StoryboardNode';
 import NarratorProcessorNode from './nodes/process/NarratorProcessorNode';
@@ -130,7 +131,8 @@ const nodeTemplates = [
   { type: 'characterCreateNode', label: '🎭 角色生成', category: 'process' },
   { type: 'promptOptimizerNode', label: '📝 提示词优化', category: 'process' },
   { type: 'narratorProcessorNode', label: '⚙️ 旁白处理', category: 'process' },
-  { type: 'videoGenerateNode', label: '🎬 视频生成', category: 'process' },
+  { type: 'batchVideoGenerateNode', label: '🎬 批量视频生成', category: 'process' },  // ⭐ 新增
+  { type: 'videoGenerateNode', label: '🎬 单个视频生成', category: 'process' },  // ⭐ 更新标签
   { type: 'storyboardNode', label: '🎞️ 故事板', category: 'process' },
   // ⚠️ 停用平台专用故事板节点 (2026-01-07) - 使用统一的 VideoGenerateNode 代替
   // { type: 'juxinStoryboardNode', label: '🎬 聚鑫故事板', category: 'process' },
@@ -149,6 +151,7 @@ function App() {
     openaiConfigNode: OpenAIConfigNode,
     narratorNode: NarratorNode,
     characterCreateNode: CharacterCreateNode,
+    batchVideoGenerateNode: BatchVideoGenerateNode,  // ⭐ 批量视频生成节点
     narratorProcessorNode: NarratorProcessorNode,
     // ⚠️ 停用平台专用故事板节点 (2026-01-07)
     // juxinStoryboardNode: JuxinStoryboardNode,
@@ -364,6 +367,27 @@ function App() {
         } else {
           // 没有连线时，清除配置
           newData.openaiConfig = undefined;
+        }
+
+        // ⭐ Check for API config input (for video generate/batch generate nodes) - 2026-01-13 新增
+        const apiConfigEdge = incomingEdges.find((e) => e.targetHandle === 'api-config');
+        if (apiConfigEdge) {
+          const sourceNode = nds.find((n) => n.id === apiConfigEdge.source);
+          // ✅ 只有 APISettingsNode 可以连接到 api-config
+          if (sourceNode?.type === 'apiSettingsNode' && sourceNode.data?.apiConfig) {
+            newData.apiConfig = sourceNode.data.apiConfig;
+            console.log('[App] ✅ API 配置已同步:', {
+              targetNode: node.type,
+              platform: sourceNode.data.apiConfig.platform,
+              model: sourceNode.data.apiConfig.model
+            });
+          } else {
+            // ❌ 源节点类型无效，清除配置
+            newData.apiConfig = undefined;
+          }
+        } else {
+          // 没有连线时，清除配置
+          newData.apiConfig = undefined;
         }
 
         // Check for narrator input (for narrator processor node)
@@ -660,41 +684,52 @@ function App() {
 
   // Workflow management handlers
   const handleSaveWorkflow = () => {
-    let workflowName = currentWorkflowName;
+    // ⭐ 派发事件，强制所有节点同步最新状态到 node.data
+    // 这确保保存时获取的是所有节点的最新数据
+    window.dispatchEvent(new CustomEvent('workflow-before-save', { detail: { timestamp: Date.now() } }));
 
-    // ⭐ 如果没有当前工作流名称，自动生成未命名工作流
-    if (!workflowName) {
-      const workflows = WorkflowStorage.getAllWorkflows();
-      const existingNames = Object.keys(workflows);
+    // ⭐ 延迟保存，等待所有节点的同步 useEffect 执行完成
+    setTimeout(() => {
+      // 重新获取最新的 nodes（可能已被节点更新）
+      const latestNodes = getNodes();
+      const latestEdges = getEdges();
 
-      // 找到最大的未命名工作流编号
-      let maxCounter = 0;
-      existingNames.forEach(name => {
-        const match = name.match(/^未命名工作流 (\d+)$/);
-        if (match) {
-          const counter = parseInt(match[1]);
-          if (counter > maxCounter) {
-            maxCounter = counter;
+      let workflowName = currentWorkflowName;
+
+      // ⭐ 如果没有当前工作流名称，自动生成未命名工作流
+      if (!workflowName) {
+        const workflows = WorkflowStorage.getAllWorkflows();
+        const existingNames = Object.keys(workflows);
+
+        // 找到最大的未命名工作流编号
+        let maxCounter = 0;
+        existingNames.forEach(name => {
+          const match = name.match(/^未命名工作流 (\d+)$/);
+          if (match) {
+            const counter = parseInt(match[1]);
+            if (counter > maxCounter) {
+              maxCounter = counter;
+            }
           }
-        }
-      });
+        });
 
-      // 生成新的未命名工作流名称
-      workflowName = `未命名工作流 ${maxCounter + 1}`;
-    }
+        // 生成新的未命名工作流名称
+        workflowName = `未命名工作流 ${maxCounter + 1}`;
+      }
 
-    // 保存工作流
-    const result = WorkflowStorage.saveWorkflow(workflowName, nodes, edges);
+      // 保存工作流（使用最新的 nodes 和 edges）
+      const result = WorkflowStorage.saveWorkflow(workflowName, latestNodes, latestEdges);
 
-    if (result.success) {
-      setCurrentWorkflowName(workflowName);
-      console.log(`✅ 工作流 "${workflowName}" 已保存 (${nodes.length} 节点, ${edges.length} 连线)`);
-      // ⭐ 静默保存，不显示 alert 弹窗
-    } else {
-      alert(`❌ 保存失败: ${result.error}`);
-    }
+      if (result.success) {
+        setCurrentWorkflowName(workflowName);
+        console.log(`✅ 工作流 "${workflowName}" 已保存 (${latestNodes.length} 节点, ${latestEdges.length} 连线)`);
+        // ⭐ 静默保存，不显示 alert 弹窗
+      } else {
+        alert(`❌ 保存失败: ${result.error}`);
+      }
 
-    setShowWorkflowMenu(false);
+      setShowWorkflowMenu(false);
+    }, 150); // ⭐ 延迟 150ms，确保所有同步 useEffect 执行完成
   };
 
   const handleSaveAsWorkflow = () => {

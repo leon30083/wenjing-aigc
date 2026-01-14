@@ -226,6 +226,61 @@ useEffect(() => {
 }, [data.connectedSourceId]);
 ```
 
+#### UI设计模式：避免触发模式 ⭐ 2026-01-13 重要
+
+**原则**: 非必要不要使用触发模式（点击按钮才显示输入框）
+
+**❌ 错误模式：触发模式（反人性）**
+```javascript
+// ❌ 用户需要点击"编辑"按钮才能看到输入框
+<div>
+  <button onClick={() => setEditing(true)}>✏️ 编辑</button>
+  {isEditing && (
+    <textarea value={text} onChange={(e) => setText(e.target.value)} />
+    <button onClick={save}>✓ 保存</button>
+    <button onClick={cancel}>✕ 取消</button>
+  )}
+</div>
+```
+
+**问题**:
+- 额外的点击操作
+- 需要保存/取消按钮
+- 用户体验差（"反人性"）
+
+**✅ 正确模式：直接编辑（参考VideoGenerateNode）**
+```javascript
+// ✅ 直接显示输入框，用户可以立即编辑
+<textarea
+  value={text}
+  onChange={(e) => setText(e.target.value)}
+  placeholder="输入提示词..."
+/>
+
+{/* 实时预览最终结果 */}
+{text && (
+  <div>
+    📤 最终提示词: {text}
+  </div>
+)}
+```
+
+**优点**:
+- 无需额外点击
+- 实时保存（onChange自动更新）
+- 用户体验流畅
+- UI简洁直观
+
+**应用场景**:
+- **VideoGenerateNode**: 提示词输入框始终显示
+- **BatchVideoGenerateNode**: 每个句子的textarea始终显示
+- **PromptOptimizerNode**: 优化结果直接显示，无需点击查看
+
+**例外情况**（需要触发模式）:
+- 确认对话框（删除操作）
+- 模态框（复杂配置）
+- 折叠面板（节省空间）
+
 ### 4. 代码风格
 
 - **缩进**: 2 空格
@@ -306,9 +361,10 @@ useEffect(() => {
 
 ### 4. UI/交互优先级 ⭐⭐
 
-1. **删除确认**: 所有删除操作必须有确认机制
-2. **焦点管理**: 角色插入需要管理焦点状态
-3. **双显示**: 视频生成节点输入框显示别名，内部存储真实ID
+1. **避免触发模式**: 非必要不要使用"编辑"按钮触发输入框，直接显示textarea（反人性）⭐ 2026-01-13 新增
+2. **删除确认**: 所有删除操作必须有确认机制
+3. **焦点管理**: 角色插入需要管理焦点状态
+4. **双显示**: 视频生成节点输入框显示别名，内部存储真实ID
 
 ### 5. 测试优先级 ⭐⭐⭐
 

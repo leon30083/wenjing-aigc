@@ -184,15 +184,9 @@ export default function NarratorProcessorNode({ data }) {
       return;
     }
 
-    // 只同步最重要的数据（优化后的句子数组）
-    // 避免同步过多数据导致无限循环
-    const hasOptimizedData = sentences.some(s => s.optimized);
-    if (!hasOptimizedData) {
-      console.log('[NarratorProcessorNode] ⏭️ 没有优化数据，跳过同步');
-      return; // 没有优化数据时不同步（避免覆盖旧数据）
-    }
-
-    console.log('[NarratorProcessorNode] ✅ 有优化数据，开始同步...');
+    // ⭐ 重要：移除"没有优化数据时跳过同步"的逻辑
+    // 即使没有优化数据，也应该保存当前状态（如 currentIndex, style 等）
+    console.log('[NarratorProcessorNode] ✅ 开始同步...');
 
     setNodes((nds) =>
       nds.map((node) => {
@@ -212,7 +206,11 @@ export default function NarratorProcessorNode({ data }) {
           return node;
         }
 
-        console.log('[NarratorProcessorNode] ✅ 数据已变化，同步到 node.data:', { currentIndex });
+        console.log('[NarratorProcessorNode] ✅ 数据已变化，同步到 node.data:', {
+          currentIndex,
+          sentencesLength: sentences.length,
+          hasOptimized: sentences.some(s => s.optimized)
+        });
 
         return {
           ...node,
@@ -230,6 +228,39 @@ export default function NarratorProcessorNode({ data }) {
       })
     );
   }, [sentences, currentIndex, style, targetDuration, optimizationDirection, customStyleDescription, nodeId, setNodes]);
+
+  // ⭐ 监听工作流保存前事件，强制同步最新状态
+  useEffect(() => {
+    const handleBeforeSave = () => {
+      console.log('[NarratorProcessorNode] 📥 收到 workflow-before-save 事件，强制同步最新状态');
+      // 立即同步当前状态到 node.data
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id !== nodeId) return node;
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              sentences,
+              currentIndex,
+              style,
+              targetDuration,
+              optimizationDirection,
+              customStyleDescription,
+              // 保存 OpenAI 配置（如果有）
+              openaiConfig,
+            }
+          };
+        })
+      );
+    };
+
+    window.addEventListener('workflow-before-save', handleBeforeSave);
+    return () => {
+      window.removeEventListener('workflow-before-save', handleBeforeSave);
+    };
+  }, [sentences, currentIndex, style, targetDuration, optimizationDirection, customStyleDescription, openaiConfig, nodeId, setNodes]);
 
   /**
    * 优化单个句子

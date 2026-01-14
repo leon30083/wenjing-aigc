@@ -27,10 +27,86 @@ function BatchVideoGenerateNode({ data }) {
     }
     return new Set();
   });
-  const [editingIndex, setEditingIndex] = useState(null);
-  const [editText, setEditText] = useState('');
   const [batchStatus, setBatchStatus] = useState(data.batchStatus || 'idle');
   const [batchId, setBatchId] = useState(data.batchId || null);
+  const [duration, setDuration] = useState(data.duration || 15);  // ⭐ 默认15秒
+
+  // ⭐ API 配置状态（用于显示）- 从 data.apiConfig 初始化，支持工作流恢复
+  const [apiConfig, setApiConfig] = useState(() => {
+    if (data.apiConfig && typeof data.apiConfig === 'object') {
+      return {
+        platform: data.apiConfig.platform || 'juxin',
+        model: data.apiConfig.model || 'sora-2-all',
+        aspect: data.apiConfig.aspect || '16:9',
+        watermark: data.apiConfig.watermark || false,
+        apiKey: data.apiConfig.apiKey || '',
+      };
+    }
+    // 默认配置
+    return {
+      platform: 'juxin',
+      model: 'sora-2-all',
+      aspect: '16:9',
+      watermark: false,
+      apiKey: '',
+    };
+  });
+
+  // ⭐ 同步 apiConfig 到 node.data（工作流持久化）
+  const isInitialSyncRef = useRef(true);
+
+  useEffect(() => {
+    if (nodeId) {
+      // ⭐ 深度比较，避免无限循环
+      const currentApiConfig = data.apiConfig;
+      const needsUpdate = !currentApiConfig ||
+        currentApiConfig.platform !== apiConfig.platform ||
+        currentApiConfig.model !== apiConfig.model ||
+        currentApiConfig.aspect !== apiConfig.aspect ||
+        currentApiConfig.watermark !== apiConfig.watermark ||
+        currentApiConfig.apiKey !== apiConfig.apiKey;
+
+      if (needsUpdate) {
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    apiConfig: apiConfig
+                  }
+                }
+              : node
+          )
+        );
+        console.log('[BatchVideoGenerateNode] ✅ API配置已同步到 node.data:', apiConfig);
+      }
+
+      isInitialSyncRef.current = false;
+    }
+  }, [apiConfig, nodeId, setNodes]); // ⭐ 移除 data.apiConfig 依赖，只监听 apiConfig 变化
+
+  // ⭐ 恢复机制：监听 data.apiConfig 变化（由 APISettingsNode 推送）
+  useEffect(() => {
+    // 当 APISettingsNode 推送新配置时，同步到本地状态
+    if (data.apiConfig && typeof data.apiConfig === 'object') {
+      const needsUpdate =
+        apiConfig.platform !== data.apiConfig.platform ||
+        apiConfig.model !== data.apiConfig.model ||
+        apiConfig.aspect !== data.apiConfig.aspect ||
+        apiConfig.watermark !== data.apiConfig.watermark ||
+        apiConfig.apiKey !== data.apiConfig.apiKey;
+
+      if (needsUpdate) {
+        console.log('[BatchVideoGenerateNode] 🔄 从 data.apiConfig 同步配置:', data.apiConfig);
+        setApiConfig(data.apiConfig);
+      }
+    }
+  }, [data.apiConfig]); // ⭐ 只依赖 data.apiConfig
+
+  // ⭐ 手动编辑提示词（直接编辑模式，无需手动模式开关）
+  const [manualPrompts, setManualPrompts] = useState(data.manualPrompts || {});
 
   // ⭐ 节点缩放功能 - 增加 default 高度以显示所有 9 个句子
   const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
@@ -96,6 +172,128 @@ function BatchVideoGenerateNode({ data }) {
     };
   }, [getEdges, nodeId, getNodes, setNodes]);
 
+  // ⭐ 时长同步到 node.data（工作流持久化）
+  useEffect(() => {
+    if (duration !== data.duration) {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, duration } }
+            : node
+        )
+      );
+    }
+  }, [duration, nodeId, setNodes, data.duration]);
+
+  // ⭐ 手动编辑提示词同步到 node.data（工作流持久化）
+  useEffect(() => {
+    if (JSON.stringify(manualPrompts) !== JSON.stringify(data.manualPrompts)) {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, manualPrompts } }
+            : node
+        )
+      );
+    }
+  }, [manualPrompts, nodeId, setNodes, data.manualPrompts]);
+
+  // ⭐ 监听 API 配置变化（从 APISettingsNode 或 data.apiConfig）
+  useEffect(() => {
+    const edges = getEdges();
+    const apiConfigEdge = edges.find(
+      (e) => e.target === nodeId && e.targetHandle === 'api-config'
+    );
+
+    let newApiConfig = null;
+
+    // 优先从连接的 APISettingsNode 获取
+    if (apiConfigEdge) {
+      const sourceNode = getNodes().find(n => n.id === apiConfigEdge.source);
+      if (sourceNode?.type === 'apiSettingsNode' && sourceNode.data?.apiConfig) {
+        newApiConfig = sourceNode.data.apiConfig;
+      }
+    }
+
+    // 降级到 data.apiConfig（工作流恢复）
+    if (!newApiConfig && data.apiConfig) {
+      newApiConfig = data.apiConfig;
+    }
+
+    // 更新状态
+    if (JSON.stringify(newApiConfig) !== JSON.stringify(apiConfig)) {
+      setApiConfig(newApiConfig);
+      // 同步到 node.data
+      if (newApiConfig) {
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? { ...node, data: { ...node.data, apiConfig: newApiConfig } }
+              : node
+          )
+        );
+      }
+    }
+  }, [getEdges, getNodes, nodeId, setNodes, data.apiConfig, apiConfig]);
+
+  // ⭐ 监听工作流保存前事件，强制同步最新状态
+  useEffect(() => {
+    const handleBeforeSave = () => {
+      console.log('[BatchVideoGenerateNode] 📥 收到 workflow-before-save 事件，强制同步最新状态');
+      // 立即同步当前状态到 node.data
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id !== nodeId) return node;
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              sentences,
+              selectedSentences: Array.from(selectedSentences),
+              manualPrompts,
+              duration,
+              batchStatus,
+              batchId,
+              apiConfig,
+            }
+          };
+        })
+      );
+    };
+
+    window.addEventListener('workflow-before-save', handleBeforeSave);
+    return () => {
+      window.removeEventListener('workflow-before-save', handleBeforeSave);
+    };
+  }, [sentences, selectedSentences, manualPrompts, duration, batchStatus, batchId, apiConfig, nodeId, setNodes]);
+
+  // ⭐ 监听 BatchResultNode 的数据更新事件（同步 jobStatuses 到 node.data）
+  useEffect(() => {
+    const handleBatchResultUpdate = (event) => {
+      const { batchId: updatedBatchId, jobStatuses } = event.detail;
+
+      // ⭐ 只处理属于当前批量任务的事件
+      if (updatedBatchId === batchId) {
+        console.log('[BatchVideoGenerateNode] 收到 BatchResultNode 更新事件:', Object.keys(jobStatuses).length);
+
+        // ⭐ 更新 BatchResultNode 的 node.data.jobStatuses
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.type === 'batchResultNode' && node.data.batchId === updatedBatchId
+              ? { ...node, data: { ...node.data, jobStatuses } }
+              : node
+          )
+        );
+      }
+    };
+
+    window.addEventListener('batch-result-update', handleBatchResultUpdate);
+    return () => {
+      window.removeEventListener('batch-result-update', handleBatchResultUpdate);
+    };
+  }, [batchId, setNodes]);
+
   /**
    * 切换句子选择状态
    */
@@ -147,47 +345,6 @@ function BatchVideoGenerateNode({ data }) {
   };
 
   /**
-   * 开始编辑句子
-   */
-  const startEditing = (index) => {
-    setEditingIndex(index);
-    setEditText(sentences[index]?.optimized || sentences[index]?.text || '');
-  };
-
-  /**
-   * 保存编辑
-   */
-  const saveEdit = () => {
-    if (editingIndex !== null) {
-      const newSentences = [...sentences];
-      newSentences[editingIndex] = {
-        ...newSentences[editingIndex],
-        optimized: editText
-      };
-      setSentences(newSentences);
-      setEditingIndex(null);
-      setEditText('');
-
-      // 同步到 node.data
-      setNodes((nds) =>
-        nds.map((node) =>
-          node.id === nodeId
-            ? { ...node, data: { ...node.data, sentences: newSentences } }
-            : node
-        )
-      );
-    }
-  };
-
-  /**
-   * 取消编辑
-   */
-  const cancelEdit = () => {
-    setEditingIndex(null);
-    setEditText('');
-  };
-
-  /**
    * 批量生成视频
    */
   const generateBatchVideos = async () => {
@@ -200,27 +357,17 @@ function BatchVideoGenerateNode({ data }) {
       return;
     }
 
-    // 获取 API 配置（从连接的 APISettingsNode 或使用默认配置）
-    const edges = getEdges();
-    const apiConfigEdge = edges.find(
-      (e) => e.target === nodeId && e.targetHandle === 'api-config'
-    );
-
-    let apiConfig = {
+    // ⭐ 使用组件状态中的 apiConfig（它已经通过 useEffect 同步最新值）
+    // 如果没有 apiConfig，使用默认配置
+    const finalApiConfig = apiConfig || {
       platform: 'juxin',
       model: 'sora-2-all',
       aspect: '16:9',
       watermark: false
     };
 
-    if (apiConfigEdge) {
-      const sourceNode = getNodes().find(n => n.id === apiConfigEdge.source);
-      if (sourceNode?.type === 'apiSettingsNode' && sourceNode.data?.apiConfig) {
-        apiConfig = sourceNode.data.apiConfig;
-      }
-    }
-
     // 获取连接的参考图片
+    const edges = getEdges();
     const imagesEdge = edges.find(
       (e) => e.target === nodeId && e.targetHandle === 'images-input'
     );
@@ -234,7 +381,7 @@ function BatchVideoGenerateNode({ data }) {
 
     console.log('[BatchVideoGenerateNode] 🎬 开始批量生成:', {
       selectedCount: selectedSentences.size,
-      platform: apiConfig.platform,
+      platform: finalApiConfig.platform,
       imagesCount: connectedImages.length
     });
 
@@ -249,17 +396,22 @@ function BatchVideoGenerateNode({ data }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          platform: apiConfig.platform,
+          platform: finalApiConfig.platform,
           jobs: jobs
             .filter(s => s.optimized)
-            .map(s => ({
-              prompt: s.optimized,
-              model: apiConfig.model === 'sora-2' ? 'sora-2-all' : apiConfig.model,
-              duration: 10,
-              aspect_ratio: apiConfig.aspect === '16:9' ? 'landscape' : 'portrait',
-              watermark: apiConfig.watermark,
-              images: connectedImages.length > 0 ? connectedImages : []
-            }))
+            .map((s, arrIndex) => {
+              const sentenceIndex = selectedSentencesArray[arrIndex];
+              // ⭐ 优先级: 手动 > 优化 > 原文
+              const finalPrompt = manualPrompts[sentenceIndex] || s.optimized || s.text;
+              return {
+                prompt: finalPrompt,
+                model: finalApiConfig.model === 'sora-2' ? 'sora-2-all' : finalApiConfig.model,
+                duration: duration,  // ⭐ 使用状态值（默认15秒）
+                aspect_ratio: finalApiConfig.aspect === '16:9' ? 'landscape' : 'portrait',
+                watermark: finalApiConfig.watermark,
+                images: connectedImages.length > 0 ? connectedImages : []
+              };
+            })
         })
       });
 
@@ -308,7 +460,7 @@ function BatchVideoGenerateNode({ data }) {
         position: { x: posX, y: posY },
         data: {
           batchId: newBatchId,
-          platform: data.apiConfig?.platform || 'juxin',
+          platform: finalApiConfig.platform,
           totalJobs: submitBatchResult.data.totalJobs,
           jobs: submitBatchResult.data.jobs,
           sentences: jobs,
@@ -478,6 +630,24 @@ function BatchVideoGenerateNode({ data }) {
         </span>
       </div>
 
+      {/* API 配置信息显示 ⭐ */}
+      {apiConfig && (
+        <div style={{
+          padding: '8px',
+          backgroundColor: '#eff6ff',
+          borderRadius: '4px',
+          marginBottom: '10px',
+          border: '1px solid #bfdbfe'
+        }}>
+          <div style={{ fontSize: '10px', color: '#1e40af', marginBottom: '4px', fontWeight: 'bold' }}>
+            ⚙️ API 配置
+          </div>
+          <div style={{ fontSize: '10px', color: '#1e3a8a' }}>
+            {apiConfig.platform === 'juxin' ? '聚鑫' : '贞贞'} | {apiConfig.model.toUpperCase()} | {apiConfig.aspect} | {apiConfig.watermark ? '水印' : '无水印'}
+          </div>
+        </div>
+      )}
+
       {/* 句子列表 */}
       {sentences.length === 0 ? (
         <div
@@ -495,6 +665,25 @@ function BatchVideoGenerateNode({ data }) {
         </div>
       ) : (
         <>
+          {/* 时长配置 */}
+          <div style={{ padding: '8px', backgroundColor: '#d1fae5', borderRadius: '4px', marginBottom: '10px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#059669', marginBottom: '6px' }}>
+              ⏱️ 视频时长
+            </div>
+            <select
+              value={duration}
+              onChange={(e) => setDuration(Number(e.target.value))}
+              disabled={batchStatus === 'generating' || batchStatus === 'submitted'}
+              className="nodrag"
+              style={{ width: '100%', padding: '6px', borderRadius: '4px' }}
+            >
+              <option value={5}>5 秒</option>
+              <option value={10}>10 秒</option>
+              <option value={15}>15 秒 ⭐ 推荐</option>
+              <option value={25}>25 秒</option>
+            </select>
+          </div>
+
           {/* 操作按钮 */}
           <div style={{ marginBottom: '10px', display: 'flex', gap: '6px' }}>
             <button
@@ -518,10 +707,10 @@ function BatchVideoGenerateNode({ data }) {
             </div>
           </div>
 
-          {/* 句子列表 */}
+          {/* 句子列表 - 直接编辑模式（参考VideoGenerateNode） */}
           <div
             style={{
-              maxHeight: '300px',
+              maxHeight: '400px',
               overflowY: 'auto',
               border: '1px solid #e5e7eb',
               borderRadius: '4px',
@@ -531,121 +720,88 @@ function BatchVideoGenerateNode({ data }) {
           >
             {sentences.map((sentence, index) => {
               const isSelected = selectedSentences.has(index);
-              const isEditing = editingIndex === index;
+              const hasManualEdit = manualPrompts[index] !== undefined && manualPrompts[index] !== '';
+              const finalPrompt = manualPrompts[index] || sentence.optimized || sentence.text;
 
               return (
                 <div
                   key={index}
                   style={{
-                    border: '1px solid #e5e7eb',
+                    border: isSelected ? '2px solid #8b5cf6' : '1px solid #e5e7eb',
                     borderRadius: '4px',
                     padding: '8px',
-                    marginBottom: '6px',
+                    marginBottom: '8px',
                     backgroundColor: isSelected ? '#ede9fe' : '#ffffff',
-                    transition: 'background-color 0.2s'
+                    transition: 'all 0.2s'
                   }}
                 >
-                  {/* 句子标题 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                  {/* 句子标题栏 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleSentenceSelection(index)}
                       className="nodrag"
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: 'pointer', width: '14px', height: '14px' }}
                     />
                     <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#374151' }}>
                       句子 {index + 1}
                     </span>
-                    <span style={{ fontSize: '9px', color: '#6b7280' }}>
-                      ({sentence.optimized ? '✓ 已优化' : '⏳ 待优化'})
-                    </span>
-                    {!isEditing && (
-                      <button
-                        onClick={() => startEditing(index)}
-                        className="nodrag"
-                        style={{
-                          marginLeft: 'auto',
-                          padding: '2px 6px',
-                          fontSize: '9px',
-                          background: '#f3f4f6',
-                          color: '#374151',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '3px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        ✏️ 编辑
-                      </button>
+                    {sentence.optimized && (
+                      <span style={{ fontSize: '9px', color: '#059669', fontWeight: 'bold' }}>
+                        ✓ 已优化
+                      </span>
+                    )}
+                    {hasManualEdit && (
+                      <span style={{ fontSize: '9px', color: '#dc2626', fontWeight: 'bold' }}>
+                        📝 手动编辑
+                      </span>
                     )}
                   </div>
 
-                  {/* 句子内容 */}
-                  {isEditing ? (
-                    <div>
-                      <textarea
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        className="nodrag"
-                        style={{
-                          width: '100%',
-                          minHeight: '60px',
-                          padding: '6px',
-                          fontSize: '11px',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '4px',
-                          boxSizing: 'border-box',
-                          resize: 'vertical',
-                          fontFamily: 'monospace'
-                        }}
-                      />
-                      <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-                        <button
-                          onClick={saveEdit}
-                          className="nodrag"
-                          style={{
-                            flex: 1,
-                            padding: '4px',
-                            fontSize: '10px',
-                            background: '#10b981',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '3px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          ✓ 保存
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="nodrag"
-                          style={{
-                            flex: 1,
-                            padding: '4px',
-                            fontSize: '10px',
-                            background: '#6b7280',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '3px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          ✕ 取消
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        fontSize: '10px',
-                        color: '#4b5563',
-                        lineHeight: '1.4',
-                        padding: '4px',
-                        backgroundColor: '#f9fafb',
-                        borderRadius: '3px'
-                      }}
-                    >
-                      {getSentencePreview(sentence)}
+                  {/* ⭐ 直接编辑的 textarea（参考VideoGenerateNode） */}
+                  <textarea
+                    className="nodrag"
+                    value={finalPrompt}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setManualPrompts(prev => ({
+                        ...prev,
+                        [index]: newValue
+                      }));
+                    }}
+                    onWheel={(e) => e.stopPropagation()}
+                    placeholder={`句子 ${index + 1} 提示词...`}
+                    disabled={batchStatus === 'generating' || batchStatus === 'submitted'}
+                    style={{
+                      width: '100%',
+                      minHeight: '60px',
+                      padding: '6px 8px',
+                      fontSize: '11px',
+                      fontFamily: 'monospace',
+                      color: '#1f2937',  // ⭐ 添加深色字体确保清晰可见
+                      border: hasManualEdit ? '2px solid #dc2626' : '1px solid #d1d5db',
+                      borderRadius: '4px',
+                      boxSizing: 'border-box',
+                      resize: 'vertical',
+                      backgroundColor: hasManualEdit ? '#fef2f2' : '#ffffff',
+                      marginBottom: '4px'
+                    }}
+                  />
+
+                  {/* 最终提示词预览（参考VideoGenerateNode） */}
+                  {finalPrompt && finalPrompt.length > 0 && (
+                    <div style={{
+                      padding: '4px 6px',
+                      backgroundColor: '#f0fdf4',
+                      borderRadius: '3px',
+                      fontSize: '9px',
+                      color: '#166534',
+                      fontStyle: 'italic',
+                      border: '1px dashed #6ee7b7',
+                      wordBreak: 'break-word'
+                    }}>
+                      📤 最终提示词: {finalPrompt.substring(0, 80)}{finalPrompt.length > 80 ? '...' : ''}
                     </div>
                   )}
                 </div>

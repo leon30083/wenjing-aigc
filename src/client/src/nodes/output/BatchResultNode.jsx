@@ -1,21 +1,55 @@
-import { Handle, Position } from 'reactflow';
-import React, { useState, useEffect } from 'react';
+import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
+import React, { useState, useEffect, useRef } from 'react';
 
 const API_BASE = 'http://localhost:9000';
 
 /**
  * 批量结果节点 - 显示所有批量任务的进度
+ * ⭐ 支持 jobStatuses 数据持久化（刷新后恢复）
  */
 function BatchResultNode({ data }) {
+  const nodeId = useNodeId();
+  const { setNodes } = useReactFlow();
+
+  // ⭐ Refs for infinite loop prevention
+  const isInitialLoadRef = useRef(true);
+  const isPollingRef = useRef(false);
+
   const { batchId, platform, totalJobs, jobs, sentences } = data;
   const [polling, setPolling] = useState(true);
   const [completedJobs, setCompletedJobs] = useState([]);
   const [error, setError] = useState(null);
-  const [jobStatuses, setJobStatuses] = useState({});
+
+  // ⭐ 从 data.jobStatuses 恢复（工作流恢复），降级到 jobs prop（向后兼容）
+  const [jobStatuses, setJobStatuses] = useState(() => {
+    // 优先从 data.jobStatuses 恢复（工作流恢复）
+    if (data.jobStatuses && Object.keys(data.jobStatuses).length > 0) {
+      console.log('[BatchResultNode] 从 data.jobStatuses 恢复:', Object.keys(data.jobStatuses).length);
+      return data.jobStatuses;
+    }
+    // 降级到 jobs prop（向后兼容）
+    if (jobs && jobs.length > 0) {
+      const initialStatuses = {};
+      jobs.forEach(job => {
+        initialStatuses[job.jobId] = job;
+      });
+      return initialStatuses;
+    }
+    return {};
+  });
+
+  // ⭐ 重试状态
+  const [retryingJobId, setRetryingJobId] = useState(null);
+  const [retryPrompt, setRetryPrompt] = useState('');
+  const [showRetryModal, setShowRetryModal] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   // 轮询批量任务状态
   useEffect(() => {
     if (!polling) return;
+
+    // ⭐ 设置轮询标记
+    isPollingRef.current = true;
 
     // ⭐ 立即执行一次初始轮询
     const initialPoll = async () => {
@@ -68,6 +102,7 @@ function BatchResultNode({ data }) {
 
           if (allCompleted) {
             setPolling(false);
+            isPollingRef.current = false;  // ⭐ 清除轮询标记
             console.log('[BatchResultNode] ✅ 所有任务已完成');
           }
         }
@@ -77,7 +112,10 @@ function BatchResultNode({ data }) {
       }
     }, 30000); // 30秒轮询一次
 
-    return () => clearInterval(pollInterval);
+    return () => {
+      clearInterval(pollInterval);
+      isPollingRef.current = false;  // ⭐ 清除轮询标记
+    };
   }, [batchId, totalJobs, polling]);
 
   // ⭐ 手动刷新
@@ -103,6 +141,65 @@ function BatchResultNode({ data }) {
       setError(err.message);
     }
   };
+
+  // ⭐ 执行重试
+  const executeRetry = async () => {
+    if (!retryPrompt.trim()) {
+      alert('⚠️ 提示词不能为空');
+      return;
+    }
+
+    setRetrying(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/batch/${batchId}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: retryingJobId, prompt: retryPrompt })
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        setJobStatuses(prev => ({
+          ...prev,
+          [retryingJobId]: { ...prev[retryingJobId], status: 'submitted', prompt: retryPrompt }
+        }));
+        setPolling(true);
+        setShowRetryModal(false);
+        setRetryingJobId(null);
+        setRetryPrompt('');
+        alert('✅ 已重新提交任务');
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      alert(`❌ 重试失败: ${error.message}`);
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  // ⭐ 同步 jobStatuses 到 node.data（工作流持久化）
+  useEffect(() => {
+    // ⭐ 跳过初始加载（避免覆盖恢复的数据）
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      return;
+    }
+
+    // ⭐ 轮询期间暂停写入（避免性能问题）
+    if (isPollingRef.current) return;
+
+    // ⭐ 检查数据是否真正变化
+    const dataChanged = JSON.stringify(data.jobStatuses) !== JSON.stringify(jobStatuses);
+    if (!dataChanged) return;
+
+    console.log('[BatchResultNode] 同步 jobStatuses 到 node.data:', Object.keys(jobStatuses).length);
+
+    // ⭐ 通过事件系统通知父节点更新
+    window.dispatchEvent(new CustomEvent('batch-result-update', {
+      detail: { batchId, jobStatuses }
+    }));
+  }, [jobStatuses, data.jobStatuses, batchId]);
 
   const getStatusText = (status, progress = 0) => {
     switch (status) {
@@ -302,6 +399,32 @@ function BatchResultNode({ data }) {
                 </div>
               )}
 
+              {/* ⭐ 重试按钮（失败任务） */}
+              {status.status === 'failed' && (
+                <button
+                  onClick={() => {
+                    setRetryingJobId(job.jobId);
+                    setRetryPrompt(status.prompt || sentence?.optimized || sentence?.text || '');
+                    setShowRetryModal(true);
+                  }}
+                  className="nodrag"
+                  disabled={retryingJobId === job.jobId}
+                  style={{
+                    width: '100%',
+                    padding: '6px',
+                    background: '#f59e0b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '10px',
+                    marginTop: '4px'
+                  }}
+                >
+                  🔄 修改提示词并重试
+                </button>
+              )}
+
               {/* 视频结果 */}
               {status.status === 'completed' && status.result?.output && (
                 <div style={{ marginTop: '6px' }}>
@@ -340,6 +463,79 @@ function BatchResultNode({ data }) {
           );
         })}
       </div>
+
+      {/* ⭐ 重试模态框 */}
+      {showRetryModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', width: '500px' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '16px' }}>🔄 重试失败的视频</h3>
+            <textarea
+              value={retryPrompt}
+              onChange={(e) => setRetryPrompt(e.target.value)}
+              className="nodrag"
+              placeholder="输入修改后的提示词..."
+              style={{
+                width: '100%',
+                minHeight: '120px',
+                padding: '8px',
+                border: '1px solid #d1d5db',
+                borderRadius: '4px',
+                boxSizing: 'border-box',
+                resize: 'vertical',
+                fontFamily: 'monospace',
+                fontSize: '12px'
+              }}
+            />
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button
+                onClick={() => {
+                  setShowRetryModal(false);
+                  setRetryingJobId(null);
+                  setRetryPrompt('');
+                }}
+                className="nodrag"
+                disabled={retrying}
+                style={{
+                  padding: '8px 16px',
+                  background: '#6b7280',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                取消
+              </button>
+              <button
+                onClick={executeRetry}
+                className="nodrag"
+                disabled={!retryPrompt.trim() || retrying}
+                style={{
+                  padding: '8px 16px',
+                  background: (!retryPrompt.trim() || retrying) ? '#9ca3af' : '#8b5cf6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: (!retryPrompt.trim() || retrying) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {retrying ? '🔄 提交中...' : '✓ 提交重试'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
