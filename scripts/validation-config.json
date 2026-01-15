@@ -1,0 +1,112 @@
+{
+  "version": "1.0.0",
+  "description": "数据流验证配置 - 避免误报",
+  "lastUpdated": "2026-01-14",
+
+  "contextFields": {
+    "description": "来自 Context 的字段，不需要通过 setNodes() 写入",
+    "fields": {
+      "apiConfig": {
+        "source": "APIConfigContext",
+        "reason": "Phase 2 架构：使用 APIConfigProvider 提供全局 API 配置"
+      },
+      "openaiConfig": {
+        "source": "OpenAIConfigContext",
+        "reason": "Phase 2 架构：使用 OpenAIConfigProvider 提供全局 OpenAI 配置"
+      },
+      "metrics": {
+        "source": "MetricsContext",
+        "reason": "Phase 3 架构：使用 MetricsProvider 提供全局指标数据"
+      },
+      "connectedCharacters": {
+        "source": "APIConfigContext",
+        "reason": "Phase 2 架构：部分角色数据通过 Context 提供"
+      }
+    }
+  },
+
+  "ignoredNodes": {
+    "description": "使用 Context 的节点，跳过源节点写入检查",
+    "nodes": [
+      {
+        "type": "APISettingsNode",
+        "reason": "使用 APIConfigProvider，不直接写 setNodes()"
+      },
+      {
+        "type": "OpenAIConfigNode",
+        "reason": "使用 OpenAIConfigProvider，不直接写 setNodes()"
+      }
+    ]
+  },
+
+  "initOnlyFields": {
+    "description": "只在初始化时读取的字段，不需要监听变化",
+    "fields": {
+      "narratorMode": {
+        "node": "VideoGenerateNode",
+        "reason": "旁白模式状态通过事件系统和反向同步更新"
+      },
+      "narratorIndex": {
+        "node": "VideoGenerateNode",
+        "reason": "旁白索引通过事件系统和反向同步更新"
+      },
+      "narratorTotal": {
+        "node": "VideoGenerateNode",
+        "reason": "旁白总数通过事件系统和反向同步更新"
+      },
+      "narratorSentences": {
+        "node": "VideoGenerateNode",
+        "reason": "旁白句子数组通过事件系统和反向同步更新"
+      }
+    }
+  },
+
+  "monitoredFields": {
+    "description": "已经正确监听的字段，避免误报",
+    "fields": {
+      "manualPrompt": {
+        "node": "VideoGenerateNode",
+        "reason": "已在 useEffect 中监听 (Line 133: [manualPrompt, ...data.manualPrompt])"
+      },
+      "connectedImages": {
+        "node": "VideoGenerateNode",
+        "reason": "已在 useEffect 中监听 (Line 71: [...data.connectedImages])"
+      },
+      "connectedCharacters": {
+        "node": "VideoGenerateNode",
+        "reason": "已在 useEffect 中监听 (Line 71: [...data.connectedCharacters])"
+      },
+      "connectedPrompt": {
+        "node": "VideoGenerateNode",
+        "reason": "已在 useEffect 中监听 (Line 78: [...data.connectedPrompt])"
+      }
+    }
+  },
+
+  "connectionRules": {
+    "description": "节点连接规则覆盖",
+    "overrides": [
+      {
+        "source": "CharacterLibraryNode",
+        "target": "VideoGenerateNode",
+        "field": "connectedCharacters",
+        "skipChecks": ["source_not_writing"],
+        "reason": "Phase 2 架构：通过 Context 或连接传递，不直接写 setNodes()"
+      },
+      {
+        "source": "APISettingsNode",
+        "target": "VideoGenerateNode",
+        "field": "apiConfig",
+        "skipChecks": ["source_not_writing"],
+        "reason": "Phase 2 架构：使用 APIConfigContext"
+      },
+      {
+        "source": "OpenAIConfigNode",
+        "target": "NarratorProcessorNode",
+        "field": "openaiConfig",
+        "skipChecks": ["source_not_writing"],
+        "reason": "Phase 2 架构：使用 OpenAIConfigContext"
+      }
+    ]
+  }
+}
