@@ -87,7 +87,12 @@ function BatchResultNode({ data }) {
           // 更新任务状态
           const newStatuses = {};
           updatedJobs.forEach(job => {
-            newStatuses[job.jobId] = job;
+            // ⭐ 关键修复：保留已存在的 prompt（重试时使用）
+            const existingStatus = jobStatuses[job.jobId] || {};
+            newStatuses[job.jobId] = {
+              ...job,
+              prompt: job.prompt || existingStatus.prompt  // ⭐ 优先使用后端返回的 prompt，否则保留现有的
+            };
           });
           setJobStatuses(prev => ({ ...prev, ...newStatuses }));
 
@@ -159,10 +164,21 @@ function BatchResultNode({ data }) {
       const result = await response.json();
 
       if (result.success) {
-        setJobStatuses(prev => ({
-          ...prev,
-          [retryingJobId]: { ...prev[retryingJobId], status: 'submitted', prompt: retryPrompt }
-        }));
+        const newStatuses = {
+          ...jobStatuses,
+          [retryingJobId]: { ...jobStatuses[retryingJobId], status: 'submitted', prompt: retryPrompt }
+        };
+        setJobStatuses(newStatuses);
+
+        // ⭐ 关键修复：立即同步到 node.data（确保刷新后也能看到更新）
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === nodeId
+              ? { ...node, data: { ...node.data, jobStatuses: newStatuses } }
+              : node
+          )
+        );
+
         setPolling(true);
         setShowRetryModal(false);
         setRetryingJobId(null);
