@@ -75,32 +75,11 @@ function BatchVideoGenerateNode({ data }) {
         return;
       }
 
-      // 设置句子数据
+      // ⭐ 改为通知模式: 不自动加载,提示用户手动加载
       if (optimizedSentences && optimizedSentences.length > 1) {
-        console.log('[BatchVideoGenerateNode] 🎬 接收到批量优化数据:', optimizedSentences.length, '句');
-        setSentences(optimizedSentences);
-
-        // 默认全选所有已优化的句子
-        const optimizedIndexes = optimizedSentences
-          .map((s, i) => s.optimized ? i : -1)
-          .filter(i => i !== -1);
-        setSelectedSentences(new Set(optimizedIndexes));
-
-        // 同步到 node.data
-        setNodes((nds) =>
-          nds.map((node) =>
-            node.id === nodeId
-              ? {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    sentences: optimizedSentences,
-                    selectedSentences: optimizedIndexes
-                  }
-                }
-              : node
-          )
-        );
+        console.log('[BatchVideoGenerateNode] 🎬 旁白处理器优化完成,等待用户手动加载');
+        console.log('%c📥 提示: 点击"从旁白处理器加载"按钮加载优化结果',
+          'color: #3b82f6; font-size: 14px; font-weight: bold;');
       }
     };
 
@@ -240,6 +219,102 @@ function BatchVideoGenerateNode({ data }) {
             : node
         )
       );
+    }
+  };
+
+  /**
+   * 从 NarratorProcessorNode 手动加载优化结果
+   * ⭐ 新增: 支持用户主动加载旁白处理器的优化结果
+   */
+  const loadFromNarratorProcessor = async () => {
+    console.log('[BatchVideoGenerateNode] 🔄 开始从旁白处理器加载...');
+
+    try {
+      // 步骤1: 验证连接
+      const edges = getEdges();
+      const narratorEdge = edges.find(
+        (e) => e.target === nodeId && e.targetHandle === 'narrator-input'
+      );
+
+      if (!narratorEdge) {
+        alert('⚠️ 请先连接 NarratorProcessorNode (旁白处理器节点)');
+        return;
+      }
+
+      // 步骤2: 读取源节点
+      const sourceNode = getNodes().find(n => n.id === narratorEdge.source);
+
+      if (!sourceNode) {
+        alert('⚠️ 未找到旁白处理器节点');
+        return;
+      }
+
+      // 验证源节点类型
+      const isValidSourceType =
+        sourceNode.type === 'narratorNode' ||
+        sourceNode.type === 'narratorProcessorNode';
+
+      if (!isValidSourceType) {
+        alert('⚠️ 连接的节点不是旁白处理器节点');
+        return;
+      }
+
+      // 步骤3: 读取句子数据
+      const sourceSentences = sourceNode.data?.sentences || [];
+
+      if (sourceSentences.length === 0) {
+        alert('⚠️ 旁白处理器节点没有句子数据\n请先在旁白处理器中输入文本并优化');
+        return;
+      }
+
+      // 步骤4: 验证是否有优化结果
+      const hasOptimizedResults = sourceSentences.some(s => s.optimized);
+
+      if (!hasOptimizedResults) {
+        alert('⚠️ 旁白处理器节点还没有优化结果\n请先点击"🪄 优化所有旁白"按钮');
+        return;
+      }
+
+      // 步骤5: 加载到本地状态
+      console.log('[BatchVideoGenerateNode] 📥 加载句子数据:', {
+        总句子数: sourceSentences.length,
+        已优化数: sourceSentences.filter(s => s.optimized).length
+      });
+
+      setSentences(sourceSentences);
+
+      // 步骤6: 自动全选所有已优化的句子
+      const optimizedIndexes = sourceSentences
+        .map((s, i) => s.optimized ? i : -1)
+        .filter(i => i !== -1);
+
+      setSelectedSentences(new Set(optimizedIndexes));
+
+      // 步骤7: 同步到 node.data (工作流持久化)
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  sentences: sourceSentences,
+                  selectedSentences: optimizedIndexes
+                }
+              }
+            : node
+        )
+      );
+
+      // 步骤8: 触发工作流自动保存
+      window.dispatchEvent(new CustomEvent('workflow-before-save'));
+
+      // 步骤9: 用户反馈
+      alert(`✅ 已成功加载 ${sourceSentences.length} 个句子\n已全选 ${optimizedIndexes.length} 个优化后的句子`);
+
+    } catch (error) {
+      console.error('[BatchVideoGenerateNode] ❌ 加载失败:', error);
+      alert(`❌ 加载失败: ${error.message}`);
     }
   };
 
@@ -550,19 +625,74 @@ function BatchVideoGenerateNode({ data }) {
       {sentences.length === 0 ? (
         <div
           style={{
-            padding: '20px',
+            padding: '16px',
             textAlign: 'center',
-            fontSize: '12px',
-            color: '#6b7280',
-            backgroundColor: '#f9fafb',
+            backgroundColor: '#f0f9ff',
             borderRadius: '4px',
-            border: '1px dashed #d1d5db'
+            border: '1px dashed #3b82f6'
           }}
         >
-          💡 请连接旁白处理器节点，等待优化完成...
+          <div
+            style={{
+              fontSize: '12px',
+              color: '#1e40af',
+              marginBottom: '10px'
+            }}
+          >
+            💡 请连接旁白处理器节点并点击下方按钮加载优化结果
+          </div>
+          <button
+            onClick={loadFromNarratorProcessor}
+            className="nodrag"
+            style={{
+              width: '100%',
+              padding: '10px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              background: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#2563eb'}
+            onMouseLeave={(e) => e.currentTarget.style.background = '#3b82f6'}
+          >
+            📥 从旁白处理器加载
+          </button>
         </div>
       ) : (
         <>
+          {/* ⭐ 手动加载刷新按钮 - 支持重新优化后更新 */}
+          <div style={{ marginBottom: '10px' }}>
+            <button
+              onClick={loadFromNarratorProcessor}
+              className="nodrag"
+              style={{
+                width: '100%',
+                padding: '8px',
+                fontSize: '11px',
+                background: '#f0f9ff',
+                color: '#1e40af',
+                border: '1px dashed #3b82f6',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#e0f2fe';
+                e.currentTarget.style.borderColor = '#2563eb';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#f0f9ff';
+                e.currentTarget.style.borderColor = '#3b82f6';
+              }}
+            >
+              🔄 重新从旁白处理器加载 (如已重新优化)
+            </button>
+          </div>
+
           {/* 时长配置 */}
           <div style={{ padding: '8px', backgroundColor: '#d1fae5', borderRadius: '4px', marginBottom: '10px' }}>
             <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#059669', marginBottom: '6px' }}>
@@ -670,7 +800,7 @@ function BatchVideoGenerateNode({ data }) {
                     }}
                     onWheel={(e) => e.stopPropagation()}
                     placeholder={`句子 ${index + 1} 提示词...`}
-                    disabled={batchStatus === 'generating' || batchStatus === 'submitted'}
+                    disabled={batchStatus === 'generating'}
                     style={{
                       width: '100%',
                       minHeight: '60px',

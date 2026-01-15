@@ -619,6 +619,38 @@ export default function NarratorProcessorNode({ data }) {
         );
 
         console.log('[NarratorProcessorNode] ✅ VideoGenerateNode 数据已更新');
+      } else if (targetNode?.type === 'batchVideoGenerateNode') {
+        // ⭐ 新增: 支持批量视频生成节点
+        console.log('[NarratorProcessorNode] 目标节点是批量视频生成节点');
+
+        const optimizedIndexes = optimizedSentences
+          .map((s, i) => s.optimized ? i : -1)
+          .filter(i => i !== -1);
+
+        const newData = {
+          ...targetNode.data,
+          sentences: optimizedSentences,
+          selectedSentences: optimizedIndexes
+        };
+
+        console.log('[NarratorProcessorNode] 准备更新 BatchVideoGenerateNode 数据:', {
+          总句子数: optimizedSentences.length,
+          已优化数: optimizedIndexes.length,
+          已全选索引: optimizedIndexes
+        });
+
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === targetNode.id
+              ? {
+                  ...node,
+                  data: newData
+                }
+              : node
+          )
+        );
+
+        console.log('[NarratorProcessorNode] ✅ BatchVideoGenerateNode 数据已更新');
       } else {
         console.warn('[NarratorProcessorNode] ⚠️ 目标节点类型不匹配:', targetNode?.type);
       }
