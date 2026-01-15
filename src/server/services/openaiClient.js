@@ -197,7 +197,12 @@ ${characterList}
         : `✅ 示例：
 "卡通绘本风格的视频。一只拟人化的卡通猫咪在阳光明媚的花园里欢快地追逐蝴蝶，跳跃着探索每一处角落。画面色彩明亮饱和，充满童趣，动作夸张且富有弹性，背景细节丰富，光影效果梦幻，适合10秒的视频时长。"`;
 
-      return `你是专业的动画绘本提示词专家。
+      return `⚠️⚠️⚠️ 音频控制（必须严格遵守，优先级最高）⚠️⚠️⚠️
+❌ 绝对禁止背景音乐（No background music, No score, No soundtrack, No BGM）
+❌ 绝对禁止角色对话、旁白、独白（No dialogue, No voiceover, No character speech, No narration）
+✅ 只包含动作相关音效和简短角色发声（如欢呼、笑声、短促惊呼等）
+
+你是专业的动画绘本提示词专家。
 
 任务：将简单的绘本旁白优化成 Sora 2 视频生成提示词。${directionText}${characterMappingInSystem}
 
@@ -233,7 +238,16 @@ ${exampleSection}
 ✅ 正确的格式：
 - 单一段落
 - 流畅的自然语言
-- 包含所有必要信息（风格、角色、场景、氛围、动画、时长）`;
+- 包含所有必要信息（风格、角色、场景、氛围、动画、时长）
+
+⚠️ 音频控制规范（必须严格遵守）：
+- ❌ 绝对禁止背景音乐（No background music, No score, No soundtrack, No BGM）
+- ❌ 不要角色对话或旁白（No dialogue, No voiceover, No character speaking, No narration）
+- ✅ 只包含动作相关音效（Sound effects: crunching when eating, cheering, footsteps, ambient sounds）
+
+示例：
+- 吃东西场景："Sound: character crunches while eating (sync with action). No background music or dialogue."
+- 开心欢呼场景："Sound: crowd cheers 'woohoo' (short exclamation), feet stomp. No score or music."`;
     }
 
     if (style === 'cinematic') {
@@ -244,7 +258,12 @@ ${exampleSection}
         : `✅ 示例：
 "电影风格的视频。夕阳西下的城市街道，主角孤独地走在人行道上。画面采用广角镜头拍摄，浅景深突出主体，温暖的黄金时刻光线从侧面照射，营造出怀旧而忧伤的氛围。色彩倾向为暖色调，情绪氛围温馨而略带忧郁，适合10秒的视频时长。"`;
 
-      return `你是专业的电影风格视频提示词专家。
+      return `⚠️⚠️⚠️ 音频控制（必须严格遵守，优先级最高）⚠️⚠️⚠️
+❌ 绝对禁止背景音乐（No background music, No score, No soundtrack, No BGM）
+❌ 绝对禁止角色对话、旁白、独白（No dialogue, No voiceover, No character speech, No narration）
+✅ 只包含动作相关音效和简短角色发声（如欢呼、笑声、短促惊呼等）
+
+你是专业的电影风格视频提示词专家。
 
 任务：将简单描述优化成 Sora 2 视频生成提示词。${directionText}${characterMappingInSystem}
 
@@ -269,7 +288,16 @@ ${exampleSection}
 ✅ 正确的格式：
 - 单一段落
 - 流畅的自然语言
-- 包含所有必要信息（风格、场景、摄影、氛围、时长）`;
+- 包含所有必要信息（风格、场景、摄影、氛围、时长）
+
+⚠️ 音频控制规范（必须严格遵守）：
+- ❌ 绝对禁止背景音乐（No background music, No score, No soundtrack, No BGM）
+- ❌ 不要角色对话或旁白（No dialogue, No voiceover, No character speaking, No narration）
+- ✅ 只包含动作相关音效（Sound effects: crunching when eating, cheering, footsteps, ambient sounds）
+
+示例：
+- 吃东西场景："Sound: character crunches while eating (sync with action). No background music or dialogue."
+- 开心欢呼场景："Sound: crowd cheers 'woohoo' (short exclamation), feet stomp. No score or music."`;
     }
 
     if (style === 'documentary') {
@@ -280,7 +308,12 @@ ${exampleSection}
         : `✅ 示例：
 "纪录片风格的视频。一个工人在建筑工地上操作装载机，真实记录日常工作场景。采用旁观者视角，自然光线照射，构图平衡稳重，展现劳动者的工作状态和工地环境，适合10秒的视频时长。"`;
 
-      return `你是专业的纪录片风格视频提示词专家。
+      return `⚠️⚠️⚠️ 音频控制（必须严格遵守，优先级最高）⚠️⚠️⚠️
+❌ 绝对禁止背景音乐（No background music, No score, No soundtrack, No BGM）
+❌ 绝对禁止角色对话、旁白、独白（No dialogue, No voiceover, No character speech, No narration）
+✅ 只包含动作相关音效和简短角色发声（如欢呼、笑声、短促惊呼等）
+
+你是专业的纪录片风格视频提示词专家。
 
 任务：将简单描述优化成 Sora 2 视频生成提示词。${directionText}${characterMappingInSystem}
 
@@ -305,7 +338,16 @@ ${exampleSection}
 ✅ 正确的格式：
 - 单一段落
 - 流畅的自然语言
-- 包含所有必要信息（风格、场景、拍摄、信息、时长）`;
+- 包含所有必要信息（风格、场景、拍摄、信息、时长）
+
+⚠️ 音频控制规范（必须严格遵守）：
+- ❌ 绝对禁止背景音乐（No background music, No score, No soundtrack, No BGM）
+- ❌ 不要角色对话或旁白（No dialogue, No voiceover, No character speaking, No narration）
+- ✅ 只包含动作相关音效（Sound effects: crunching when eating, cheering, footsteps, ambient sounds）
+
+示例：
+- 吃东西场景："Sound: character crunches while eating (sync with action). No background music or dialogue."
+- 开心欢呼场景："Sound: crowd cheers 'woohoo' (short exclamation), feet stomp. No score or music."`;
     }
 
     if (style === 'animation') {
@@ -316,7 +358,12 @@ ${exampleSection}
         : `✅ 示例：
 "动画风格的视频。一只卡通风格的猫咪在阳光明媚的花园里欢快地追逐蝴蝶，跳跃着探索每一处角落。画面色彩明亮饱和，动作夸张且富有弹性，背景细节丰富，光影效果梦幻，适合15秒的视频时长。"`;
 
-      return `你是专业的动画风格视频提示词专家。
+      return `⚠️⚠️⚠️ 音频控制（必须严格遵守，优先级最高）⚠️⚠️⚠️
+❌ 绝对禁止背景音乐（No background music, No score, No soundtrack, No BGM）
+❌ 绝对禁止角色对话、旁白、独白（No dialogue, No voiceover, No character speech, No narration）
+✅ 只包含动作相关音效和简短角色发声（如欢呼、笑声、短促惊呼等）
+
+你是专业的动画风格视频提示词专家。
 
 任务：将简单描述优化成 Sora 2 视频生成提示词。${directionText}${characterMappingInSystem}
 
@@ -341,7 +388,16 @@ ${exampleSection}
 ✅ 正确的格式：
 - 单一段落
 - 流畅的自然语言
-- 包含所有必要信息（风格、角色、场景、动画、时长）`;
+- 包含所有必要信息（风格、角色、场景、动画、时长）
+
+⚠️ 音频控制规范（必须严格遵守）：
+- ❌ 绝对禁止背景音乐（No background music, No score, No soundtrack, No BGM）
+- ❌ 不要角色对话或旁白（No dialogue, No voiceover, No character speaking, No narration）
+- ✅ 只包含动作相关音效（Sound effects: crunching when eating, cheering, footsteps, ambient sounds）
+
+示例：
+- 吃东西场景："Sound: character crunches while eating (sync with action). No background music or dialogue."
+- 开心欢呼场景："Sound: crowd cheers 'woohoo' (short exclamation), feet stomp. No score or music."`;
     }
 
     // 自定义风格：在系统提示词中包含风格描述
@@ -353,7 +409,12 @@ ${exampleSection}
       : `✅ 示例：
 "${styleText}的视频。一只卡通角色在场景中活动，充满活力和好奇。色彩鲜明，动作流畅，适合10秒的视频时长。"`;
 
-    return `你是视频提示词优化专家。
+    return `⚠️⚠️⚠️ 音频控制（必须严格遵守，优先级最高）⚠️⚠️⚠️
+❌ 绝对禁止背景音乐（No background music, No score, No soundtrack, No BGM）
+❌ 绝对禁止角色对话、旁白、独白（No dialogue, No voiceover, No character speech, No narration）
+✅ 只包含动作相关音效和简短角色发声（如欢呼、笑声、短促惊呼等）
+
+你是视频提示词优化专家。
 
 任务：将简单描述优化成 Sora 2 视频生成提示词。${directionText}${characterMappingInSystem}
 
@@ -375,7 +436,16 @@ ${exampleSection}
 ✅ 正确的格式：
 - 单一段落
 - 流畅的自然语言
-- 包含所有必要信息`;
+- 包含所有必要信息
+
+⚠️ 音频控制规范（必须严格遵守）：
+- ❌ 绝对禁止背景音乐（No background music, No score, No soundtrack, No BGM）
+- ❌ 不要角色对话或旁白（No dialogue, No voiceover, No character speaking, No narration）
+- ✅ 只包含动作相关音效（Sound effects: crunching when eating, cheering, footsteps, ambient sounds）
+
+示例：
+- 吃东西场景："Sound: character crunches while eating (sync with action). No background music or dialogue."
+- 开心欢呼场景："Sound: crowd cheers 'woohoo' (short exclamation), feet stomp. No score or music."`;
   }
 
   /**
@@ -457,6 +527,7 @@ ${context.characters.map(c => `  @${c.username} 在海边玩耍，充满好奇�
 3. ${styleInstruction}
 4. 包含摄影指导和动画风格描述
 5. 适合${context.target_duration || 10}秒视频时长
+6. ⚠️ 音频控制（必须严格遵守）：禁止背景音乐（No BGM）、禁止角色对话（No dialogue）、只保留动作音效（Sound effects: crunching, cheering, footsteps, ambient）
 ${characterInstruction}${examplesSection}
 
 请直接输出优化后的提示词，不要解释。`;
