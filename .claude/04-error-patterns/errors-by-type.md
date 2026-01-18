@@ -1121,62 +1121,55 @@ const insertCharacterAtCursor = (username, alias) => {
 **用户反馈**: "角色优化保留昨天都是正常的"
 
 **根本原因**:
-控制台日志显示角色匹配失败：
-```javascript
-{
-  "sentence":"没错，它就是我们建筑工地上的装载机！ @783316a1d.diggyloade",
-  "referencedUsernames":["783316a1d.diggyloade"],  // ✅ 识别到
-  "totalConnected":1,                              // ✅ 有1个连接
-  "matchedReferences":0                            // ❌ 匹配0个
-}
+
+NarratorNode.jsx **错误地优先读取 `selectedCharacters`（仅 ID）而非 `connectedCharacters`（完整对象）**
+
+**数据流分析**:
+```
+CharacterLibraryNode (输出)
+  ├─ selectedCharacters: ['char-id-1', 'char-id-2']  ← 仅 ID 数组
+  └─ connectedCharacters: [{id, username, alias, ...}] ← 完整对象
+
+NarratorNode.jsx Line 130 ❌ 错误优先级:
+  const characterData = sourceNode.data?.selectedCharacters || sourceNode.data?.connectedCharacters;
+                              ↑ 优先读取 ID 数组
+                               导致 username 字段为 undefined
+
+NarratorProcessorNode 收到 ID 数组:
+  latestConnectedCharacters[0] = 'char-id-1' (字符串)
+  latestConnectedCharacters[0].username = undefined ❌
+
+角色匹配失败:
+  referencedUsernames = ['783316a1d.diggyloade']
+  latestConnectedCharacters[0].username = undefined
+  matchedReferences = 0 ❌
 ```
 
-虽然识别到 `@783316a1d.diggyloade`，也有1个连接的角色，但 `matchedReferences: 0` 说明 `latestConnectedCharacters[0].username` !== `"783316a1d.diggyloade"`
-
-**问题代码** (NarratorProcessorNode.jsx Lines 272-274):
+**问题代码** (NarratorNode.jsx Line 130):
 ```javascript
-// ❌ 问题：latestConnectedCharacters 中的角色 username 字段不匹配
-const referencedCharacters = latestConnectedCharacters.filter(char =>
-  referencedUsernames.includes(char.username)
-);
-
-// ✅ 正确：添加调试日志确认数据结构
-console.log('[NarratorProcessorNode] 🔍 调试角色匹配:', {
-  referencedUsernames,
-  latestConnectedCharacters: latestConnectedCharacters.map(c => ({
-    id: c.id,
-    username: c.username,
-    hasUsername: 'username' in c,
-    allKeys: Object.keys(c)
-  })),
-  totalConnected: latestConnectedCharacters.length
-});
-
-const referencedCharacters = latestConnectedCharacters.filter(char =>
-  referencedUsernames.includes(char.username)
-);
+// ❌ 错误：优先读取 selectedCharacters（仅 ID）
+const characterData = sourceNode.data?.selectedCharacters || sourceNode.data?.connectedCharacters;
 ```
 
-**关键点**:
-1. **数据源头验证**: characters.json 中角色 `username` 是 `"783316a1d.diggyloade"` ✅
-2. **引用格式验证**: 用户输入 `@783316a1d.diggyloade` ✅
-3. **识别验证**: `referencedUsernames: ["783316a1d.diggyloade"]` ✅
-4. **问题定位**: `latestConnectedCharacters[0].username` 与预期不匹配 ❌
+**修复代码** (NarratorNode.jsx Line 129-132):
+```javascript
+// ✅ 正确：优先使用 connectedCharacters（完整对象）而非 selectedCharacters（仅 ID）
+// 原因：selectedCharacters 仅包含 ID 数组，没有 username 等字段
+// 导致 NarratorProcessorNode 匹配角色时 char.username 为 undefined（Error 55）
+const characterData = sourceNode.data?.connectedCharacters || sourceNode.data?.selectedCharacters;
+```
 
-**调试步骤**:
-1. 添加详细日志打印 `latestConnectedCharacters` 的实际内容
-2. 检查 `username` 字段是否存在、值是否正确
-3. 追溯数据流：CharacterLibraryNode → NarratorNode → NarratorProcessorNode
-4. 根据日志结果修复对应环节
+**修复日期**: 2026-01-18
 
 **修复文件**:
-- `src/client/src/nodes/process/NarratorProcessorNode.jsx` - Lines 267-281（添加调试日志）
+- `src/client/src/nodes/input/NarratorNode.jsx` - Line 132（交换读取优先级）
+
+**相关约束**:
+- 约束#35: React Flow 节点间数据传递必须使用完整对象
 
 **相关错误**:
-- 错误48 - 优化节点错误使用双显示功能导致角色引用丢失
 - 错误16 - React Flow 节点间数据传递错误
-
-**修复日期**: 2026-01-08
+- 错误52 - 节点数据未同步
 
 ---
 

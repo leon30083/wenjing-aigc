@@ -126,8 +126,10 @@ export default function NarratorNode({ data }) {
           connectedCount: sourceNode?.data?.connectedCharacters?.length || 0
         });
 
-        // 兼容两种字段名：selectedCharacters（CharacterLibraryNode输出）和 connectedCharacters（向后兼容）
-        const characterData = sourceNode.data?.selectedCharacters || sourceNode.data?.connectedCharacters;
+        // ⭐ 关键修复：优先使用 connectedCharacters（完整对象）而非 selectedCharacters（仅 ID）
+        // 原因：selectedCharacters 仅包含 ID 数组，没有 username 等字段
+        // 导致 NarratorProcessorNode 匹配角色时 char.username 为 undefined（Error 55）
+        const characterData = sourceNode.data?.connectedCharacters || sourceNode.data?.selectedCharacters;
         if (sourceNode?.type === 'characterLibraryNode' && characterData) {
           console.log('[NarratorNode] ✅ 设置角色数据:', characterData.length, '个角色');
           setConnectedCharacters(characterData);

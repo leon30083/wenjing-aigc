@@ -475,7 +475,7 @@ module.exports = {
 
 ## 高频错误快速参考
 
-### Top 5 错误（必读）
+### Top 6 错误（必读）
 
 1. **错误1**: 双平台任务ID不兼容 ⭐⭐⭐
    - 约束: #31 禁止假设任务ID字段名称
@@ -496,6 +496,10 @@ module.exports = {
 5. **错误48**: 优化节点错误使用双显示功能导致角色引用丢失 ⭐⭐⭐
    - 约束: #33 角色引用必须保留
    - 解决: 优化节点始终使用真实ID
+
+6. **错误55**: NarratorProcessorNode 角色引用丢失 ⭐⭐⭐
+   - 约束: #35 React Flow 节点间数据传递必须使用完整对象
+   - 解决: 优先读取 `connectedCharacters`（完整对象）而非 `selectedCharacters`（仅 ID）
 
 ---
 
