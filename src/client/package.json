@@ -7,7 +7,16 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:headed": "playwright test --headed",
+    "test:basic": "playwright test tests/e2e/basic",
+    "test:connections": "playwright test tests/e2e/connections",
+    "test:data-flow": "playwright test tests/e2e/data-flow",
+    "test:integration": "playwright test tests/e2e/integration",
+    "test:report": "playwright show-report"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -16,6 +25,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.48.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^5.1.1",

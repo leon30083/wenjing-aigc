@@ -1,0 +1,73 @@
+{
+  "name": "E2E测试工作流 - 基础连接验证",
+  "description": "简化版测试工作流，用于验证基本的节点连接功能（E2E测试用例）",
+  "nodes": [
+    {
+      "id": "1",
+      "type": "textNode",
+      "position": { "x": 100, "y": 200 },
+      "data": {
+        "label": "文本节点",
+        "text": "测试提示词"
+      }
+    },
+    {
+      "id": "4",
+      "type": "characterLibraryNode",
+      "position": { "x": 100, "y": 400 },
+      "data": {
+        "label": "角色库",
+        "selectedCharacters": []
+      }
+    },
+    {
+      "id": "6",
+      "type": "videoGenerateNode",
+      "position": { "x": 500, "y": 300 },
+      "data": {
+        "label": "视频生成",
+        "prompt": "",
+        "connectedCharacters": [],
+        "selectedCharacters": [],
+        "referenceImages": [],
+        "model": "sora-2",
+        "platform": "juxin"
+      }
+    },
+    {
+      "id": "10",
+      "type": "taskResultNode",
+      "position": { "x": 900, "y": 300 },
+      "data": {
+        "label": "任务结果",
+        "tasks": []
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1-6",
+      "source": "1",
+      "target": "6",
+      "sourceHandle": "text-output",
+      "targetHandle": "prompt-input"
+    },
+    {
+      "id": "e4-6",
+      "source": "4",
+      "target": "6",
+      "sourceHandle": "characters-output",
+      "targetHandle": "character-input"
+    },
+    {
+      "id": "e6-10",
+      "source": "6",
+      "target": "10",
+      "sourceHandle": "video-output",
+      "targetHandle": "task-input"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "createdAt": "2026-01-18T00:00:00.000Z",
+  "updatedAt": "2026-01-18T00:00:00.000Z"
+}
