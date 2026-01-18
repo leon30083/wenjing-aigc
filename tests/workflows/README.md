@@ -22,10 +22,11 @@
 
 ```
 tests/workflows/
-├── README.md                    # 本文件
-└── character/                   # 角色相关测试
-    ├── single-video.json        # 单角色视频生成 ⭐
-    └── batch-video.json         # 批量角色视频生成 ⭐
+├── README.md                        # 本文件
+└── character/                       # 角色相关测试
+    ├── single-video-simple.json     # 单角色视频生成（简化版）⭐
+    ├── single-video-narrator.json   # 单角色视频生成（含旁白）⭐ 基于用户真实工作流
+    └── batch-video.json             # 批量角色视频生成 ⭐
 ```
 
 ---
@@ -96,9 +97,9 @@ fetch('/load-test-workflows.js').then(r => r.text()).then(eval);
 
 ## 测试工作流列表
 
-### 1. single-video.json - 单角色视频生成
+### 1. single-video-simple.json - 单角色视频生成（简化版）⭐
 
-**测试场景**: 使用角色库中的角色生成单个视频
+**测试场景**: 简化测试，不包含旁白处理，直接验证角色数据传递
 
 **验证点**:
 - ✅ Error 55 修复验证（角色对象完整传递）
@@ -110,17 +111,46 @@ fetch('/load-test-workflows.js').then(r => r.text()).then(eval);
 **工作流结构**:
 ```
 CharacterLibraryNode (id: 1)
-  ↓ characters-output
+  ↓ (手动点击角色卡片)
 VideoGenerateNode (id: 6)
-  - 输入: prompt-input, character-input
   - 配置: platform=juxin, model=sora-2-all
   ↓ video-output
 TaskResultNode (id: 10)
 ```
 
+**适用场景**: 快速验证角色数据传递和视频生成
+
 ---
 
-### 2. batch-video.json - 批量角色视频生成
+### 2. single-video-narrator.json - 单角色视频生成（含旁白）⭐ 基于用户真实工作流
+
+**测试场景**: 基于用户手动创建的"单绘本视频工作流"，包含完整的旁白处理流程
+
+**验证点**:
+- ✅ Error 55 修复验证（角色对象完整传递）
+- ✅ 角色引用格式（`@username`，真实ID）
+- ✅ 旁白输入 → 旁白处理 → 视频生成的数据流
+- ✅ OpenAI 配置连接正确
+- ✅ API 配置连接正确
+- ✅ 任务结果正确显示
+
+**工作流结构**:
+```
+CharacterLibraryNode (id: 1) ───┐
+OpenAIConfigNode (id: 13) ──────┼──→ NarratorNode (id: 12)
+APISettingsNode (id: 11)        │        ↓
+                                │   NarratorProcessorNode (id: 14)
+                                │        ↓
+                                └────→ VideoGenerateNode (id: 6)
+                                         ↓ video-output
+                                   TaskResultNode (id: 10)
+```
+
+**适用场景**: 完整的 E2E 测试，验证旁白优化功能
+
+---
+
+### 3. batch-video.json - 批量角色视频生成
 
 **测试场景**: 使用故事板生成多个场景的视频
 

@@ -252,8 +252,36 @@ function App() {
       return edges;
     },
     setEdges: (newEdges) => setEdges(newEdges),
-    setNodes: (newNodes) => setNodes(newNodes)
-  }), [nodes, edges, setNodes, setEdges]); // ⭐ FIX: Include nodes and edges in dependencies!
+    setNodes: (newNodes) => setNodes(newNodes),
+    // ⭐ 工作流导出功能 (2026-01-18)
+    exportCurrentWorkflow: (name) => {
+      const workflowName = name || currentWorkflowName;
+      if (!workflowName) {
+        console.warn('[Test API] No workflow name provided or current workflow is unnamed');
+        return { success: false, error: 'No workflow name' };
+      }
+      console.log('[Test API] Exporting workflow:', workflowName);
+      return WorkflowStorage.exportWorkflow(workflowName);
+    },
+    exportWorkflowAsJSON: (name) => {
+      const workflowName = name || currentWorkflowName;
+      if (!workflowName) {
+        return { success: false, error: 'No workflow name' };
+      }
+      const workflows = WorkflowStorage.getAllWorkflows();
+      const workflow = workflows[workflowName];
+      if (!workflow) {
+        return { success: false, error: 'Workflow not found' };
+      }
+      console.log('[Test API] Returning workflow JSON:', workflowName);
+      return { success: true, data: workflow };
+    },
+    getWorkflowList: () => {
+      const list = WorkflowStorage.getWorkflowList();
+      console.log('[Test API] Returning workflow list:', list.length, 'workflows');
+      return list;
+    }
+  }), [nodes, edges, setNodes, setEdges, currentWorkflowName]); // ⭐ FIX: Include nodes, edges, and currentWorkflowName in dependencies!
 
   useEffect(() => {
     // Only expose in development/testing mode

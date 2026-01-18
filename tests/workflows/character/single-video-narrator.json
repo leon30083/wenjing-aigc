@@ -1,0 +1,230 @@
+{
+  "name": "测试工作流 - 角色单视频生成（含旁白）",
+  "description": "基于用户真实工作流：角色库 → 旁白输入 → 旁白处理 → 视频生成 → 任务结果",
+  "category": "character-video",
+  "version": "1.1.0",
+  "author": "AI",
+  "tags": ["角色", "视频生成", "旁白", "E2E", "Error55"],
+  "testPlan": [
+    "步骤1: 检查所有节点已正确加载（7个节点）",
+    "步骤2: 验证节点连接关系（7条边）",
+    "步骤3: 在 CharacterLibraryNode 中选择角色（阳光小猫）",
+    "步骤4: 在 NarratorNode 中输入旁白文本",
+    "步骤5: 检查 NarratorProcessorNode 接收旁白输入",
+    "步骤6: 检查 VideoGenerateNode 接收优化后的句子",
+    "步骤7: 验证 VideoGenerateNode 的 connectedCharacters 字段",
+    "步骤8: 验证 connectedCharacters 包含完整对象（id, username, alias, ...）",
+    "步骤9: 点击生成视频",
+    "步骤10: 验证 API 调用成功",
+    "步骤11: 验证 TaskResultNode 显示任务ID和进度"
+  ],
+  "nodes": [
+    {
+      "id": "1",
+      "type": "characterLibraryNode",
+      "position": { "x": -990.58, "y": 285.51 },
+      "data": {
+        "label": "角色库",
+        "selectedCharacters": [],
+        "connectedCharacters": []
+      }
+    },
+    {
+      "id": "6",
+      "type": "videoGenerateNode",
+      "position": { "x": 500, "y": 300 },
+      "data": {
+        "label": "视频生成",
+        "manualPrompt": "",
+        "prompt": "",
+        "connectedPrompt": "",
+        "selectedCharacters": [],
+        "connectedCharacters": [],
+        "connectedImages": [],
+        "apiConfig": {
+          "platform": "juxin",
+          "model": "sora-2-all",
+          "aspect": "16:9",
+          "watermark": false
+        },
+        "duration": 10,
+        "taskStatus": "idle"
+      }
+    },
+    {
+      "id": "10",
+      "type": "taskResultNode",
+      "position": { "x": 1188.10, "y": 278.95 },
+      "data": {
+        "label": "任务结果",
+        "taskId": null,
+        "taskStatus": "idle",
+        "videoUrl": null,
+        "platform": "juxin",
+        "progress": 0,
+        "error": null,
+        "connectedSourceId": "6"
+      }
+    },
+    {
+      "id": "11",
+      "type": "apiSettingsNode",
+      "position": { "x": -195.18, "y": 55.21 },
+      "data": {
+        "label": "⚙️ API 设置"
+      }
+    },
+    {
+      "id": "12",
+      "type": "narratorNode",
+      "position": { "x": -425.40, "y": 530.12 },
+      "data": {
+        "label": "📖 旁白输入",
+        "rawText": "",
+        "openaiConfig": null
+      }
+    },
+    {
+      "id": "13",
+      "type": "openaiConfigNode",
+      "position": { "x": -701.66, "y": 928.73 },
+      "data": {
+        "label": "⚙️ OpenAI 配置"
+      }
+    },
+    {
+      "id": "14",
+      "type": "narratorProcessorNode",
+      "position": { "x": 6.10, "y": 603.79 },
+      "data": {
+        "label": "⚙️ 旁白处理",
+        "openaiConfig": null
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e6-10",
+      "source": "6",
+      "target": "10",
+      "sourceHandle": "video-output",
+      "targetHandle": "task-input"
+    },
+    {
+      "id": "e11-6",
+      "source": "11",
+      "target": "6",
+      "sourceHandle": "api-config",
+      "targetHandle": "api-config"
+    },
+    {
+      "id": "e13-12",
+      "source": "13",
+      "target": "12",
+      "sourceHandle": "openai-config",
+      "targetHandle": "openai-config"
+    },
+    {
+      "id": "e1-12",
+      "source": "1",
+      "target": "12",
+      "sourceHandle": "characters-output",
+      "targetHandle": "character-input"
+    },
+    {
+      "id": "e12-14",
+      "source": "12",
+      "target": "14",
+      "sourceHandle": "narrator-output",
+      "targetHandle": "narrator-input"
+    },
+    {
+      "id": "e13-14",
+      "source": "13",
+      "target": "14",
+      "sourceHandle": "openai-config",
+      "targetHandle": "openai-config"
+    },
+    {
+      "id": "e14-6",
+      "source": "14",
+      "target": "6",
+      "sourceHandle": "sentence-output",
+      "targetHandle": "sentence-output"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "expectedResults": {
+    "nodeCount": {
+      "description": "验证节点数量",
+      "checks": [
+        "总节点数：7个",
+        "输入节点：3个（角色库、API设置、OpenAI配置）",
+        "处理节点：3个（旁白输入、旁白处理、视频生成）",
+        "输出节点：1个（任务结果）"
+      ]
+    },
+    "connections": {
+      "description": "验证节点连接关系",
+      "checks": [
+        "API设置 → 视频生成（api-config）",
+        "OpenAI配置 → 旁白输入（openai-config）",
+        "OpenAI配置 → 旁白处理（openai-config）",
+        "角色库 → 旁白输入（characters-output → character-input）",
+        "旁白输入 → 旁白处理（narrator-output → narrator-input）",
+        "旁白处理 → 视频生成（sentence-output → sentence-output）",
+        "视频生成 → 任务结果（video-output → task-input）"
+      ]
+    },
+    "error55": {
+      "description": "验证 Error 55 修复：角色对象完整传递",
+      "checks": [
+        "connectedCharacters 不为空",
+        "connectedCharacters[0] 包含 id 字段",
+        "connectedCharacters[0] 包含 username 字段（真实ID）",
+        "connectedCharacters[0] 包含 alias 字段（别名）",
+        "connectedCharacters[0] 包含 profilePictureUrl 字段",
+        "connectedCharacters[0] 包含 permalink 字段"
+      ]
+    },
+    "characterReference": {
+      "description": "验证角色引用双显示功能",
+      "checks": [
+        "输入框显示别名：@测试小猫",
+        "API 使用真实ID：@6f2dbf2b3.zenwhisper",
+        "角色引用格式正确（不带花括号）"
+      ]
+    },
+    "narratorFlow": {
+      "description": "验证旁白处理流程",
+      "checks": [
+        "NarratorNode 接收角色数据",
+        "NarratorProcessorNode 接收旁白文本",
+        "VideoGenerateNode 接收优化后的句子",
+        "优化后的句子包含角色引用"
+      ]
+    },
+    "apiCall": {
+      "description": "验证 API 调用",
+      "checks": [
+        "API 端点：POST /api/video/create",
+        "请求包含 platform: juxin",
+        "请求包含 model: sora-2-all",
+        "请求包含 duration: 10",
+        "请求包含 prompt（含角色引用）",
+        "响应包含 taskId"
+      ]
+    },
+    "taskResult": {
+      "description": "验证任务结果显示",
+      "checks": [
+        "TaskResultNode 显示任务ID",
+        "轮询状态更新（IN_PROGRESS → SUCCESS）",
+        "进度百分比更新（0% → 100%）",
+        "视频URL正确显示"
+      ]
+    }
+  },
+  "createdAt": "2026-01-18T00:00:00.000Z",
+  "updatedAt": "2026-01-18T10:20:00.000Z"
+}
