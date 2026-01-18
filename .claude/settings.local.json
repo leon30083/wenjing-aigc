@@ -101,7 +101,10 @@
       "Bash(Start-Sleep -Seconds 2)",
       "Bash(Where-Object {$_HasExited -eq $false})",
       "Bash(ForEach-Object { Stop-Process -Id $_Id -Force -ErrorAction SilentlyContinue })",
-      "Bash(rmdir \"E:\\\\User\\\\GitHub\\\\winjin\\\\AI-codeing框架资料\")"
+      "Bash(rmdir \"E:\\\\User\\\\GitHub\\\\winjin\\\\AI-codeing框架资料\")",
+      "Bash(gh pr create:*)",
+      "Bash(jobs:*)",
+      "Bash(wmic:*)"
     ]
   }
 }
