@@ -200,6 +200,22 @@ const prompt = '@{6f2dbf2b3.zenwhisper} 在工地上干活';
 
 ### 5. React Flow 节点开发
 
+#### 节点参考文档 ⭐ 新增 (2026-01-18)
+
+**必读文档**: [节点功能参考手册](../../03-node-development/node-reference/README.md)
+
+**用途**: 在创建或修改节点前，**必须**先阅读对应的节点文档。
+
+**核心文档**:
+- [TextNode.md](../../03-node-development/node-reference/input-nodes/TextNode.md) - 文本输入节点模板
+- [VideoGenerateNode.md](../../03-node-development/node-reference/process-nodes/VideoGenerateNode.md) - 视频生成节点模板
+- [TaskResultNode.md](../../03-node-development/node-reference/output-nodes/TaskResultNode.md) - 任务结果节点模板
+
+**AI 使用规范**:
+1. 创建新节点时，参考同类节点的文档结构
+2. 修改节点数据流时，查看"数据传递"章节
+3. 遇到节点问题时，查看"常见问题"章节
+
 #### 使用 useNodeId() Hook
 
 ```javascript

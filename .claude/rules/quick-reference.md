@@ -475,10 +475,25 @@ winjin/
 | 技术规范 | `.claude/rules/base.md` | 技术栈、API 规范 |
 | 代码规范 | `.claude/rules/code.md` | 代码示例、错误模式 |
 | 错误模式 | `.claude/rules/error-patterns.md` | 所有已知的错误模式 |
+| **节点参考** ⭐ 新增 (2026-01-18) | `.claude/03-node-development/node-reference/` | **React Flow 节点功能文档** ⭐ |
 | 开发经验 | `用户输入文件夹/开发经验/Sora2_Character_Best_Practices.md` | Sora2 最佳实践 |
 | 交接书 | `用户输入文件夹/开发对话/开发交接书.md` | 项目交接文档 |
 | **验证指南** ⭐ Phase 3 | `docs/validation-guide.md` | 验证系统完整使用指南 |
 | **错误模板** ⭐ Phase 3 | `.claude/templates/error-template.md` | 快速创建新错误文档 |
+
+### 节点参考文档 ⭐ 重要
+
+**必读文档**: [节点功能参考手册](../03-node-development/node-reference/README.md)
+
+**核心节点**:
+- [TextNode.md](../03-node-development/node-reference/input-nodes/TextNode.md) - 文本输入节点
+- [VideoGenerateNode.md](../03-node-development/node-reference/process-nodes/VideoGenerateNode.md) - 视频生成节点
+- [TaskResultNode.md](../03-node-development/node-reference/output-nodes/TaskResultNode.md) - 任务结果节点
+
+**使用规范**:
+- 创建或修改节点前，**必须**先阅读对应文档
+- 生成工作流时，参考 Handles 连接规范
+- 遇到数据传递问题时，查看"数据传递"章节
 
 ---
 

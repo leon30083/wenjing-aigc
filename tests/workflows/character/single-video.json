@@ -1,0 +1,146 @@
+{
+  "name": "测试工作流 - 角色单视频生成",
+  "description": "验证 Error 55 修复：角色对象完整传递 + 角色引用格式",
+  "category": "character-video",
+  "version": "1.0.0",
+  "author": "AI",
+  "tags": ["角色", "视频生成", "E2E", "Error55"],
+  "testPlan": [
+    "步骤1: 在 CharacterLibraryNode 中选择角色（阳光小猫）",
+    "步骤2: 点击角色卡片，插入角色引用到提示词",
+    "步骤3: 检查 VideoGenerateNode 的 connectedCharacters 字段",
+    "步骤4: 验证 connectedCharacters 包含完整对象（id, username, alias, ...）",
+    "步骤5: 验证提示词显示别名（@测试小猫）",
+    "步骤6: 验证 API 使用真实ID（@6f2dbf2b3.zenwhisper）",
+    "步骤7: 点击生成视频",
+    "步骤8: 验证 API 调用成功",
+    "步骤9: 验证 TaskResultNode 显示任务ID和进度"
+  ],
+  "nodes": [
+    {
+      "id": "1",
+      "type": "characterLibraryNode",
+      "position": { "x": 100, "y": 200 },
+      "data": {
+        "label": "角色库",
+        "selectedCharacters": [],
+        "connectedCharacters": []
+      }
+    },
+    {
+      "id": "2",
+      "type": "textNode",
+      "position": { "x": 100, "y": 400 },
+      "data": {
+        "label": "文本节点",
+        "text": "",
+        "value": ""
+      }
+    },
+    {
+      "id": "6",
+      "type": "videoGenerateNode",
+      "position": { "x": 500, "y": 300 },
+      "data": {
+        "label": "视频生成",
+        "manualPrompt": "",
+        "prompt": "",
+        "connectedPrompt": "",
+        "connectedCharacters": [],
+        "selectedCharacters": [],
+        "connectedImages": [],
+        "apiConfig": {
+          "platform": "juxin",
+          "model": "sora-2-all",
+          "aspect": "16:9",
+          "watermark": false
+        },
+        "duration": 10,
+        "taskId": null,
+        "taskStatus": "idle"
+      }
+    },
+    {
+      "id": "10",
+      "type": "taskResultNode",
+      "position": { "x": 900, "y": 300 },
+      "data": {
+        "label": "任务结果",
+        "taskId": null,
+        "taskStatus": "idle",
+        "videoUrl": null,
+        "platform": "juxin",
+        "progress": 0,
+        "error": null,
+        "connectedSourceId": null
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1-6",
+      "source": "1",
+      "target": "6",
+      "sourceHandle": "characters-output",
+      "targetHandle": "character-input"
+    },
+    {
+      "id": "e2-6",
+      "source": "2",
+      "target": "6",
+      "sourceHandle": "text-output",
+      "targetHandle": "prompt-input"
+    },
+    {
+      "id": "e6-10",
+      "source": "6",
+      "target": "10",
+      "sourceHandle": "video-output",
+      "targetHandle": "task-input"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "expectedResults": {
+    "error55": {
+      "description": "验证 Error 55 修复：角色对象完整传递",
+      "checks": [
+        "connectedCharacters 不为空",
+        "connectedCharacters[0] 包含 id 字段",
+        "connectedCharacters[0] 包含 username 字段（真实ID）",
+        "connectedCharacters[0] 包含 alias 字段（别名）",
+        "connectedCharacters[0] 包含 profilePictureUrl 字段",
+        "connectedCharacters[0] 包含 permalink 字段"
+      ]
+    },
+    "characterReference": {
+      "description": "验证角色引用双显示功能",
+      "checks": [
+        "输入框显示别名：@测试小猫",
+        "API 使用真实ID：@6f2dbf2b3.zenwhisper",
+        "角色引用格式正确（不带花括号）"
+      ]
+    },
+    "apiCall": {
+      "description": "验证 API 调用",
+      "checks": [
+        "API 端点：POST /api/video/create",
+        "请求包含 platform: juxin",
+        "请求包含 model: sora-2-all",
+        "请求包含 duration: 10",
+        "请求包含 prompt（含角色引用）",
+        "响应包含 taskId"
+      ]
+    },
+    "taskResult": {
+      "description": "验证任务结果显示",
+      "checks": [
+        "TaskResultNode 显示任务ID",
+        "轮询状态更新（IN_PROGRESS → SUCCESS）",
+        "进度百分比更新（0% → 100%）",
+        "视频URL正确显示"
+      ]
+    }
+  },
+  "createdAt": "2026-01-18T00:00:00.000Z",
+  "updatedAt": "2026-01-18T00:00:00.000Z"
+}
