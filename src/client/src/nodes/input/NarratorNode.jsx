@@ -101,7 +101,10 @@ export default function NarratorNode({ data }) {
 
   /**
    * 接收来自 CharacterLibraryNode 的角色数据
+   * ⭐ 修复无限循环：使用 ref 避免重复触发
    */
+  const lastCharacterDataRef = useRef(null);
+
   useEffect(() => {
     if (nodeId) {
       const edges = getEdges();
@@ -109,41 +112,32 @@ export default function NarratorNode({ data }) {
         (e) => e.target === nodeId && e.targetHandle === 'character-input'
       );
 
-      console.log('[NarratorNode] 检查角色连接:', {
-        nodeId,
-        hasCharacterEdge: !!characterEdge,
-        edge: characterEdge
-      });
-
-      if (characterEdge) {
-        const sourceNode = getNodes().find(n => n.id === characterEdge.source);
-        console.log('[NarratorNode] 源节点数据:', {
-          sourceId: characterEdge.source,
-          sourceType: sourceNode?.type,
-          hasSelectedCharacters: !!sourceNode?.data?.selectedCharacters,
-          hasConnectedCharacters: !!sourceNode?.data?.connectedCharacters,
-          selectedCount: sourceNode?.data?.selectedCharacters?.length || 0,
-          connectedCount: sourceNode?.data?.connectedCharacters?.length || 0
-        });
-
-        // ⭐ 关键修复：优先使用 connectedCharacters（完整对象）而非 selectedCharacters（仅 ID）
-        // 原因：selectedCharacters 仅包含 ID 数组，没有 username 等字段
-        // 导致 NarratorProcessorNode 匹配角色时 char.username 为 undefined（Error 55）
-        const characterData = sourceNode.data?.connectedCharacters || sourceNode.data?.selectedCharacters;
-        if (sourceNode?.type === 'characterLibraryNode' && characterData) {
-          console.log('[NarratorNode] ✅ 设置角色数据:', characterData.length, '个角色');
-          setConnectedCharacters(characterData);
-        } else {
-          console.warn('[NarratorNode] ⚠️ 未找到有效角色数据', {
-            isCharacterLibraryNode: sourceNode?.type === 'characterLibraryNode',
-            hasCharacterData: !!characterData
-          });
+      if (!characterEdge) {
+        // 没有连接时，清除角色数据（仅当之前有数据时）
+        if (connectedCharacters.length > 0) {
+          setConnectedCharacters([]);
+          lastCharacterDataRef.current = null;
         }
-      } else {
-        console.log('[NarratorNode] 未检测到角色连接');
+        return;
+      }
+
+      const sourceNode = getNodes().find(n => n.id === characterEdge.source);
+      const characterData = sourceNode?.data?.connectedCharacters || sourceNode?.data?.selectedCharacters;
+
+      // ⭐ 关键修复：只在数据真正变化时更新（避免无限循环）
+      const dataKey = JSON.stringify(characterData);
+      if (dataKey === lastCharacterDataRef.current) {
+        return; // 数据未变化，跳过
+      }
+
+      lastCharacterDataRef.current = dataKey;
+
+      if (sourceNode?.type === 'characterLibraryNode' && characterData) {
+        console.log('[NarratorNode] ✅ 设置角色数据:', characterData.length, '个角色');
+        setConnectedCharacters(characterData);
       }
     }
-  }, [nodeId, getEdges, getNodes]);
+  }, [nodeId]);  // ⭐ 只依赖 nodeId，移除 getEdges/getNodes
 
   /**
    * ⭐ 新增：监听 node.data.connectedCharacters 的变化（源节点推送数据时）
@@ -204,10 +198,13 @@ export default function NarratorNode({ data }) {
 
   /**
    * ⭐ 判断是否有可用的 OpenAI 配置（用于 UI 显示）
+   * ⭐ 修复无限循环：移除不稳定的依赖
    */
   const hasOpenAIConfig = useMemo(() => {
-    return !!getOpenAIConfig();
-  }, [openaiConfig, getEdges, getNodes]);
+    // 只检查内部状态，不依赖 getEdges/getNodes
+    // getOpenAIConfig() 会动态查找，但不会触发重渲染
+    return !!openaiConfig || !!data.openaiConfig;
+  }, [openaiConfig, data.openaiConfig]);
 
   /**
    * ⭐ 新增：智能匹配角色

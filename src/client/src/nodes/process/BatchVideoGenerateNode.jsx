@@ -376,12 +376,26 @@ function BatchVideoGenerateNode({ data }) {
               const sentenceIndex = selectedSentencesArray[arrIndex];
               // ⭐ 优先级: 手动 > 优化 > 原文
               const finalPrompt = manualPrompts[sentenceIndex] || s.optimized || s.text;
+
+              // ⭐ 关键修复：根据平台使用正确的参数名和值
+              // - 聚鑫平台: orientation (portrait/landscape), size (small/large)
+              // - 贞贞平台: aspect_ratio (16:9/9:16), hd (true/false)
+              const isJuxin = finalConfig.platform === 'juxin';
               return {
                 prompt: finalPrompt,
-                model: finalConfig.model === 'sora-2' ? 'sora-2-all' : finalConfig.model,
-                duration: duration,  // ⭐ 使用状态值（默认15秒）
-                aspect_ratio: finalConfig.aspect === '16:9' ? 'landscape' : 'portrait',
-                watermark: finalConfig.watermark,
+                // ⭐ 模型自动匹配平台（聚鑫只用 sora-2-all，贞贞用 sora-2 或 sora-2-pro）
+                model: isJuxin ? 'sora-2-all' : (finalConfig.model || 'sora-2'),
+                duration: duration,
+                // ⭐ 聚鑫用 orientation，贞贞用 aspect_ratio
+                ...(isJuxin
+                  ? { orientation: finalConfig.aspect === '16:9' ? 'landscape' : 'portrait' }
+                  : { aspect_ratio: finalConfig.aspect }),
+                // ⭐ 聚鑫用 watermark，贞贞不用
+                ...(isJuxin ? { watermark: finalConfig.watermark } : {}),
+                // ⭐ 聚鑫用 size，贞贞用 hd
+                ...(isJuxin
+                  ? { size: 'small' }
+                  : { hd: false }),
                 images: connectedImages.length > 0 ? connectedImages : []
               };
             })

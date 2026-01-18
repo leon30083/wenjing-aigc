@@ -271,14 +271,19 @@ class BatchQueue {
     const client = new Sora2Client({ platform: batch.platform });
 
     try {
-      // 创建新任务（使用新提示词）
+      // 创建新任务（使用新提示词，传递完整的 job 参数）
+      // ⭐ job 对象已经包含了正确的平台特定参数（orientation/aspect_ratio, size/hd等）
       const createResult = await client.createVideo({
         prompt: prompt,
         model: job.model,
         duration: job.duration,
-        aspect_ratio: job.aspect_ratio,
-        watermark: job.watermark,
-        images: job.images
+        // ⭐ 传递平台特定参数（如果存在）
+        ...(job.orientation !== undefined && { orientation: job.orientation }),
+        ...(job.aspect_ratio !== undefined && { aspect_ratio: job.aspect_ratio }),
+        ...(job.watermark !== undefined && { watermark: job.watermark }),
+        ...(job.size !== undefined && { size: job.size }),
+        ...(job.hd !== undefined && { hd: job.hd }),
+        ...(job.images && { images: job.images })
       });
 
       if (createResult.success) {
