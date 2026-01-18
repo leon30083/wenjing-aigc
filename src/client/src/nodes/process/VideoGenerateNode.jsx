@@ -405,6 +405,32 @@ function VideoGenerateNode({ data }) {
     }
   };
 
+  // ⭐ 批量任务状态（已废弃，使用 BatchVideoGenerateNode 代替）
+  // const [batchId, setBatchId] = useState(null);
+
+  // ⭐ 监听优化完成事件（单句模式）
+  useEffect(() => {
+    const handleOptimizationComplete = (event) => {
+      const { nodeId: sourceNodeId } = event.detail;
+
+      // 验证事件来源
+      const edges = getEdges();
+      const narratorEdge = edges.find(
+        e => e.source === sourceNodeId && e.target === nodeId
+      );
+
+      if (narratorEdge) {
+        console.log('[VideoGenerateNode] ✅ 单句优化完成');
+        // 单句模式：不自动生成，用户手动点击生成按钮
+      }
+    };
+
+    window.addEventListener('narrator-optimization-complete', handleOptimizationComplete);
+    return () => {
+      window.removeEventListener('narrator-optimization-complete', handleOptimizationComplete);
+    };
+  }, [getEdges, nodeId]);
+
   // ⭐ 加载当前旁白（从 NarratorProcessorNode 读取当前句子）
   const loadCurrentSentence = () => {
     console.log('[VideoGenerateNode] 📥 加载当前旁白 - 开始');
@@ -577,17 +603,28 @@ function VideoGenerateNode({ data }) {
         <span style={{ fontSize: '10px', color: '#a855f7', fontWeight: 'bold', whiteSpace: 'nowrap' }}>旁白</span>
       </div>
 
-      {/* Output Handle */}
+      {/* Output Handles */}
       <Handle
         type="source"
         position={Position.Right}
         id="video-output"
-        style={{ background: '#10b981', width: 10, height: 10 }}
+        style={{ background: '#10b981', width: 10, height: 10, top: '40%' }}
       />
 
-      {/* Output Label (separate from handle) */}
-      <div style={{ position: 'absolute', right: '18px', top: '50%', transform: 'translateY(-50%)', zIndex: 10 }}>
+      {/* ⭐ 批量输出端口 */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="batch-output"
+        style={{ background: '#8b5cf6', width: 10, height: 10, top: '60%' }}
+      />
+
+      {/* Output Labels (separate from handles) */}
+      <div style={{ position: 'absolute', right: '18px', top: '40%', transform: 'translateY(-50%)', zIndex: 10 }}>
         <span style={{ fontSize: '10px', color: '#10b981', fontWeight: 'bold', whiteSpace: 'nowrap' }}>视频</span>
+      </div>
+      <div style={{ position: 'absolute', right: '18px', top: '60%', transform: 'translateY(-50%)', zIndex: 10 }}>
+        <span style={{ fontSize: '10px', color: '#8b5cf6', fontWeight: 'bold', whiteSpace: 'nowrap' }}>批量</span>
       </div>
 
       {/* Node Header */}

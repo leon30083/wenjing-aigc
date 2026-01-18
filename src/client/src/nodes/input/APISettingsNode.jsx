@@ -1,50 +1,22 @@
-import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
-import React, { useState, useEffect, useRef } from 'react';
+import { Handle, Position } from 'reactflow';
+import React from 'react';
 import { useNodeResize } from '../../hooks/useNodeResize';
+import { useAPIConfig } from '../../contexts/APIConfigContext';
 
+/**
+ * APISettingsNode - API 配置节点
+ *
+ * ⭐ 重构：使用 APIConfigContext 统一管理配置状态
+ * - 移除本地 useState 管理的 config
+ * - 使用 useAPIConfig Hook 获取全局配置
+ * - 移除所有 useEffect 同步逻辑（Context 自动处理）
+ * - 移除早期恢复机制（Context 自动处理）
+ *
+ * 解决问题：错误56 - useState 异步闭包问题导致配置丢失
+ */
 function APISettingsNode({ data }) {
-  const nodeId = useNodeId();
-  const { setNodes, getEdges, edges } = useReactFlow();
-
-  const [config, setConfig] = useState({
-    platform: 'juxin',         // 'juxin' | 'zhenzhen'
-    model: 'sora-2-all',     // 'sora-2-all' | 'sora-2' | 'sora-2-pro'
-    aspect: '16:9',         // '16:9' | '9:16'
-    watermark: false,       // true | false
-    apiKey: '',            // API Key（用户自定义）
-  });
-
-  const onSizeChangeRef = useRef(data.onSizeChange);
-
-  useEffect(() => {
-    onSizeChangeRef.current = data.onSizeChange;
-  }, [data.onSizeChange]);
-
-  // 传递配置到下游节点
-  useEffect(() => {
-    if (nodeId) {
-      const edges = getEdges();
-      const outgoingEdges = edges.filter(e => e.source === nodeId);
-
-      setNodes((nds) =>
-        nds.map((node) => {
-          const isConnected = outgoingEdges.some(e => e.target === node.id);
-          if (isConnected) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                apiConfig: config,
-                apiConfigSourceId: nodeId,
-                apiConfigSourceLabel: data.label || 'API 设置'
-              }
-            };
-          }
-          return node;
-        })
-      );
-    }
-  }, [config, nodeId, getEdges, setNodes, data.label, edges]); // ⭐ 添加 edges
+  // ⭐ 从 Context 获取全局配置（单一数据源）
+  const { config, updateConfig } = useAPIConfig();
 
   const { resizeStyles, handleResizeMouseDown, getResizeHandleStyles } = useNodeResize(
     data,
@@ -96,7 +68,7 @@ function APISettingsNode({ data }) {
             const newPlatform = e.target.value;
             // ⭐ 根据平台自动切换默认模型
             const newModel = newPlatform === 'juxin' ? 'sora-2-all' : 'sora-2';
-            setConfig({ ...config, platform: newPlatform, model: newModel });
+            updateConfig({ platform: newPlatform, model: newModel });
           }}
           onWheel={(e) => e.stopPropagation()}
           style={{
@@ -125,7 +97,7 @@ function APISettingsNode({ data }) {
           name="model"
           className="nodrag"
           value={config.model}
-          onChange={(e) => setConfig({ ...config, model: e.target.value })}
+          onChange={(e) => updateConfig({ model: e.target.value })}
           onWheel={(e) => e.stopPropagation()}
           style={{
             width: '100%',
@@ -138,9 +110,17 @@ function APISettingsNode({ data }) {
             cursor: 'pointer',
           }}
         >
-          <option value="sora-2-all" style={{ backgroundColor: 'white', color: '#1e293b' }}>Sora-2-all</option>
-          <option value="sora-2" style={{ backgroundColor: 'white', color: '#1e293b' }}>Sora-2</option>
-          <option value="sora-2-pro" style={{ backgroundColor: 'white', color: '#1e293b' }}>Sora-2 Pro</option>
+          {/* ⭐ 根据平台显示支持的模型选项 */}
+          {config.platform === 'juxin' ? (
+            <>
+              <option value="sora-2-all" style={{ backgroundColor: 'white', color: '#1e293b' }}>Sora-2-all</option>
+            </>
+          ) : (
+            <>
+              <option value="sora-2" style={{ backgroundColor: 'white', color: '#1e293b' }}>Sora-2</option>
+              <option value="sora-2-pro" style={{ backgroundColor: 'white', color: '#1e293b' }}>Sora-2 Pro</option>
+            </>
+          )}
         </select>
       </div>
 
@@ -154,7 +134,7 @@ function APISettingsNode({ data }) {
           name="aspect"
           className="nodrag"
           value={config.aspect}
-          onChange={(e) => setConfig({ ...config, aspect: e.target.value })}
+          onChange={(e) => updateConfig({ aspect: e.target.value })}
           onWheel={(e) => e.stopPropagation()}
           style={{
             width: '100%',
@@ -181,7 +161,7 @@ function APISettingsNode({ data }) {
             className="nodrag"
             type="checkbox"
             checked={config.watermark}
-            onChange={(e) => setConfig({ ...config, watermark: e.target.checked })}
+            onChange={(e) => updateConfig({ watermark: e.target.checked })}
             onWheel={(e) => e.stopPropagation()}
             style={{ cursor: 'pointer', width: '16px', height: '16px' }}
           />
@@ -202,7 +182,7 @@ function APISettingsNode({ data }) {
           className="nodrag"
           type="password"
           value={config.apiKey}
-          onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
+          onChange={(e) => updateConfig({ apiKey: e.target.value })}
           onWheel={(e) => e.stopPropagation()}
           placeholder="留空使用后端默认密钥"
           style={{

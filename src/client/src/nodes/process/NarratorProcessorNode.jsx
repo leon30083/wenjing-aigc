@@ -184,15 +184,9 @@ export default function NarratorProcessorNode({ data }) {
       return;
     }
 
-    // 只同步最重要的数据（优化后的句子数组）
-    // 避免同步过多数据导致无限循环
-    const hasOptimizedData = sentences.some(s => s.optimized);
-    if (!hasOptimizedData) {
-      console.log('[NarratorProcessorNode] ⏭️ 没有优化数据，跳过同步');
-      return; // 没有优化数据时不同步（避免覆盖旧数据）
-    }
-
-    console.log('[NarratorProcessorNode] ✅ 有优化数据，开始同步...');
+    // ⭐ 重要：移除"没有优化数据时跳过同步"的逻辑
+    // 即使没有优化数据，也应该保存当前状态（如 currentIndex, style 等）
+    console.log('[NarratorProcessorNode] ✅ 开始同步...');
 
     setNodes((nds) =>
       nds.map((node) => {
@@ -212,7 +206,11 @@ export default function NarratorProcessorNode({ data }) {
           return node;
         }
 
-        console.log('[NarratorProcessorNode] ✅ 数据已变化，同步到 node.data:', { currentIndex });
+        console.log('[NarratorProcessorNode] ✅ 数据已变化，同步到 node.data:', {
+          currentIndex,
+          sentencesLength: sentences.length,
+          hasOptimized: sentences.some(s => s.optimized)
+        });
 
         return {
           ...node,
@@ -230,6 +228,39 @@ export default function NarratorProcessorNode({ data }) {
       })
     );
   }, [sentences, currentIndex, style, targetDuration, optimizationDirection, customStyleDescription, nodeId, setNodes]);
+
+  // ⭐ 监听工作流保存前事件，强制同步最新状态
+  useEffect(() => {
+    const handleBeforeSave = () => {
+      console.log('[NarratorProcessorNode] 📥 收到 workflow-before-save 事件，强制同步最新状态');
+      // 立即同步当前状态到 node.data
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id !== nodeId) return node;
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              sentences,
+              currentIndex,
+              style,
+              targetDuration,
+              optimizationDirection,
+              customStyleDescription,
+              // 保存 OpenAI 配置（如果有）
+              openaiConfig,
+            }
+          };
+        })
+      );
+    };
+
+    window.addEventListener('workflow-before-save', handleBeforeSave);
+    return () => {
+      window.removeEventListener('workflow-before-save', handleBeforeSave);
+    };
+  }, [sentences, currentIndex, style, targetDuration, optimizationDirection, customStyleDescription, openaiConfig, nodeId, setNodes]);
 
   /**
    * 优化单个句子
@@ -436,34 +467,24 @@ export default function NarratorProcessorNode({ data }) {
     // ⭐ 立即更新状态，确保 UI 显示正确（readyCount = 0）
     setSentences(tempSentences);
 
-    // ⭐ 添加日志：开始优化循环
-    console.log('[NarratorProcessorNode] ========== 开始优化循环 ==========');
+    // ⭐ 添加日志：开始并发优化循环
+    console.log('[NarratorProcessorNode] ========== 开始串行优化循环 ==========');
     console.log('[NarratorProcessorNode] 待优化句子数:', tempSentences.length);
 
+    // ⭐ 串行优化：逐个优化（保持原有逻辑，确保角色数据正确传递）
     for (let i = 0; i < tempSentences.length; i++) {
       console.log(`[NarratorProcessorNode] [${i + 1}/${tempSentences.length}] 开始优化`);
 
-      // 更新本地变量
-      tempSentences[i] = {
-        ...tempSentences[i],
-        status: 'optimizing'
-      };
-
-      // ⭐ 实时更新 UI（isOptimizingRef 会防止同步 useEffect）
+      // 标记为优化中
+      tempSentences[i] = { ...tempSentences[i], status: 'optimizing' };
       setSentences([...tempSentences]);
 
       try {
         // 优化句子
         const optimized = await optimizeSentence(tempSentences[i]);
         results.push(optimized);
-
-        // 更新本地变量
         tempSentences[i] = optimized;
-
-        // ⭐ 实时更新 UI（显示优化完成的句子）
         setSentences([...tempSentences]);
-
-        // 实时更新进度百分比
         setProgress(Math.round(((i + 1) / tempSentences.length) * 100));
 
         console.log(`[NarratorProcessorNode] [${i + 1}/${tempSentences.length}] 优化成功`, {
@@ -472,17 +493,12 @@ export default function NarratorProcessorNode({ data }) {
         });
       } catch (error) {
         console.error(`[NarratorProcessorNode] [${i + 1}/${tempSentences.length}] 优化失败:`, error);
-        tempSentences[i] = {
-          ...tempSentences[i],
-          status: 'error',
-          error: error.message
-        };
-        // ⭐ 实时更新 UI（显示失败的句子）
+        tempSentences[i] = { ...tempSentences[i], status: 'error', error: error.message };
         setSentences([...tempSentences]);
       }
     }
 
-    console.log('[NarratorProcessorNode] ========== 优化循环完成 ==========');
+    console.log('[NarratorProcessorNode] ========== 串行优化循环完成 ==========');
     console.log('[NarratorProcessorNode] 优化结果统计:', {
       总数: tempSentences.length,
       成功: results.filter(r => r.optimized).length,
@@ -523,6 +539,19 @@ export default function NarratorProcessorNode({ data }) {
           successCount: results.filter(r => r.optimized).length
         }
       }));
+
+      // ⭐ 新增：派发批量优化完成事件（用于批量生成视频）
+      if (results.length > 1) {
+        console.log('[NarratorProcessorNode] 🎬 检测到批量模式，派发批量事件');
+        window.dispatchEvent(new CustomEvent('narrator-batch-optimization-complete', {
+          detail: {
+            sourceNodeId: nodeId,
+            sentences: results,  // ⭐ 传递完整的优化结果数组
+            totalSentences: results.length,
+            optimizedCount: results.filter(r => r.optimized).length
+          }
+        }));
+      }
     }
     } finally {
       // ⭐ 确保标记总是被清除（即使发生错误）
@@ -590,6 +619,38 @@ export default function NarratorProcessorNode({ data }) {
         );
 
         console.log('[NarratorProcessorNode] ✅ VideoGenerateNode 数据已更新');
+      } else if (targetNode?.type === 'batchVideoGenerateNode') {
+        // ⭐ 新增: 支持批量视频生成节点
+        console.log('[NarratorProcessorNode] 目标节点是批量视频生成节点');
+
+        const optimizedIndexes = optimizedSentences
+          .map((s, i) => s.optimized ? i : -1)
+          .filter(i => i !== -1);
+
+        const newData = {
+          ...targetNode.data,
+          sentences: optimizedSentences,
+          selectedSentences: optimizedIndexes
+        };
+
+        console.log('[NarratorProcessorNode] 准备更新 BatchVideoGenerateNode 数据:', {
+          总句子数: optimizedSentences.length,
+          已优化数: optimizedIndexes.length,
+          已全选索引: optimizedIndexes
+        });
+
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === targetNode.id
+              ? {
+                  ...node,
+                  data: newData
+                }
+              : node
+          )
+        );
+
+        console.log('[NarratorProcessorNode] ✅ BatchVideoGenerateNode 数据已更新');
       } else {
         console.warn('[NarratorProcessorNode] ⚠️ 目标节点类型不匹配:', targetNode?.type);
       }

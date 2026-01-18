@@ -30,14 +30,43 @@ export class WorkflowStorage {
   static saveWorkflow(name, nodes, edges, description = '') {
     try {
       const workflows = this.getAllWorkflows();
+
+      // ⭐ 深拷贝节点，确保所有 data 都被序列化
+      // React Flow 的 nodes 可能包含循环引用或不可序列化的数据
+      const serializedNodes = JSON.parse(JSON.stringify(nodes, (key, value) => {
+        // 跳过 React 内部属性
+        if (key.startsWith('_') || key === 'reactFlowInternal') {
+          return undefined;
+        }
+        return value;
+      }));
+
+      // ⭐ 深拷贝 edges
+      const serializedEdges = JSON.parse(JSON.stringify(edges));
+
       workflows[name] = {
         name,
         description,
-        nodes,
-        edges,
+        nodes: serializedNodes,
+        edges: serializedEdges,
         updatedAt: new Date().toISOString(),
         createdAt: workflows[name]?.createdAt || new Date().toISOString(),
       };
+
+      console.log(`[WorkflowStorage] 保存工作流 "${name}":`, {
+        nodeCount: serializedNodes.length,
+        edgeCount: serializedEdges.length,
+        // 记录关键节点的关键数据
+        keyNodes: serializedNodes.map(n => ({
+          id: n.id,
+          type: n.type,
+          hasSentences: !!n.data?.sentences,
+          sentencesLength: n.data?.sentences?.length || 0,
+          hasManualPrompts: !!n.data?.manualPrompts,
+          hasManualPrompt: !!n.data?.manualPrompt,
+        }))
+      });
+
       localStorage.setItem(STORAGE_KEY, JSON.stringify(workflows));
       localStorage.setItem(CURRENT_WORKFLOW_KEY, name);
       return { success: true, data: workflows[name] };

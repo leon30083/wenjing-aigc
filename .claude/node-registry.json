@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generatedAt": "2026-01-09T04:41:48.475Z",
+  "generatedAt": "2026-01-14T09:34:45.498Z",
   "nodes": {
     "aPISettingsNode": {
       "nodeType": "aPISettingsNode",
@@ -86,6 +86,20 @@
       },
       "exists": true
     },
+    "batchResultNode": {
+      "nodeType": "batchResultNode",
+      "fileName": "BatchResultNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\output\\BatchResultNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\output\\BatchResultNode.jsx",
+      "category": null,
+      "componentName": "BatchResultNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
     "characterResultNode": {
       "nodeType": "characterResultNode",
       "fileName": "CharacterResultNode.jsx",
@@ -107,6 +121,20 @@
       "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\output\\TaskResultNode.jsx",
       "category": null,
       "componentName": "TaskResultNode",
+      "label": null,
+      "handles": {
+        "inputs": [],
+        "outputs": []
+      },
+      "exists": true
+    },
+    "batchVideoGenerateNode": {
+      "nodeType": "batchVideoGenerateNode",
+      "fileName": "BatchVideoGenerateNode.jsx",
+      "filePath": "..\\src\\client\\src\\nodes\\process\\BatchVideoGenerateNode.jsx",
+      "absolutePath": "D:\\user\\github\\winjin\\src\\client\\src\\nodes\\process\\BatchVideoGenerateNode.jsx",
+      "category": null,
+      "componentName": "BatchVideoGenerateNode",
       "label": null,
       "handles": {
         "inputs": [],
@@ -229,6 +257,6 @@
   },
   "summary": {
     "byCategory": {},
-    "total": 16
+    "total": 18
   }
 }

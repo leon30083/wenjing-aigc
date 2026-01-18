@@ -20,6 +20,30 @@ const path = require('path');
 
 const NODES_DIR = path.join(__dirname, '../src/client/src/nodes');
 const REGISTRY_PATH = path.join(__dirname, '../.claude/node-registry.json');
+const CONFIG_PATH = path.join(__dirname, 'validation-config.json');
+
+/**
+ * 加载验证配置
+ */
+function loadValidationConfig() {
+  try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      const configContent = fs.readFileSync(CONFIG_PATH, 'utf-8');
+      return JSON.parse(configContent);
+    }
+  } catch (error) {
+    console.warn(`⚠️  无法加载验证配置: ${error.message}`);
+  }
+  return {
+    contextFields: { fields: {} },
+    ignoredNodes: { nodes: [] },
+    initOnlyFields: { fields: {} },
+    connectionRules: { overrides: [] }
+  };
+}
+
+// 全局加载配置
+const validationConfig = loadValidationConfig();
 
 /**
  * 从命令行参数获取选项
@@ -526,6 +550,24 @@ function validateDataFlowDetailed(nodeAnalyses, connections, options) {
       const targetDeps = new Set(targetNode.dataContract.dependencies);
 
       conn.dataFields.forEach(field => {
+        // ⭐ 新增：检查是否是 Context 字段
+        const isContextField = validationConfig.contextFields.fields[field];
+        if (isContextField) {
+          console.log(`ℹ️  跳过检查: ${field} 来自 ${isContextField.source}`);
+          return; // 跳过此字段的检查
+        }
+
+        // ⭐ 新增：检查连接规则覆盖
+        const connectionOverride = validationConfig.connectionRules.overrides.find(
+          rule => rule.source === conn.source &&
+                 rule.target === conn.target &&
+                 rule.field === field
+        );
+        if (connectionOverride && connectionOverride.skipChecks.includes('source_not_writing')) {
+          console.log(`ℹ️  跳过检查: ${conn.source} → ${conn.target} (${field}) - ${connectionOverride.reason}`);
+          return; // 跳过此字段的检查
+        }
+
         // 检查1: 源节点是否写入此字段
         if (!sourceWrites.has(field)) {
           issues.push({
@@ -556,6 +598,27 @@ function validateDataFlowDetailed(nodeAnalyses, connections, options) {
 
         // 检查3: 目标节点是否在 useEffect 中监听此字段
         if (targetReads.has(field) && !targetDeps.has(field)) {
+          // ⭐ 新增：检查是否是初始化字段（不需要监听）
+          const initOnlyField = validationConfig.initOnlyFields.fields[field];
+          if (initOnlyField && initOnlyField.node === conn.target) {
+            console.log(`ℹ️  跳过检查: ${field} 在 ${conn.target} 中只在初始化时读取 - ${initOnlyField.reason}`);
+            return; // 跳过此字段的依赖检查
+          }
+
+          // ⭐ 新增：检查是否是 Context 字段（通过 Context 传递，不监听 data.xxx）
+          const isContextField = validationConfig.contextFields.fields[field];
+          if (isContextField) {
+            console.log(`ℹ️  跳过检查: ${field} 通过 ${isContextField.source} 提供，不监听 data.${field}`);
+            return; // 跳过此字段的依赖检查
+          }
+
+          // ⭐ 新增：检查是否是已正确监听的字段
+          const monitoredField = validationConfig.monitoredFields.fields[field];
+          if (monitoredField && monitoredField.node === conn.target) {
+            console.log(`ℹ️  跳过检查: ${field} 已正确监听 - ${monitoredField.reason}`);
+            return; // 跳过此字段的依赖检查
+          }
+
           issues.push({
             type: 'missing_dependency',
             severity: 'warning',

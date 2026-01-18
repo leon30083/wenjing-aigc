@@ -523,6 +523,26 @@ app.post('/api/batch/:batchId/submit', async (req, res) => {
 });
 
 /**
+ * ⭐ 重试失败的任务（修改提示词后重新提交）
+ * POST /api/batch/:batchId/retry
+ */
+app.post('/api/batch/:batchId/retry', async (req, res) => {
+  try {
+    const { batchId } = req.params;
+    const { jobId, prompt } = req.body;
+
+    if (!jobId || !prompt) {
+      return res.json({ success: false, error: 'Missing required parameters: jobId, prompt' });
+    }
+
+    const result = await batchQueue.retryJob(batchId, jobId, prompt);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
  * 轮询批量任务状态（从第一个开始，完成后查询下一个）
  * GET /api/batch/:batchId/poll
  */
@@ -668,6 +688,90 @@ app.get('/api/backup/info', (req, res) => {
         timestamp: new Date().toISOString(),
       },
     });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// ==================== Metrics API ====================
+
+const metricsStorage = require('../../scripts/metrics/metrics-storage');
+
+/**
+ * GET /api/metrics
+ * 获取所有验证指标
+ */
+app.get('/api/metrics', (req, res) => {
+  try {
+    const metrics = metricsStorage.getMetrics();
+    res.json({ success: true, data: metrics });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/metrics/trends
+ * 获取趋势分析数据
+ */
+app.get('/api/metrics/trends', (req, res) => {
+  try {
+    const trends = metricsStorage.getTrends();
+    res.json({ success: true, data: trends });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/metrics/history
+ * 获取历史记录
+ * Query: limit (可选，默认 10)
+ */
+app.get('/api/metrics/history', (req, res) => {
+  try {
+    const { limit } = req.query;
+    const history = metricsStorage.getHistory(limit ? parseInt(limit) : 10);
+    res.json({ success: true, data: history });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/metrics/by-type
+ * 获取按类型分组的指标
+ */
+app.get('/api/metrics/by-type', (req, res) => {
+  try {
+    const byType = metricsStorage.getMetricsByType();
+    res.json({ success: true, data: byType });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/metrics/by-date
+ * 获取按日期分组的指标
+ */
+app.get('/api/metrics/by-date', (req, res) => {
+  try {
+    const byDate = metricsStorage.getMetricsByDate();
+    res.json({ success: true, data: byDate });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/metrics/clear
+ * 清空所有指标数据
+ */
+app.post('/api/metrics/clear', (req, res) => {
+  try {
+    metricsStorage.clear();
+    res.json({ success: true, message: '指标数据已清空' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }

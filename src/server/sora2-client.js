@@ -142,8 +142,32 @@ class Sora2Client {
         images = [],
       } = options;
 
-      // 根据平台设置默认模型
-      const finalModel = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
+      // ⭐ 平台模型映射（2026-01-14 新增）
+      const PLATFORM_MODELS = {
+        JUXIN: ['sora-2-all'],           // 聚鑫只支持 sora-2-all
+        ZHENZHEN: ['sora-2', 'sora-2-pro'], // 贞贞支持 sora-2 和 sora-2-pro
+      };
+
+      // 获取当前平台支持的模型列表
+      const validModelsForPlatform = PLATFORM_MODELS[this.platformType] || [];
+
+      // ⭐ 智能模型选择和验证
+      let finalModel;
+      if (model) {
+        // 前端传入了 model 参数
+        if (validModelsForPlatform.includes(model)) {
+          // 模型匹配当前平台，直接使用
+          finalModel = model;
+        } else {
+          // ⚠️ 模型不匹配当前平台，自动修正
+          const defaultModel = validModelsForPlatform[0];
+          console.warn(`[Sora2Client] ⚠️ 模型 ${model} 不支持平台 ${this.platform.name}，自动修正为 ${defaultModel}`);
+          finalModel = defaultModel;
+        }
+      } else {
+        // 前端未传入 model，使用平台默认模型
+        finalModel = validModelsForPlatform[0];
+      }
 
       // 参数校验
       if (!prompt) {

@@ -207,6 +207,7 @@ class BatchQueue {
           taskId: j.taskId,
           result: j.result,
           error: j.error,
+          progress: j.taskData?.progress || 0,  // ⭐ 添加进度字段
         })),
       },
     };
@@ -242,9 +243,69 @@ class BatchQueue {
           taskId: j.taskId,
           result: j.result,
           error: j.error,
+          progress: j.taskData?.progress || 0,  // ⭐ 添加进度字段
         })),
       },
     };
+  }
+
+  /**
+   * ⭐ 重试失败的任务
+   * @param {string} batchId - 批量任务 ID
+   * @param {string} jobId - 任务 ID
+   * @param {string} prompt - 新的提示词
+   * @returns {Promise<object>} 重试结果
+   */
+  async retryJob(batchId, jobId, prompt) {
+    const batch = this.batches.get(batchId);
+    if (!batch) {
+      return { success: false, error: 'Batch not found' };
+    }
+
+    const jobIndex = batch.jobs.findIndex(j => j.jobId === jobId);
+    if (jobIndex === -1) {
+      return { success: false, error: 'Job not found' };
+    }
+
+    const job = batch.jobs[jobIndex];
+    const client = new Sora2Client({ platform: batch.platform });
+
+    try {
+      // 创建新任务（使用新提示词）
+      const createResult = await client.createVideo({
+        prompt: prompt,
+        model: job.model,
+        duration: job.duration,
+        aspect_ratio: job.aspect_ratio,
+        watermark: job.watermark,
+        images: job.images
+      });
+
+      if (createResult.success) {
+        const newTaskId = createResult.data.id || createResult.data.task_id;
+
+        // 更新任务状态
+        job.taskId = newTaskId;
+        job.prompt = prompt;
+        job.status = 'submitted';
+        job.error = null;
+        job.result = null;
+        job.retryCount = (job.retryCount || 0) + 1;
+
+        return {
+          success: true,
+          data: {
+            jobId: job.jobId,
+            taskId: newTaskId,
+            retryCount: job.retryCount
+          }
+        };
+      } else {
+        return { success: false, error: createResult.error || 'Failed to create retry task' };
+      }
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   }
 
   /**
