@@ -1220,6 +1220,4 @@ PORT=9000
 
 ## 参考文档
 
-- **开发经验**: `reference/用户输入文件夹/开发经验/Sora2_Character_Best_Practices.md`
-- **聚鑫 API**: `reference/用户输入文件夹/聚鑫sora2/`
-- **贞贞 API**: `reference/用户输入文件夹/贞贞工坊/`
+⚠️ **注意**: 原项目参考文档（reference/ 文件夹）已不再维护。所有 API 规范已整合到本规则文件的"API 规范"章节。
