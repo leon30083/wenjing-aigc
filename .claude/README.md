@@ -49,18 +49,18 @@ React Flow 节点开发规范
 ## 🚀 快速开始
 
 ### 新手入门
-1. 阅读 [00-philosophy/glue-programming.md](00-philosophy/glue-programming.md) - 理解胶水编程
-2. 阅读 [01-fundamentals/tech-stack.md](01-fundamentals/tech-stack.md) - 了解技术栈
-3. 阅读 [02-methodology/development-flow.md](02-methodology/development-flow.md) - 掌握开发流程
+1. 阅读 [00-philosophy/references/glue-programming.md](00-philosophy/references/glue-programming.md) - 理解胶水编程
+2. 阅读 [01-fundamentals/references/tech-stack.md](01-fundamentals/references/tech-stack.md) - 了解技术栈
+3. 阅读 [02-methodology/references/development-flow.md](02-methodology/references/development-flow.md) - 掌握开发流程
 
 ### 节点开发
-1. 阅读 [03-node-development/node-architecture.md](03-node-development/node-architecture.md) - 节点架构
-2. 使用 `/skills reactflow-dev --type=input|process|output --name=NodeName` - 快速创建节点
-3. 参考 [03-node-development/node-templates.md](03-node-development/node-templates.md) - 节点模板
+1. 阅读 [03-node-development/references/node-architecture.md](03-node-development/references/node-architecture.md) - 节点架构
+2. 使用 `/skills node-dev` - React Flow 节点开发技能 ⭐ v2.0 更新
+3. 参考 [03-node-development/references/node-templates.md](03-node-development/references/node-templates.md) - 节点模板
 
 ### 问题排查
-1. 查看 [04-error-patterns/errors-by-type.md](04-error-patterns/errors-by-type.md) - 错误模式库
-2. 使用 [04-error-patterns/prevention-checklist.md](04-error-patterns/prevention-checklist.md) - 预防检查
+1. 查看 [04-error-patterns/references/errors-by-type.md](04-error-patterns/references/errors-by-type.md) - 错误模式库
+2. 使用 [04-error-patterns/references/prevention-checklist.md](04-error-patterns/references/prevention-checklist.md) - 预防检查
 
 ---
 

@@ -1,405 +1,232 @@
-# 自动化层
+# 05-automation: 自动化层
 
-> **版本**: v1.0.0
-> **更新日期**: 2026-01-18
-
----
-
-## 概述
-
-自动化层是 WinJin 项目的智能增强系统，通过 MCP (Model Context Protocol) 集成多个自动化工具，实现测试自动化、文档查询、知识管理和持续学习。
+> **版本**: v2.0.0
+> **更新日期**: 2026-01-23
+> **定位**: WinJin 项目的自动化工具和持续学习
 
 ---
 
-## 目录结构
+## 核心公式
 
 ```
-05-automation/
-├── README.md                      # 本文件 - 导航文档
-├── mcp-integration.md             # MCP 集成指南
-├── auto-testing.md                # 自动化测试系统
-├── continuous-learning.md         # 持续学习机制
-└── automation-architecture.md      # 自动化架构文档
+自动化 = MCP工具 + 测试脚本 + 一键安装
+
+持续学习 = 错误监控 + 模式识别 + 规则生成
+
+知识管理 = Memory图谱 + 跨会话记忆
 ```
 
 ---
 
-## 快速链接
+## MCP 工具概览 ⭐ 核心
 
-### 核心文档
+### 7个核心工具
 
-| 文档 | 用途 | 优先级 |
-|------|------|--------|
-| [MCP 集成指南](./mcp-integration.md) | 了解如何使用 MCP 工具 | ⭐⭐⭐ |
-| [自动化测试](./auto-testing.md) | 测试架构和执行 | ⭐⭐⭐ |
-| [持续学习](./continuous-learning.md) | 错误分析和改进 | ⭐⭐ |
-| [自动化架构](./automation-architecture.md) | 系统架构和设计 | ⭐⭐ |
+| 工具 | 功能 | 优先级 | 使用场景 |
+|------|------|--------|----------|
+| **Chrome DevTools** | 浏览器自动化 | ⭐⭐⭐⭐⭐ | 测试验证、UI调试、性能分析 |
+| **Context7** | 文档查询 | ⭐⭐⭐⭐⭐ | 功能开发、查阅API、代码示例 |
+| **Memory** | 知识图谱 | ⭐⭐⭐ | 跨会话记忆、知识管理 |
+| **Z-Read** | GitHub 阅读 | ⭐⭐⭐⭐ | 代码阅读、开源项目研究 |
+| **Web Search** | 网页搜索 | ⭐⭐⭐ | 资料查找、解决方案搜索 |
+| **ZAI MCP** | 图像分析 | ⭐⭐⭐ | 图片/视频分析、UI转代码 |
+| **Fetch** | HTTP 请求 | ⭐⭐⭐ | API测试、数据抓取 |
+
+### 任务→工具映射
+
+| 开发任务 | 推荐工具 | 优先级 | 使用示例 |
+|---------|---------|--------|----------|
+| **功能开发** | Context7 | ⭐⭐⭐⭐⭐ | `query-docs("/react", "useState hook")` |
+| **API测试** | Chrome DevTools | ⭐⭐⭐⭐⭐ | `list_network_requests()` + `take_screenshot()` |
+| **代码调试** | Chrome DevTools | ⭐⭐⭐⭐⭐ | `list_console_messages()` + `evaluate_script()` |
+| **资料查找** | Web Search | ⭐⭐⭐⭐ | `webSearchPrime("React Flow 2026 docs")` |
+| **跨会话记忆** | Memory | ⭐⭐⭐ | `create_entities()` + `search_nodes()` |
+| **GitHub阅读** | Z-Read | ⭐⭐⭐⭐ | `get_repo_structure("facebook/react")` |
+| **图像处理** | ZAI MCP | ⭐⭐⭐ | `analyze_image(url, "describe UI")` |
+| **HTTP请求** | Fetch | ⭐⭐⭐ | `fetch("https://api.example.com")` |
 
 ---
 
-## 已集成的 MCP 服务器
+## Chrome DevTools 核心工具
 
-### 1. Chrome DevTools
+### 页面操作
+- `list_pages()` - 列出所有页面
+- `navigate_page({type, url})` - 导航到URL
+- `take_snapshot()` - 获取页面快照（返回可交互元素）
 
-**用途**: 浏览器自动化测试
+### 元素交互
+- `click(uid)` - 点击元素
+- `fill(uid, value)` - 填写表单
+- `fill_form([{uid, value}])` - 批量填写
+- `press_key(key)` - 按键（Enter, Tab）
 
-**主要功能**:
-- 页面导航和交互
-- 截图和快照
-- 控制台和网络请求检查
-- 表单填充和点击操作
+### 信息获取
+- `take_screenshot()` - 截图
+- `list_console_messages()` - 查看控制台日志
+- `list_network_requests()` - 监听网络请求
 
-**快速开始**:
+---
+
+## Context7 核心工具
+
+### 工作流程
 ```javascript
-// 打开页面
-await mcp__chrome_devtools__navigate_page({
-  type: 'url',
-  url: 'http://localhost:5173'
-});
+// Step 1: 解析库ID
+resolve-library-id({
+  query: "react hooks",
+  libraryName: "react"
+})
+// 返回: { libraryId: "/facebook/react" }
 
-// 获取快照
-const snapshot = await mcp__chrome_devtools__take_snapshot();
-
-// 截图
-await mcp__chrome_devtools__take_screenshot({
-  filePath: 'test-results/screenshot.png'
-});
+// Step 2: 查询文档
+query-docs({
+  libraryId: "/facebook/react",
+  query: "How to use useState hook?"
+})
 ```
-
-**详细文档**: [MCP 集成指南 - Chrome DevTools](./mcp-integration.md#chrome-devtools-集成)
 
 ---
 
-### 2. Context7
+## Memory 知识图谱
 
-**用途**: 获取最新的库文档和代码示例
+### 核心概念
+- **实体（Entity）**: 具有独立存在的事物
+- **关系（Relation）: 实体之间的连接
+- **观察（Observation）**: 关于实体的具体信息
 
-**主要功能**:
-- 解析库 ID
-- 查询最新文档
-- 获取代码示例
-
-**快速开始**:
-```javascript
-// 解析库 ID
-const result = await mcp__context7__resolve_library_id({
-  libraryName: 'reactflow',
-  query: 'useNodeId hook'
-});
-
-// 查询文档
-const docs = await mcp__context7__query_docs({
-  libraryId: '/xyflow/xyflow',
-  query: 'How to use useNodeId in custom nodes'
-});
-```
-
-**详细文档**: [MCP 集成指南 - Context7](./mcp-integration.md#context7-集成)
+### 核心工具
+- `create_entities()` - 创建实体
+- `search_nodes()` - 搜索节点
+- `create_relations()` - 创建关系
+- `add_observations()` - 添加观察
 
 ---
 
-### 3. Web Search
+## 自动化测试流程
 
-**用途**: 搜索最新技术信息和解决方案
-
-**主要功能**:
-- 网页搜索
-- 网页内容提取
-- 技术调研
-
-**快速开始**:
-```javascript
-// 搜索错误解决方案
-const results = await mcp__web_search_prime__webSearchPrime({
-  search_query: 'React Flow useNodeId undefined solution',
-  location: 'cn'
-});
-
-// 提取网页内容
-const content = await mcp__web_reader__webReader({
-  url: 'https://example.com/docs',
-  return_format: 'markdown'
-});
+### 标准测试流程
+```
+开发完成后
+├─ 1. 访问 http://localhost:5173/
+├─ 2. take_snapshot() - 获取页面快照
+├─ 3. fill() / click() - 执行操作
+├─ 4. take_screenshot() - 截图验证
+├─ 5. list_console_messages() - 检查错误
+└─ 6. list_network_requests() - 检查 API
 ```
 
-**详细文档**: [MCP 集成指南 - Web Search](./mcp-integration.md#web-search-集成)
+### 测试检查清单
+- [ ] 页面加载成功（无 console 错误）
+- [ ] 节点显示正常（截图验证）
+- [ ] 表单输入响应
+- [ ] API 请求正确
+- [ ] 数据更新及时
 
 ---
 
-### 4. Memory (Knowledge Graph)
+## 一键安装脚本 ⭐ 新增
 
-**用途**: 构建和管理项目知识图谱
-
-**主要功能**:
-- 创建实体和关系
-- 搜索节点
-- 读取完整图谱
-
-**快速开始**:
-```javascript
-// 创建实体
-await mcp__memory__create_entities({
-  entities: [{
-    name: 'VideoGenerateNode',
-    entityType: 'NodeType',
-    observations: [
-      '视频生成节点',
-      '支持双平台'
-    ]
-  }]
-});
-
-// 创建关系
-await mcp__memory__create_relations({
-  relations: [{
-    from: 'TextNode',
-    to: 'VideoGenerateNode',
-    relationType: 'connects_to'
-  }]
-});
-
-// 搜索
-const results = await mcp__memory__search_nodes({
-  query: 'video generation'
-});
-```
-
-**详细文档**: [MCP 集成指南 - Memory](./mcp-integration.md#memory-集成)
-
----
-
-## 自动化测试
-
-### 测试层级
-
-```
-┌─────────────────────────────────────┐
-│  E2E 测试 (MCP Chrome DevTools)    │
-├─────────────────────────────────────┤
-│  集成测试 (React Testing Library)   │
-├─────────────────────────────────────┤
-│  单元测试 (Jest)                    │
-└─────────────────────────────────────┘
-```
-
-### 快速命令
-
+### 安装框架
 ```bash
-# 运行所有测试
-npm run test:all
+# 运行安装脚本
+bash scripts/install-framework.sh
 
-# 运行 E2E 测试
-npm run test:e2e
-
-# 生成覆盖率报告
-npm run test:coverage
+# 验证安装
+node scripts/validate-install.js
 ```
 
-**详细文档**: [自动化测试系统](./auto-testing.md)
-
----
-
-## 持续学习
-
-### 学习机制
-
-```
-错误监控 → 模式识别 → 规则生成 → 效果追踪
-```
-
-### 快速命令
-
+### MCP 配置迁移
 ```bash
-# 分析错误并生成规则
-npm run learner:analyze
+# 迁移 MCP 配置
+bash scripts/migrate-mcp-config.sh
 
-# 生成改进报告
-npm run learner:report
-
-# 查看质量趋势
-npm run metrics:trend
-```
-
-**详细文档**: [持续学习系统](./continuous-learning.md)
-
----
-
-## 系统架构
-
-### 6 层自动化系统
-
-```
-┌─────────────────────────────────┐
-│      用户交互层                  │
-│  CLI, Web UI, VS Code           │
-├─────────────────────────────────┤
-│       技能层 (Skills)           │
-│  /commit, /plan, reactflow-dev  │
-├─────────────────────────────────┤
-│       规则层 (Rules)            │
-│  基础规则、代码规范、错误模式     │
-├─────────────────────────────────┤
-│    生命周期层 (Hooks)           │
-│  Pre-commit, Post-commit        │
-├─────────────────────────────────┤
-│      工具层 (MCP Tools)         │
-│  Chrome, Context7, Web, Memory  │
-├─────────────────────────────────┤
-│       数据层 (Data)             │
-│  代码库、错误模式、知识图谱       │
-└─────────────────────────────────┘
-```
-
-**详细文档**: [自动化架构](./automation-architecture.md)
-
----
-
-## 使用场景
-
-### 场景 1: 开发新功能
-
-```bash
-# 1. 进入计划模式
-/plan
-
-# 2. 查询相关文档
-# MCP Context7 自动查询最新文档
-
-# 3. 编写代码
-# 根据文档编写代码
-
-# 4. 自动测试
-# MCP Chrome DevTools 自动测试
-
-# 5. 提交代码
-# Pre-commit hook 自动验证
-```
-
-### 场景 2: 调试错误
-
-```bash
-# 1. 搜索解决方案
-# MCP Web Search 搜索错误信息
-
-# 2. 查询文档
-# MCP Context7 查询相关 API 文档
-
-# 3. 测试修复
-# MCP Chrome DevTools 自动测试
-
-# 4. 记录知识
-# MCP Memory 记录错误和解决方案
-```
-
-### 场景 3: 代码审查
-
-```bash
-# 1. 运行规则检查
-npm run validate:rules
-
-# 2. 运行测试
-npm run test:all
-
-# 3. 生成报告
-npm run learner:report
-
-# 4. 更新知识图谱
-npm run learner:update
+# 设置环境变量
+cp templates/.env.mcp.template .env.mcp
+# 编辑 .env.mcp 填入 API 密钥
 ```
 
 ---
 
-## 最佳实践
+## 详细文档
 
-### 1. 自动化优先
+### MCP 工具指南
+- [Chrome DevTools 完整指南](references/mcp-browsers.md) - 浏览器自动化详解
+- [Context7 使用指南](references/mcp-docs-query.md) - 文档查询详解
+- [Memory 知识图谱](references/mcp-memory.md) - 知识管理详解
+- [MCP 配置模板](../../templates/mcp_config.base.json) - 基础配置
 
-```javascript
-// ✅ 正确：使用 MCP 自动测试
-async function testVideoGenerate() {
-  await mcp__chrome_devtools__navigate_page({
-    type: 'url',
-    url: 'http://localhost:5173'
-  });
+### 自动化文档
+- [自动化测试系统](references/auto-testing.md) - 完整的测试指南
+- [自动化架构](references/automation-architecture.md) - 系统架构文档
+- [持续学习机制](references/continuous-learning.md) - 错误监控和规则生成
 
-  const snapshot = await mcp__chrome_devtools__take_snapshot();
-  // ... 自动化测试流程
-}
+---
 
-// ❌ 错误：手动测试
-// 每次都问用户"能否测试"
-```
+## 快速开始
 
-### 2. 组合使用工具
+### 新手入门（15分钟）
+1. 阅读 [Chrome DevTools 指南](references/mcp-browsers.md) - 学习浏览器自动化
+2. 阅读 [Context7 使用指南](references/mcp-docs-query.md) - 学习文档查询
+3. 浏览 [自动化测试系统](references/auto-testing.md) - 了解自动化测试
 
-```javascript
-// ✅ 正确：组合多个 MCP 工具
-// 1. 搜索解决方案
-const searchResults = await mcp__web_search_prime__webSearchPrime({
-  search_query: 'React Flow node data undefined'
-});
+### 进阶开发者（20分钟）
+1. 精读 [自动化架构](references/automation-architecture.md) - 理解系统架构
+2. 深入理解 [Memory 知识图谱](references/mcp-memory.md) - 掌握知识管理
+3. 应用到实际开发 - 使用 MCP 工具提升效率
 
-// 2. 查询文档
-const docs = await mcp__context7__query_docs({
-  libraryId: '/xyflow/xyflow',
-  query: 'useNodeId hook'
-});
+---
 
-// 3. 记录知识
-await mcp__memory__create_entities({
-  entities: [{
-    name: 'useNodeId',
-    entityType: 'ReactHook',
-    observations: ['获取当前节点 ID', '不要使用 data.id']
-  }]
-});
-```
+## 常见问题
 
-### 3. 及时记录知识
+### Q: 如何使用 Chrome DevTools 测试？
 
-```javascript
-// ✅ 正确：发现错误立即记录
-catch (error) {
-  await mcp__memory__create_entities({
-    entities: [{
-      name: `错误: ${error.message}`,
-      entityType: 'Error',
-      observations: [
-        `描述: ${error.message}`,
-        `解决方案: ${solution}`,
-        `相关文件: ${fileName}`
-      ]
-    }]
-  });
-}
-```
+**A**: 参考 [Chrome DevTools 指南](references/mcp-browsers.md)
+1. `list_pages()` - 检查页面
+2. `navigate_page()` - 导航到 URL
+3. `take_snapshot()` - 获取快照
+4. `click()` / `fill()` - 执行操作
+5. `take_screenshot()` - 截图验证
+
+### Q: 如何查询文档？
+
+**A**: 使用 Context7 两步法
+1. `resolve-library-id()` - 解析库ID
+2. `query-docs()` - 查询文档
+
+### Q: 如何使用 Memory 知识图谱？
+
+**A**: 参考 [Memory 知识图谱](references/mcp-memory.md)
+1. `create_entities()` - 创建实体
+2. `search_nodes()` - 搜索节点
+3. `create_relations()` - 创建关系
 
 ---
 
 ## 相关文档
 
-### 内部文档
+### 上层文档
+- [哲学层](../00-philosophy/) - 核心理念
+- [基础知识层](../01-fundamentals/) - 技术栈
+- [方法论层](../02-methodology/) - 开发流程
 
-- [测试自动化](../02-methodology/testing-automation.md)
-- [文档标准](../02-methodology/documentation-standards.md)
-- [错误模式](../04-error-patterns/errors-by-type.md)
-- [技能文档](../skills/winjin-dev/SKILL.md)
-
-### 外部文档
-
-- [MCP 协议规范](https://modelcontextprotocol.io/)
-- [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/)
-- [React Flow 文档](https://reactflow.dev/)
+### 并行文档
+- [节点开发层](../03-node-development/) - React Flow 节点
 
 ---
 
-## 更新日志
+## 配置文件
 
-| 日期 | 版本 | 变更说明 |
-|------|------|---------|
-| 2026-01-18 | v1.0.0 | 初始版本 - 创建自动化层文档 |
+### MCP 配置
+- [基础配置模板](../../templates/mcp_config.base.json) - 7个核心工具
+- [完整配置模板](../../templates/mcp_config.full.json) - 包含可选工具
+- [环境变量模板](../../templates/.env.mcp.template) - API 密钥模板
+
+### 安装脚本
+- [安装框架脚本](../../scripts/install-framework.sh) - 一键安装
+- [MCP 迁移脚本](../../scripts/migrate-mcp-config.sh) - 配置迁移
 
 ---
 
-**最后更新**: 2026-01-18
 **维护者**: WinJin AIGC Team
-**版本**: v1.0.0
+**最后更新**: 2026-01-23
+**版本**: v2.0.0
