@@ -117,7 +117,43 @@ Claude: [直接修复，无需 Plan 模式]
 
 ## 1. 启动开发服务器
 
-### ⭐ 工作流画布开发（当前重点）⭐
+### ⭐ 推荐方式：使用自动化脚本 ⭐ 新增 (2026-01-23)
+
+> **重要**: 脚本自动处理环境检查、端口清理、服务启动，避免手动操作的遗漏和错误
+
+#### Windows 用户
+
+```bash
+# 启动开发环境（自动检查+启动后端+前端）
+start-dev.bat
+
+# 停止开发环境
+stop-dev.bat
+```
+
+#### Linux/Mac 用户
+
+```bash
+# 启动开发环境（自动检查+启动后端+前端）
+./start-dev.sh
+
+# 停止开发环境
+./stop-dev.sh
+```
+
+**脚本自动完成**:
+- ✅ 环境检查（Node.js、npm、.env）
+- ✅ 端口检查与清理（9000、5173）
+- ✅ 启动后端和前端服务器
+- ✅ 打开浏览器到 http://localhost:5173/
+
+---
+
+### 手动方式（降级方案）
+
+> **⚠️ 注意**: 优先使用脚本，以下命令仅在脚本不可用时使用
+
+#### ⭐ 工作流画布开发（当前重点）⭐
 
 **⚠️ 重要**: 这是当前项目的主要开发目标！
 
@@ -207,19 +243,28 @@ http://localhost:5173/  ← 这才是工作流画布！
 |------|------|----------|
 | `electron: command not found` | electron 未安装 | 使用 `npm run server` 代替 `npm start` |
 | **测试了网页版而非画布** | ❌ 访问 localhost:9000 | ✅ 访问 localhost:5173 |
-| **前端无法连接 API** | 只启动了 Vite，没启动后端 | 同时运行 `npm run server` 和 `npm run dev` |
-| 端口被占用 | 9000 端口已被使用 | 修改 `.env` 中的 PORT 配置 |
+| **前端无法连接 API** | 只启动了 Vite，没启动后端 | 运行 `start-dev.bat` (Windows) 或 `./start-dev.sh` (Linux/Mac) |
+| 端口被占用 | 9000 端口已被使用 | 运行 `stop-dev.bat` (Windows) 或 `./stop-dev.sh` (Linux/Mac) |
 
-### 后端代码修改不生效 ⭐ 更新 (2026-01-03)
+### 后端代码修改不生效 ⭐ 更新 (2026-01-23)
 
 | 问题 | 原因 | 解决方案 |
 |------|------|----------|
-| 修改后端代码后无效果 | Node.js 模块缓存 | 1. 终端按 Ctrl+C 停止服务器<br>2. 重新运行 `npm run server` |
-| Windows 端口被占用 | nul 文件或僵尸进程 | 1. 删除 nul 文件 (`del nul`)<br>2. 或运行 `taskkill /F /IM node.exe` |
-| EADDRINUSE 错误 | 进程未完全退出 | 1. `netstat -ano \| findstr :9000` 查找 PID<br>2. `taskkill /F /PID <PID>` 强制结束 |
-| PowerShell 无法停止进程 | 进程在子shell运行 | 1. 关闭并重新打开终端<br>2. 或使用 `Get-Process node \| Stop-Process -Force` |
+| 修改后端代码后无效果 | Node.js 模块缓存 | 1. 运行 `stop-dev.bat` 停止<br>2. 运行 `start-dev.bat` 重启 |
+| Windows 端口被占用 | nul 文件或僵尸进程 | 1. 删除 nul 文件 (`del nul`)<br>2. 或运行 `stop-dev.bat` |
+| EADDRINUSE 错误 | 进程未完全退出 | 运行 `stop-dev.bat` 自动清理 |
+| PowerShell 无法停止进程 | 进程在子shell运行 | 1. 关闭并重新打开终端<br>2. 或运行 `stop-dev.bat` |
 
-**完整重启流程** (推荐):
+**⭐ 推荐重启流程** (使用脚本):
+```bash
+# Windows
+stop-dev.bat && start-dev.bat
+
+# Linux/Mac
+./stop-dev.sh && ./start-dev.sh
+```
+
+**手动重启流程** (降级方案):
 ```bash
 # 步骤1: 停止后端服务器
 # 在终端按 Ctrl+C，如果无响应：
@@ -244,6 +289,7 @@ npm run server
 1. **忘记停止服务器**: 直接修改代码后刷新浏览器，看到的是旧代码
 2. **端口占用显示假启动**: 服务器启动失败但终端无错误提示
 3. **Vite 热重载混淆**: 前端热重载生效误以为后端也生效（后端需要手动重启）
+4. **不使用脚本**: 手动操作容易遗漏步骤，推荐使用 `start-dev.bat` / `stop-dev.bat`
 
 ---
 

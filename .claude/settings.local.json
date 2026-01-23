@@ -106,7 +106,12 @@
       "Bash(jobs:*)",
       "Bash(wmic:*)",
       "Bash(tree:*)",
-      "Bash(du:*)"
+      "Bash(du:*)",
+      "Bash(chmod:*)",
+      "Bash(bash:*)",
+      "Bash(then echo \"✓ .env 文件存在\")",
+      "Bash(else echo \"⚠️ .env 文件不存在\")",
+      "Bash(fi)"
     ]
   }
 }
