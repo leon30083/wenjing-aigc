@@ -7,6 +7,26 @@
 [![React](https://img.shields.io/badge/React-19.0.0-blue)](https://reactjs.org/)
 [![React Flow](https://img.shields.io/badge/React_Flow-11.0.0-purple)](https://reactflow.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Download](https://img.shields.io/badge/download-v2.0.2-brightgreen)](https://github.com/leon30083/wenjing-aigc/releases/latest)
+
+---
+
+## 📥 下载桌面应用
+
+### 最新版本: v2.0.2
+
+**[下载 WinJin AIGC v2.0.2](https://github.com/leon30083/wenjing-aIGC/releases/download/v2.0.2/WinJinAIGC-v2.0.2.zip)**
+
+| 版本 | 日期 | 大小 | 说明 |
+|------|------|------|------|
+| [v2.0.2](https://github.com/leon30083/wenjing-aIGC/releases/tag/v2.0.2) | 2026-01-29 | 573 MB | 🎉 后端服务可见终端窗口支持 |
+| [v2.0.1](https://github.com/leon30083/wenjing-aIGC/releases/tag/v2.0.1) | 2026-01-29 | - | 后端服务启动验证 |
+| [v2.0.0](https://github.com/leon30083/wenjing-aIGC/releases/tag/v2.0.0) | 2026-01-23 | - | 首次 Electron 版本 |
+
+**使用方法**:
+1. 下载并解压 ZIP 文件
+2. 双击 `WinJin AIGC.exe` 启动应用
+3. 主窗口显示前端界面，独立终端窗口显示后端日志
 
 ---
 
