@@ -111,7 +111,11 @@
       "Bash(bash:*)",
       "Bash(then echo \"✓ .env 文件存在\")",
       "Bash(else echo \"⚠️ .env 文件不存在\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(del \"D:\\\\user\\\\github\\\\winjin\\\\nul\")",
+      "Bash(echo:*)",
+      "Bash(start \"\" \"WinJin AIGC.exe\")",
+      "Bash(WIN_CSC_LINK= WIN_CSC_KEY_PASSWORD= npx electron-builder:*)"
     ]
   }
 }

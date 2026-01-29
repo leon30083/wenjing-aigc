@@ -1,1 +1,4 @@
 node_modules
+
+# 打包输出目录
+release/
