@@ -6,9 +6,41 @@
 import React, { useState, useEffect } from 'react';
 import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
 
+// 预设配置常量
+const PRESETS = {
+  deepseek: {
+    name: 'DeepSeek',
+    base_url: 'https://api.deepseek.com',
+    model: 'deepseek-chat',
+    color: '#6366f1',
+  },
+  glm_coding: {
+    name: 'GLM 编程',
+    base_url: 'https://open.bigmodel.cn/api/coding/paas/v4',
+    model: 'GLM-4.7',
+    color: '#ec4899',
+  },
+  ge25: {
+    name: '[ge2.5]',
+    base_url: 'http://170.106.152.118:2999',
+    model: 'gemini-2.5-pro-maxthinking',
+    color: '#8b5cf6',
+  },
+  empty: {
+    name: '空配置',
+    base_url: '',
+    api_key: '',
+    model: '',
+    color: '#6b7280',
+  },
+};
+
 function OpenAIConfigNode({ data }) {
   const nodeId = useNodeId();
   const { setNodes, getEdges, edges } = useReactFlow();
+
+  // 预设选择状态
+  const [selectedPreset, setSelectedPreset] = useState(null);
 
   // 从 node.data 或 localStorage 初始化（优先级调整）
   const [config, setConfig] = useState(() => {
@@ -42,6 +74,25 @@ function OpenAIConfigNode({ data }) {
   // 保存配置到 localStorage
   const saveConfig = (newConfig) => {
     localStorage.setItem('winjin-openai-config', JSON.stringify(newConfig));
+  };
+
+  // 获取所有保存的 API Key
+  const getSavedApiKeys = () => {
+    try {
+      const saved = localStorage.getItem('winjin-openai-api-keys');
+      return saved ? JSON.parse(saved) : {};
+    } catch (error) {
+      console.error('[OpenAIConfigNode] 读取 API Keys 失败:', error);
+      return {};
+    }
+  };
+
+  // 保存当前服务的 API Key
+  const saveApiKeyForService = (presetKey, apiKey) => {
+    const keys = getSavedApiKeys();
+    keys[presetKey] = apiKey;
+    localStorage.setItem('winjin-openai-api-keys', JSON.stringify(keys));
+    console.log(`[OpenAIConfigNode] 保存 ${presetKey} 的 API Key`);
   };
 
   // 加载配置
@@ -119,6 +170,56 @@ function OpenAIConfigNode({ data }) {
     setConfig(newConfig);
     saveConfig(newConfig);
     syncToData(newConfig);
+
+    // ⭐ 如果修改的是 api_key，保存到当前对应的服务
+    if (field === 'api_key' && selectedPreset) {
+      saveApiKeyForService(selectedPreset, value);
+    }
+
+    // 更新预设选择状态
+    updateSelectedPreset(newConfig);
+  };
+
+  // 应用预设配置
+  const applyPreset = (presetKey) => {
+    const preset = PRESETS[presetKey];
+    if (!preset) return;
+
+    setSelectedPreset(presetKey);
+
+    // ⭐ 自动加载对应服务已保存的 API Key
+    const savedKeys = getSavedApiKeys();
+    const savedApiKey = savedKeys[presetKey] || '';
+
+    const newConfig = {
+      base_url: preset.base_url || '',
+      model: preset.model || '',
+      api_key: savedApiKey,  // ✅ 使用该服务之前保存的 key
+    };
+
+    setConfig(newConfig);
+    saveConfig(newConfig);
+    syncToData(newConfig);
+
+    console.log(`[OpenAIConfigNode] 应用预设: ${preset.name}`, {
+      ...newConfig,
+      hasApiKey: !!savedApiKey,
+    });
+  };
+
+  // 更新预设选择状态
+  const updateSelectedPreset = (currentConfig) => {
+    if (!currentConfig.base_url && !currentConfig.model) {
+      setSelectedPreset('empty');
+    } else if (currentConfig.base_url === 'https://api.deepseek.com' || currentConfig.model === 'deepseek-chat') {
+      setSelectedPreset('deepseek');
+    } else if (currentConfig.base_url?.includes('bigmodel.cn/api/coding') || currentConfig.model === 'GLM-4.7') {
+      setSelectedPreset('glm_coding');
+    } else if (currentConfig.base_url?.includes('170.106.152.118') || currentConfig.model === 'gemini-2.5-pro-maxthinking') {
+      setSelectedPreset('ge25');
+    } else {
+      setSelectedPreset(null);  // 自定义配置
+    }
   };
 
   // 同步配置到 node.data（初始化时同步一次，延迟执行确保工作流已加载）
@@ -135,6 +236,22 @@ function OpenAIConfigNode({ data }) {
 
     return () => clearTimeout(timer);
   }, []); // ⭐ 空依赖数组，只在挂载时运行一次
+
+  // 初始化预设选择状态
+  useEffect(() => {
+    // 检测当前配置匹配哪个预设
+    if (config.base_url === 'https://api.deepseek.com' || config.model === 'deepseek-chat') {
+      setSelectedPreset('deepseek');
+    } else if (config.base_url?.includes('bigmodel.cn/api/coding') || config.model === 'GLM-4.7') {
+      setSelectedPreset('glm_coding');
+    } else if (config.base_url?.includes('170.106.152.118') || config.model === 'gemini-2.5-pro-maxthinking') {
+      setSelectedPreset('ge25');
+    } else if (!config.base_url && !config.model) {
+      setSelectedPreset('empty');
+    } else {
+      setSelectedPreset(null);  // 自定义配置
+    }
+  }, []);  // 只在挂载时运行一次
 
   // 传递配置到下游节点
   useEffect(() => {
@@ -200,6 +317,105 @@ function OpenAIConfigNode({ data }) {
         textAlign: 'center',
       }}>
         ⚙️ OpenAI 配置
+      </div>
+
+      {/* 快速预设 */}
+      <div style={{
+        marginBottom: '10px',
+      }}>
+        <div style={{
+          fontSize: '10px',
+          color: '#1e40af',
+          fontWeight: 'bold',
+          marginBottom: '4px',
+        }}>
+          ⚡ 快速预设
+        </div>
+        <div style={{
+          display: 'flex',
+          gap: '4px',
+          justifyContent: 'space-between'
+        }}>
+          <button
+            className="nodrag"
+            onClick={() => applyPreset('deepseek')}
+            style={{
+              flex: 1,
+              padding: '4px 2px',
+              backgroundColor: selectedPreset === 'deepseek' ? '#6366f1' : '#e0e7ff',
+              color: selectedPreset === 'deepseek' ? 'white' : '#1e40af',
+              border: `1px solid ${selectedPreset === 'deepseek' ? '#6366f1' : '#c7d2fe'}`,
+              borderRadius: '4px',
+              fontSize: '9px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              textAlign: 'center',
+            }}
+            title="DeepSeek API"
+          >
+            DeepSeek
+          </button>
+
+          <button
+            className="nodrag"
+            onClick={() => applyPreset('glm_coding')}
+            style={{
+              flex: 1,
+              padding: '4px 2px',
+              backgroundColor: selectedPreset === 'glm_coding' ? '#ec4899' : '#fce7f3',
+              color: selectedPreset === 'glm_coding' ? 'white' : '#9f1239',
+              border: `1px solid ${selectedPreset === 'glm_coding' ? '#ec4899' : '#fbcfe8'}`,
+              borderRadius: '4px',
+              fontSize: '9px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              textAlign: 'center',
+            }}
+            title="GLM 编程套餐（OpenAI Compatible）"
+          >
+            GLM 编程
+          </button>
+
+          <button
+            className="nodrag"
+            onClick={() => applyPreset('ge25')}
+            style={{
+              flex: 1,
+              padding: '4px 2px',
+              backgroundColor: selectedPreset === 'ge25' ? '#8b5cf6' : '#ede9fe',
+              color: selectedPreset === 'ge25' ? 'white' : '#5b21b6',
+              border: `1px solid ${selectedPreset === 'ge25' ? '#8b5cf6' : '#ddd6fe'}`,
+              borderRadius: '4px',
+              fontSize: '9px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              textAlign: 'center',
+            }}
+            title="ge2.5"
+          >
+            [ge2.5]
+          </button>
+
+          <button
+            className="nodrag"
+            onClick={() => applyPreset('empty')}
+            style={{
+              flex: 1,
+              padding: '4px 2px',
+              backgroundColor: selectedPreset === 'empty' ? '#6b7280' : '#f3f4f6',
+              color: selectedPreset === 'empty' ? 'white' : '#374151',
+              border: `1px solid ${selectedPreset === 'empty' ? '#6b7280' : '#d1d5db'}`,
+              borderRadius: '4px',
+              fontSize: '9px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              textAlign: 'center',
+            }}
+            title="空配置"
+          >
+            空配置
+          </button>
+        </div>
       </div>
 
       {/* API 配置表单 */}
@@ -314,16 +530,7 @@ function OpenAIConfigNode({ data }) {
           </button>
           <button
             className="nodrag"
-            onClick={() => {
-              const emptyConfig = {
-                base_url: 'https://api.deepseek.com',
-                api_key: '',
-                model: 'deepseek-chat',
-              };
-              setConfig(emptyConfig);
-              saveConfig(emptyConfig);
-              syncToData(emptyConfig);
-            }}
+            onClick={() => applyPreset('deepseek')}
             style={{
               flex: 1,
               padding: '6px',

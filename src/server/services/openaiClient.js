@@ -15,9 +15,33 @@ class OpenAIClient {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // 移除尾部斜杠
     this.apiKey = apiKey;
     this.model = model;
+
+    // ⭐ 检测是否是 GLM 编程套餐（使用特殊端点格式）
+    this.isGLMCoding = baseUrl.includes('bigmodel.cn/api/coding');
+
+    // ⭐ 超时设置：GLM 可能需要更长时间响应
     this.client = axios.create({
-      timeout: 30000, // 30秒超时
+      timeout: 120000, // 120秒超时（2分钟）
     });
+
+    console.log('[OpenAIClient] 初始化:', {
+      baseUrl: this.baseUrl,
+      model: this.model,
+      isGLMCoding: this.isGLMCoding,
+      timeout: 120000
+    });
+  }
+
+  /**
+   * 获取聊天端点路径
+   * @returns {string} 端点路径
+   */
+  _getChatEndpoint() {
+    // ⭐ GLM 编程套餐使用特殊端点格式（不带 /v1）
+    if (this.isGLMCoding) {
+      return '/chat/completions';
+    }
+    return '/v1/chat/completions';  // 标准 OpenAI 格式
   }
 
   /**
@@ -59,7 +83,7 @@ class OpenAIClient {
 
       // 调用 API
       const response = await this.client.post(
-        `${this.baseUrl}/v1/chat/completions`,
+        `${this.baseUrl}${this._getChatEndpoint()}`,
         {
           model: this.model,
           messages: [
@@ -84,7 +108,9 @@ class OpenAIClient {
         }
       );
 
-      const result = response.data.choices[0].message.content;
+      // ⭐ 兼容 GLM 格式（reasoning_content）和标准 OpenAI 格式（content）
+      const message = response.data.choices[0].message;
+      const result = message.content || message.reasoning_content || '';
 
       console.log('[OpenAIClient] 优化成功:', result.substring(0, 100) + '...');
 
@@ -124,7 +150,7 @@ class OpenAIClient {
       });
 
       const response = await this.client.post(
-        `${this.baseUrl}/v1/chat/completions`,
+        `${this.baseUrl}${this._getChatEndpoint()}`,
         {
           model: this.model,
           messages: [
@@ -143,7 +169,9 @@ class OpenAIClient {
         }
       );
 
-      const result = response.data.choices[0].message.content;
+      // ⭐ 兼容 GLM 格式（reasoning_content）和标准 OpenAI 格式（content）
+      const message = response.data.choices[0].message;
+      const result = message.content || message.reasoning_content || '';
 
       console.log('[OpenAIClient] 连接测试成功:', result);
 
@@ -612,7 +640,7 @@ ${characterList}
       console.log('[OpenAIClient] 识别角色:', { sentence, characterCount: characters.length });
 
       const response = await this.client.post(
-        `${this.baseUrl}/v1/chat/completions`,
+        `${this.baseUrl}${this._getChatEndpoint()}`,
         {
           model: this.model,
           messages: [

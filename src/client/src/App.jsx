@@ -224,6 +224,89 @@ function App() {
     [setEdges]
   );
 
+  // ⭐ E2E Testing Helper: Expose React Flow API for automated testing
+  // This allows Playwright to programmatically create connections
+  // ⭐ IMPORTANT: Must depend on [nodes, edges] so getNodes/getEdges return current values
+  const testApi = useMemo(() => ({
+    connectNodes: (source, target, sourceHandle, targetHandle) => {
+      const params = {
+        source,
+        target,
+        sourceHandle,
+        targetHandle
+      };
+      // Use addEdge helper to properly format the edge (same as onConnect)
+      setEdges((eds) => {
+        const newEdge = addEdge(params, eds);
+        console.log('[Test API] Edge added:', {
+          params,
+          newEdge: newEdge[newEdge.length - 1], // Last edge is the newly added one
+          totalEdges: newEdge.length
+        });
+        return newEdge;
+      });
+      console.log('[Test API] Connected:', source, '→', target, 'Current edges:', edges.length);
+    },
+    disconnectNodes: (source, target) => {
+      setEdges((eds) => eds.filter(e => !(e.source === source && e.target === target)));
+      console.log('[Test API] Disconnected:', source, '→', target);
+    },
+    // ⭐ FIX: Return current state (closure is updated because useMemo depends on [nodes, edges])
+    getNodes: () => {
+      console.log('[Test API] getNodes called, returning', nodes.length, 'nodes');
+      return nodes;
+    },
+    getEdges: () => {
+      console.log('[Test API] getEdges called, returning', edges.length, 'edges');
+      return edges;
+    },
+    setEdges: (newEdges) => setEdges(newEdges),
+    setNodes: (newNodes) => setNodes(newNodes),
+    // ⭐ 工作流导出功能 (2026-01-18)
+    exportCurrentWorkflow: (name) => {
+      const workflowName = name || currentWorkflowName;
+      if (!workflowName) {
+        console.warn('[Test API] No workflow name provided or current workflow is unnamed');
+        return { success: false, error: 'No workflow name' };
+      }
+      console.log('[Test API] Exporting workflow:', workflowName);
+      return WorkflowStorage.exportWorkflow(workflowName);
+    },
+    exportWorkflowAsJSON: (name) => {
+      const workflowName = name || currentWorkflowName;
+      if (!workflowName) {
+        return { success: false, error: 'No workflow name' };
+      }
+      const workflows = WorkflowStorage.getAllWorkflows();
+      const workflow = workflows[workflowName];
+      if (!workflow) {
+        return { success: false, error: 'Workflow not found' };
+      }
+      console.log('[Test API] Returning workflow JSON:', workflowName);
+      return { success: true, data: workflow };
+    },
+    getWorkflowList: () => {
+      const list = WorkflowStorage.getWorkflowList();
+      console.log('[Test API] Returning workflow list:', list.length, 'workflows');
+      return list;
+    }
+  }), [nodes, edges, setNodes, setEdges, currentWorkflowName]); // ⭐ FIX: Include nodes, edges, and currentWorkflowName in dependencies!
+
+  useEffect(() => {
+    // Only expose in development/testing mode
+    if (process.env.NODE_ENV === 'development' || import.meta.env.DEV) {
+      // @ts-ignore - Expose test API globally
+      window.__REACT_FLOW_TEST_API__ = testApi;
+      console.log('[Test API] React Flow test API exposed on window.__REACT_FLOW_TEST_API__');
+    }
+
+    // Cleanup on unmount
+    return () => {
+      // @ts-ignore
+      delete window.__REACT_FLOW_TEST_API__;
+    };
+  }, [testApi]);
+
   // Stable onSizeChange callback for resizable nodes
   const handleNodeSizeChange = useCallback((nodeId, width, height) => {
     setNodes((nds) =>

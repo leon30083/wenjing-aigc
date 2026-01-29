@@ -6,10 +6,11 @@
   "scripts": {
     "start": "electron .",
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\"",
-    "dev:renderer": "vite",
+    "dev:renderer": "cd src/client && vite",
     "dev:main": "nodemon --exec electron . --watch src/main",
-    "build": "vite build && electron-builder",
-    "build:dir": "vite build && electron-builder --dir",
+    "build": "cd src/client && npm run build && cd ../.. && npx electron-packager . WinJinAIGC --platform=win32 --arch=x64 --out=release --overwrite",
+    "build:dir": "cd src/client && npm run build && cd ../.. && npx electron-packager . WinJinAIGC --platform=win32 --arch=x64 --out=release --overwrite",
+    "build:win": "cd src/client && npm run build && cd ../.. && npx electron-packager . WinJinAIGC --platform=win32 --arch=x64 --out=release --overwrite",
     "server": "node src/server/index.js",
     "registry:build": "node scripts/node-registry.js --build",
     "registry:check": "node scripts/node-registry.js --check",
@@ -31,7 +32,16 @@
     "metrics:trend": "node scripts/metrics/metrics-collector.js --trend",
     "metrics:clear": "node scripts/metrics/metrics-collector.js --clear",
     "metrics:cleanup": "node scripts/metrics/metrics-collector.js --cleanup",
-    "metrics:export": "node scripts/metrics/metrics-collector.js --export"
+    "metrics:export": "node scripts/metrics/metrics-collector.js --export",
+    "sync:settings": "bash scripts/sync-claude-settings.sh",
+    "sync:version": "bash scripts/sync-to-version.sh",
+    "sync:config": "bash scripts/sync-claude-settings.sh",
+    "sync:check": "node scripts/check-claude-sync.js --check",
+    "sync:verify": "node scripts/check-claude-sync.js --verify",
+    "sync:hooks": "node scripts/install-git-hooks.js",
+    "sync:hooks:check": "node scripts/install-git-hooks.js --check",
+    "sync:hooks:uninstall": "node scripts/install-git-hooks.js --uninstall",
+    "postinstall": "node scripts/check-claude-sync.js"
   },
   "keywords": [
     "aigc",
@@ -53,7 +63,8 @@
     "@babel/core": "^7.28.6",
     "@babel/preset-react": "^7.28.5",
     "concurrently": "^8.2.2",
-    "electron-builder": "^24.9.1",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3",
     "nodemon": "^3.0.2",
     "prettier": "^3.2.5",
     "vite": "^5.0.12"

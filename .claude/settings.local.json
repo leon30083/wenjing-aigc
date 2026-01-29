@@ -101,13 +101,21 @@
       "Bash(Start-Sleep -Seconds 2)",
       "Bash(Where-Object {$_HasExited -eq $false})",
       "Bash(ForEach-Object { Stop-Process -Id $_Id -Force -ErrorAction SilentlyContinue })",
+      "Bash(rmdir \"E:\\\\User\\\\GitHub\\\\winjin\\\\AI-codeing框架资料\")",
+      "Bash(gh pr create:*)",
+      "Bash(jobs:*)",
+      "Bash(wmic:*)",
+      "Bash(tree:*)",
+      "Bash(du:*)",
+      "Bash(chmod:*)",
       "Bash(bash:*)",
-      "Bash(cmd //c \"taskkill /F /PID 22764\")",
-      "mcp__github__search_repositories",
-      "mcp__github__get_file_contents",
-      "mcp__github__search_code",
+      "Bash(then echo \"✓ .env 文件存在\")",
+      "Bash(else echo \"⚠️ .env 文件不存在\")",
+      "Bash(fi)",
+      "Bash(del \"D:\\\\user\\\\github\\\\winjin\\\\nul\")",
       "Bash(echo:*)",
-      "Bash(xxd:*)"
+      "Bash(start \"\" \"WinJin AIGC.exe\")",
+      "Bash(WIN_CSC_LINK= WIN_CSC_KEY_PASSWORD= npx electron-builder:*)"
     ]
   }
 }

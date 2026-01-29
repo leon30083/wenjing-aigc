@@ -1,0 +1,199 @@
+{
+  "name": "测试工作流 - 批量绘本视频生成",
+  "description": "基于用户真实工作流：角色库 → 旁白输入 → 旁白处理 → 批量视频生成",
+  "category": "character-video",
+  "version": "1.0.0",
+  "author": "用户",
+  "tags": ["批量", "绘本", "视频生成", "E2E", "真实工作流"],
+  "testPlan": [
+    "步骤1: 检查所有节点已正确加载（6个节点）",
+    "步骤2: 验证节点连接关系（6条边）",
+    "步骤3: 验证角色数据传递（connectedCharacters包含完整对象）",
+    "步骤4: 验证旁白优化完成（3个句子status: ready）",
+    "步骤5: 验证批量视频生成提交（batchStatus: submitted）",
+    "步骤6: 检查批量任务状态",
+    "步骤7: 验证视频生成成功"
+  ],
+  "nodes": [
+    {
+      "id": "1",
+      "type": "characterLibraryNode",
+      "position": { "x": -990.58, "y": 285.51 },
+      "data": {
+        "label": "角色库",
+        "selectedCharacters": ["ch_69515e2d5b4881918d4cd7f7836d2f84"],
+        "connectedCharacters": [
+          {
+            "id": "ch_69515e2d5b4881918d4cd7f7836d2f84",
+            "username": "df4c928fa.kittenauro",
+            "permalink": "https://sora.chatgpt.com/profile/df4c928fa.kittenauro",
+            "profilePictureUrl": "https://midjourney-plus.oss-us-west-1.aliyuncs.com/sora/ffda5faf-a9da-4948-a544-ffc99bc9bc9e.jpg",
+            "alias": "小猫",
+            "platform": "zhenzhen",
+            "timestamps": "1,3"
+          }
+        ]
+      }
+    },
+    {
+      "id": "11",
+      "type": "apiSettingsNode",
+      "position": { "x": 115.26, "y": 305.33 },
+      "data": {
+        "label": "⚙️ API 设置",
+        "apiConfig": {
+          "platform": "juxin",
+          "model": "sora-2-all",
+          "aspect": "16:9",
+          "watermark": false
+        }
+      }
+    },
+    {
+      "id": "12",
+      "type": "narratorNode",
+      "position": { "x": -425.40, "y": 530.12 },
+      "data": {
+        "label": "📖 旁白输入",
+        "rawText": "@df4c928fa.kittenauro 小猫在家里玩耍\n@df4c928fa.kittenauro 小猫和猫妈妈在公园玩耍\n@df4c928fa.kittenauro 小猫在森林散步。",
+        "style": "picture-book",
+        "targetDuration": 15,
+        "optimizationDirection": "balanced"
+      }
+    },
+    {
+      "id": "13",
+      "type": "openaiConfigNode",
+      "position": { "x": -955.01, "y": 917.08 },
+      "data": {
+        "label": "⚙️ OpenAI 配置",
+        "openaiConfig": {
+          "base_url": "https://api.deepseek.com",
+          "api_key": "sk-xxxxx...",
+          "model": "deepseek-chat"
+        }
+      }
+    },
+    {
+      "id": "14",
+      "type": "narratorProcessorNode",
+      "position": { "x": -10.09, "y": 909.82 },
+      "data": {
+        "label": "⚙️ 旁白处理",
+        "sentences": [
+          {
+            "id": "sentence-1",
+            "index": 0,
+            "text": "@df4c928fa.kittenauro 小猫在家里玩耍",
+            "optimized": "卡通绘本风格的视频，@df4c928fa.kittenauro 在一个阳光洒满的温馨客厅里尽情玩耍，它可能在追逐一个滚动的线球，或者好奇地扑向窗边摇曳的窗帘，整个场景充满童趣与活力。画面色彩鲜艳明亮，饱和度适中，呈现出非写实且柔和的视觉效果，营造出一种温暖友好的氛围，仿佛有旁白在轻声讲述故事。动画流畅自然，动作夸张而富有弹性，镜头以柔和的推拉或平移跟随 @df4c928fa.kittenauro 的探索，光影处理梦幻细腻，适合15秒的视频时长。",
+            "status": "ready"
+          },
+          {
+            "id": "sentence-2",
+            "index": 1,
+            "text": "@df4c928fa.kittenauro 小猫和猫妈妈在公园玩耍",
+            "optimized": "卡通绘本风格的视频。@df4c928fa.kittenauro 和它的猫妈妈在一个阳光明媚的公园里欢快地玩耍，它们在柔软的草地上追逐嬉戏，好奇地探索着盛开的鲜花，充满温馨与乐趣。画面色彩鲜艳明亮，饱和度高，整体呈现出温暖友好的氛围，背景简化而富有层次感，营造出如梦似幻的童话世界。角色动作夸张而富有弹性，具有拟人化的生动表情，摄影机位灵活多变，捕捉到它们每一次充满童真的互动。光影柔和，细节丰富，适合15秒的视频时长。",
+            "status": "ready"
+          },
+          {
+            "id": "sentence-3",
+            "index": 2,
+            "text": "@df4c928fa.kittenauro 小猫在森林散步。",
+            "optimized": "卡通绘本风格的视频，画面采用鲜艳明亮的色彩和柔和的光线，营造出温暖友好的氛围。@df4c928fa.kittenauro 在阳光斑驳的森林小径上轻快地漫步，好奇地探索着周围的一切，嗅闻着路边盛开的野花，偶尔抬头望向高大的树木。动画生动流畅，富有童趣，简化的环境细节展现出森林的宁静与生机，动态的镜头跟随让观众仿佛置身其中，适合15秒的视频时长。",
+            "status": "ready"
+          }
+        ],
+        "connectedCharacters": [
+          {
+            "id": "ch_69515e2d5b4881918d4cd7f7836d2f84",
+            "username": "df4c928fa.kittenauro",
+            "alias": "小猫"
+          }
+        ],
+        "style": "picture-book",
+        "targetDuration": 15,
+        "optimizationDirection": "balanced",
+        "progress": 100
+      }
+    },
+    {
+      "id": "15",
+      "type": "batchVideoGenerateNode",
+      "position": { "x": 652.41, "y": 721.64 },
+      "data": {
+        "label": "🎬 批量视频生成",
+        "sentences": [],
+        "selectedSentences": [0, 1, 2],
+        "batchStatus": "idle",
+        "duration": 15
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e13-12",
+      "source": "13",
+      "target": "12",
+      "sourceHandle": "openai-config",
+      "targetHandle": "openai-config"
+    },
+    {
+      "id": "e1-12",
+      "source": "1",
+      "target": "12",
+      "sourceHandle": "characters-output",
+      "targetHandle": "character-input"
+    },
+    {
+      "id": "e12-14",
+      "source": "12",
+      "target": "14",
+      "sourceHandle": "narrator-output",
+      "targetHandle": "narrator-input"
+    },
+    {
+      "id": "e13-14",
+      "source": "13",
+      "target": "14",
+      "sourceHandle": "openai-config",
+      "targetHandle": "openai-config"
+    },
+    {
+      "id": "e14-15",
+      "source": "14",
+      "target": "15",
+      "sourceHandle": "sentence-output",
+      "targetHandle": "narrator-input"
+    },
+    {
+      "id": "e11-15",
+      "source": "11",
+      "target": "15",
+      "sourceHandle": "api-config",
+      "targetHandle": "api-config"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "expectedResults": {
+    "nodeCount": {
+      "description": "验证节点数量",
+      "checks": [
+        "总节点数：6个",
+        "输入节点：3个（角色库、API设置、OpenAI配置、旁白输入）",
+        "处理节点：2个（旁白处理、批量视频生成）",
+        "批量视频生成节点存在：✅"
+      ]
+    },
+    "batchGeneration": {
+      "description": "验证批量视频生成流程",
+      "checks": [
+        "旁白优化完成（3个句子status: ready）",
+        "批量任务提交成功（batchStatus: submitted）",
+        "批量任务ID生成（batchId）",
+        "视频生成成功（3个视频）"
+      ]
+    }
+  },
+  "createdAt": "2026-01-18T12:02:49.875Z",
+  "updatedAt": "2026-01-18T12:02:49.875Z"
+}

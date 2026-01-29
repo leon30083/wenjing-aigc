@@ -117,7 +117,43 @@ Claude: [直接修复，无需 Plan 模式]
 
 ## 1. 启动开发服务器
 
-### ⭐ 工作流画布开发（当前重点）⭐
+### ⭐ 推荐方式：使用自动化脚本 ⭐ 新增 (2026-01-23)
+
+> **重要**: 脚本自动处理环境检查、端口清理、服务启动，避免手动操作的遗漏和错误
+
+#### Windows 用户
+
+```bash
+# 启动开发环境（自动检查+启动后端+前端）
+start-dev.bat
+
+# 停止开发环境
+stop-dev.bat
+```
+
+#### Linux/Mac 用户
+
+```bash
+# 启动开发环境（自动检查+启动后端+前端）
+./start-dev.sh
+
+# 停止开发环境
+./stop-dev.sh
+```
+
+**脚本自动完成**:
+- ✅ 环境检查（Node.js、npm、.env）
+- ✅ 端口检查与清理（9000、5173）
+- ✅ 启动后端和前端服务器
+- ✅ 打开浏览器到 http://localhost:5173/
+
+---
+
+### 手动方式（降级方案）
+
+> **⚠️ 注意**: 优先使用脚本，以下命令仅在脚本不可用时使用
+
+#### ⭐ 工作流画布开发（当前重点）⭐
 
 **⚠️ 重要**: 这是当前项目的主要开发目标！
 
@@ -207,19 +243,28 @@ http://localhost:5173/  ← 这才是工作流画布！
 |------|------|----------|
 | `electron: command not found` | electron 未安装 | 使用 `npm run server` 代替 `npm start` |
 | **测试了网页版而非画布** | ❌ 访问 localhost:9000 | ✅ 访问 localhost:5173 |
-| **前端无法连接 API** | 只启动了 Vite，没启动后端 | 同时运行 `npm run server` 和 `npm run dev` |
-| 端口被占用 | 9000 端口已被使用 | 修改 `.env` 中的 PORT 配置 |
+| **前端无法连接 API** | 只启动了 Vite，没启动后端 | 运行 `start-dev.bat` (Windows) 或 `./start-dev.sh` (Linux/Mac) |
+| 端口被占用 | 9000 端口已被使用 | 运行 `stop-dev.bat` (Windows) 或 `./stop-dev.sh` (Linux/Mac) |
 
-### 后端代码修改不生效 ⭐ 更新 (2026-01-03)
+### 后端代码修改不生效 ⭐ 更新 (2026-01-23)
 
 | 问题 | 原因 | 解决方案 |
 |------|------|----------|
-| 修改后端代码后无效果 | Node.js 模块缓存 | 1. 终端按 Ctrl+C 停止服务器<br>2. 重新运行 `npm run server` |
-| Windows 端口被占用 | nul 文件或僵尸进程 | 1. 删除 nul 文件 (`del nul`)<br>2. 或运行 `taskkill /F /IM node.exe` |
-| EADDRINUSE 错误 | 进程未完全退出 | 1. `netstat -ano \| findstr :9000` 查找 PID<br>2. `taskkill /F /PID <PID>` 强制结束 |
-| PowerShell 无法停止进程 | 进程在子shell运行 | 1. 关闭并重新打开终端<br>2. 或使用 `Get-Process node \| Stop-Process -Force` |
+| 修改后端代码后无效果 | Node.js 模块缓存 | 1. 运行 `stop-dev.bat` 停止<br>2. 运行 `start-dev.bat` 重启 |
+| Windows 端口被占用 | nul 文件或僵尸进程 | 1. 删除 nul 文件 (`del nul`)<br>2. 或运行 `stop-dev.bat` |
+| EADDRINUSE 错误 | 进程未完全退出 | 运行 `stop-dev.bat` 自动清理 |
+| PowerShell 无法停止进程 | 进程在子shell运行 | 1. 关闭并重新打开终端<br>2. 或运行 `stop-dev.bat` |
 
-**完整重启流程** (推荐):
+**⭐ 推荐重启流程** (使用脚本):
+```bash
+# Windows
+stop-dev.bat && start-dev.bat
+
+# Linux/Mac
+./stop-dev.sh && ./start-dev.sh
+```
+
+**手动重启流程** (降级方案):
 ```bash
 # 步骤1: 停止后端服务器
 # 在终端按 Ctrl+C，如果无响应：
@@ -244,6 +289,7 @@ npm run server
 1. **忘记停止服务器**: 直接修改代码后刷新浏览器，看到的是旧代码
 2. **端口占用显示假启动**: 服务器启动失败但终端无错误提示
 3. **Vite 热重载混淆**: 前端热重载生效误以为后端也生效（后端需要手动重启）
+4. **不使用脚本**: 手动操作容易遗漏步骤，推荐使用 `start-dev.bat` / `stop-dev.bat`
 
 ---
 
@@ -475,10 +521,25 @@ winjin/
 | 技术规范 | `.claude/rules/base.md` | 技术栈、API 规范 |
 | 代码规范 | `.claude/rules/code.md` | 代码示例、错误模式 |
 | 错误模式 | `.claude/rules/error-patterns.md` | 所有已知的错误模式 |
+| **节点参考** ⭐ 新增 (2026-01-18) | `.claude/03-node-development/node-reference/` | **React Flow 节点功能文档** ⭐ |
 | 开发经验 | `用户输入文件夹/开发经验/Sora2_Character_Best_Practices.md` | Sora2 最佳实践 |
 | 交接书 | `用户输入文件夹/开发对话/开发交接书.md` | 项目交接文档 |
 | **验证指南** ⭐ Phase 3 | `docs/validation-guide.md` | 验证系统完整使用指南 |
 | **错误模板** ⭐ Phase 3 | `.claude/templates/error-template.md` | 快速创建新错误文档 |
+
+### 节点参考文档 ⭐ 重要
+
+**必读文档**: [节点功能参考手册](../03-node-development/node-reference/README.md)
+
+**核心节点**:
+- [TextNode.md](../03-node-development/node-reference/input-nodes/TextNode.md) - 文本输入节点
+- [VideoGenerateNode.md](../03-node-development/node-reference/process-nodes/VideoGenerateNode.md) - 视频生成节点
+- [TaskResultNode.md](../03-node-development/node-reference/output-nodes/TaskResultNode.md) - 任务结果节点
+
+**使用规范**:
+- 创建或修改节点前，**必须**先阅读对应文档
+- 生成工作流时，参考 Handles 连接规范
+- 遇到数据传递问题时，查看"数据传递"章节
 
 ---
 

@@ -7,6 +7,26 @@
 [![React](https://img.shields.io/badge/React-19.0.0-blue)](https://reactjs.org/)
 [![React Flow](https://img.shields.io/badge/React_Flow-11.0.0-purple)](https://reactflow.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Download](https://img.shields.io/badge/download-v2.0.2-brightgreen)](https://github.com/leon30083/wenjing-aigc/releases/latest)
+
+---
+
+## 📥 下载桌面应用
+
+### 最新版本: v2.0.2
+
+**[下载 WinJin AIGC v2.0.2](https://github.com/leon30083/wenjing-aIGC/releases/download/v2.0.2/WinJinAIGC-v2.0.2.zip)**
+
+| 版本 | 日期 | 大小 | 说明 |
+|------|------|------|------|
+| [v2.0.2](https://github.com/leon30083/wenjing-aIGC/releases/tag/v2.0.2) | 2026-01-29 | 573 MB | 🎉 后端服务可见终端窗口支持 |
+| [v2.0.1](https://github.com/leon30083/wenjing-aIGC/releases/tag/v2.0.1) | 2026-01-29 | - | 后端服务启动验证 |
+| [v2.0.0](https://github.com/leon30083/wenjing-aIGC/releases/tag/v2.0.0) | 2026-01-23 | - | 首次 Electron 版本 |
+
+**使用方法**:
+1. 下载并解压 ZIP 文件
+2. 双击 `WinJin AIGC.exe` 启动应用
+3. 主窗口显示前端界面，独立终端窗口显示后端日志
 
 ---
 
@@ -153,6 +173,8 @@ winjin/
 │       └── 贞贞工坊/             # 贞贞 API 文档
 ├── scripts/                      # 验证和修复脚本 ⭐ Phase 3
 │   ├── auto-fix.js               # 自动修复工具
+│   ├── check-claude-sync.js      # 配置同步检查 ⭐ 新增
+│   ├── install-git-hooks.js      # Git Hooks 安装器 ⭐ 新增
 │   ├── validate-*.js             # 验证脚本
 │   └── detect-*.js               # 检测脚本
 ├── src/
@@ -192,9 +214,12 @@ winjin/
 │       │   └── main.jsx         # 入口
 │       └── package.json         # 前端依赖
 ├── .env.example                  # 环境变量模板
-├── .gitignore
-├── package.json
-├── README.md
+├── .git-hooks/                   # Git Hooks 模板 ⭐ 新增
+│   ├── post-merge               # 合并后检测
+│   └── post-checkout            # 分支切换检测
+├── .gitignore                    # 包含 .synced 忽略规则 ⭐ 新增
+├── package.json                  # 包含 sync: 命令 ⭐ 新增
+├── README.md                     # 本文件
 └── CLAUDE.md                     # 项目开发规范 ⭐ 必读
 ```
 
@@ -539,6 +564,11 @@ npm run server
 # 启动前端开发服务器
 cd src/client && npm run dev
 
+# 配置同步 ⭐ 新增 (2026-01-23)
+npm run sync:check      # 检查配置状态
+npm run sync:verify     # 验证配置完整性
+npm run sync:hooks      # 安装 Git Hooks
+
 # 运行验证 ⭐ Phase 3
 npm run validate:all
 
@@ -551,6 +581,100 @@ npm run metrics:trend
 # 启动 Electron 应用（打包用）
 npm start
 ```
+
+---
+
+## 🔄 自动化配置同步系统 ⭐ 新增 (2026-01-23)
+
+> **重要**: 多电脑开发环境自动配置同步，确保开发体验一致
+
+### 功能概述
+
+三层自动化机制，自动同步 Claude Code 配置文件：
+
+| 层级 | 机制 | 触发时机 | 功能 |
+|------|------|----------|------|
+| **Layer 1** | npm postinstall | `npm install` | 自动同步配置文件 |
+| **Layer 2** | Claude Code Skill | 自然语言命令 | 智能识别同步命令 |
+| **Layer 3** | Git Hooks | git 操作后 | 自动检测配置变化 |
+
+### 快速命令
+
+```bash
+# 配置同步命令
+npm run sync:check      # 检查配置状态
+npm run sync:verify     # 验证配置完整性
+npm run sync:config     # 手动同步配置（bash 脚本）
+
+# Git Hooks 管理
+npm run sync:hooks          # 安装/更新 Git Hooks
+npm run sync:hooks:check   # 检查 Hooks 状态
+npm run sync:hooks:uninstall # 卸载 Hooks
+```
+
+### 使用场景
+
+#### 新电脑设置
+```bash
+# 1. 克隆项目
+git clone https://github.com/leon30083/wenjing-aigc.git
+cd wenjing-aigc
+
+# 2. 安装依赖（自动同步配置）
+npm install
+
+# 3. 安装 Git Hooks（可选）
+npm run sync:hooks
+```
+
+#### 日常使用
+```bash
+# Git 操作后自动检测
+git pull origin main        # 自动触发配置检查
+git checkout feature-branch  # 自动触发配置检查
+
+# Skill 命令（在 Claude Code 中）
+"同步配置"                   # 同步配置文件
+"验证配置"                   # 验证配置完整性
+"安装 git hooks"            # 安装 Git Hooks
+```
+
+### 核心文件
+
+| 文件 | 功能 | 行数 |
+|------|------|------|
+| `scripts/check-claude-sync.js` | 配置检查脚本 | 200+ |
+| `scripts/install-git-hooks.js` | Git Hooks 安装器 | 180+ |
+| `.git-hooks/post-merge` | 合并后检测 | 20 |
+| `.git-hooks/post-checkout` | 分支切换检测 | 33 |
+| `.claude/skills/auto-config-sync/SKILL.md` | 自然语言 Skill | v1.1.0 |
+
+### 跨平台支持
+
+| 平台 | Git Hooks | 特殊处理 |
+|------|-----------|----------|
+| **Windows** | PowerShell 脚本 | Bash wrapper 调用 |
+| **Linux/macOS** | Bash 脚本 | 直接复制 + chmod |
+
+### 特性
+
+- ✅ **自动同步** - npm install 时自动配置
+- ✅ **过期检测** - 7天过期自动重新同步
+- ✅ **Git 集成** - 合并/切换分支自动检测
+- ✅ **跨平台** - Windows/Unix 兼容
+- ✅ **智能识别** - Claude Code 自然语言命令
+- ✅ **非侵入式** - 不影响现有工作流
+
+### 验证状态
+
+✅ **全部测试通过** (2026-01-23)
+
+- ✅ npm postinstall 自动同步
+- ✅ Claude Code Skill 命令识别（5种模式）
+- ✅ Git Hooks 自动检测（post-merge, post-checkout）
+- ✅ 跨平台兼容性（Windows PowerShell, Unix Bash）
+
+详细验证报告：[docs/verification-report-sync-system.md](docs/verification-report-sync-system.md)
 
 ---
 
@@ -600,5 +724,5 @@ MIT License
 ---
 
 **版本**: 2.0.0 (工作流画布版)
-**最后更新**: 2026-01-09
+**最后更新**: 2026-01-23
 **原项目**: 归档于 `reference/` 目录

@@ -11,7 +11,19 @@ export default defineConfig({
       include: '**/*.{jsx,js}',
     }),
   ],
+
+  // ⭐ 生产环境使用相对路径（Electron 需要）
+  base: './',
+
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    sourcemap: false  // 生产环境关闭 sourcemap
+  },
+
   server: {
+    port: 5173,
+    strictPort: true,
     watch: {
       usePolling: true, // Windows 文件系统
       // ✅ 优化轮询间隔（毫秒）
@@ -45,8 +57,5 @@ export default defineConfig({
       '@xyflow/react'
     ],
     force: false, // 不强制重新构建
-  },
-  build: {
-    sourcemap: true, // ✅ 开发时启用 sourcemap
   },
 })

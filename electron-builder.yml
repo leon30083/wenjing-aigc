@@ -1,0 +1,23 @@
+appId: com.winjin.aigc
+productName: WinJin AIGC
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - src/**/*
+  - node_modules/**/*
+  - package.json
+  - .env              # ⭐ 环境变量文件
+  - data/**/*         # ⭐ 数据目录
+
+asarUnpack:
+  - src/server/**/*
+  - .env              # ⭐ 解包 .env 以便访问
+  - data/**           # ⭐ 解包 data 目录以便访问
+
+win:
+  target:
+    - dir
+  sign: null  # ⭐ 禁用代码签名以避免符号链接权限问题
+  signingHashAlgorithms: []

@@ -1,0 +1,164 @@
+{
+  "name": "测试工作流 - 角色批量视频生成（故事板）",
+  "description": "验证故事板多镜头生成 + 角色在多个镜头中复用",
+  "category": "character-video",
+  "version": "1.0.0",
+  "author": "AI",
+  "tags": ["角色", "故事板", "批量生成", "E2E"],
+  "testPlan": [
+    "步骤1: 在 CharacterLibraryNode 中选择角色（阳光小猫）",
+    "步骤2: 在 TextNode 中输入旁白文本（描述3个场景）",
+    "步骤3: 检查 StoryboardNode 配置",
+    "步骤4: 验证每个镜头都可以使用角色引用",
+    "步骤5: 验证每个镜头独立设置时长",
+    "步骤6: 验证总时长计算正确",
+    "步骤7: 点击生成故事板",
+    "步骤8: 验证 API 调用成功",
+    "步骤9: 验证 TaskResultNode 显示批量任务结果"
+  ],
+  "nodes": [
+    {
+      "id": "1",
+      "type": "characterLibraryNode",
+      "position": { "x": 100, "y": 100 },
+      "data": {
+        "label": "角色库",
+        "selectedCharacters": [],
+        "connectedCharacters": []
+      }
+    },
+    {
+      "id": "2",
+      "type": "textNode",
+      "position": { "x": 100, "y": 300 },
+      "data": {
+        "label": "文本节点",
+        "text": "",
+        "value": ""
+      }
+    },
+    {
+      "id": "9",
+      "type": "storyboardNode",
+      "position": { "x": 500, "y": 200 },
+      "data": {
+        "label": "故事板",
+        "shots": [
+          {
+            "id": "shot-1",
+            "duration": 10,
+            "scene": "@6f2dbf2b3.zenwhisper 在海边玩耍，充满好奇和喜悦地探索。阳光温柔地洒在海浪和沙滩上，整体氛围温暖、友好。",
+            "image": null
+          },
+          {
+            "id": "shot-2",
+            "duration": 10,
+            "scene": "@6f2dbf2b3.zenwhisper 在草地上奔跑，追逐着蝴蝶。蓝天白云，绿草如茵，充满活力和快乐。",
+            "image": null
+          },
+          {
+            "id": "shot-3",
+            "duration": 10,
+            "scene": "@6f2dbf2b3.zenwhisper 在花园里休息，躺在柔软的草地上看着天空。微风拂过，云朵悠悠飘过，宁静而美好。",
+            "image": null
+          }
+        ],
+        "totalDuration": 30,
+        "connectedCharacters": [],
+        "connectedImages": [],
+        "apiConfig": {
+          "platform": "juxin",
+          "model": "sora-2-all",
+          "aspect": "16:9",
+          "watermark": false
+        },
+        "taskId": null,
+        "taskStatus": "idle",
+        "narratorMode": false,
+        "narratorIndex": 0,
+        "narratorSentences": []
+      }
+    },
+    {
+      "id": "10",
+      "type": "taskResultNode",
+      "position": { "x": 900, "y": 200 },
+      "data": {
+        "label": "任务结果",
+        "taskId": null,
+        "taskStatus": "idle",
+        "videoUrl": null,
+        "platform": "juxin",
+        "progress": 0,
+        "error": null,
+        "connectedSourceId": null
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1-9",
+      "source": "1",
+      "target": "9",
+      "sourceHandle": "characters-output",
+      "targetHandle": "character-input"
+    },
+    {
+      "id": "e2-9",
+      "source": "2",
+      "target": "9",
+      "sourceHandle": "text-output",
+      "targetHandle": "prompt-input"
+    },
+    {
+      "id": "e9-10",
+      "source": "9",
+      "target": "10",
+      "sourceHandle": "video-output",
+      "targetHandle": "task-input"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "expectedResults": {
+    "storyboard": {
+      "description": "验证故事板多镜头生成",
+      "checks": [
+        "故事板包含 3 个镜头",
+        "每个镜头独立设置时长（10秒）",
+        "总时长计算正确（30秒）",
+        "每个镜头包含角色引用",
+        "角色引用在多个镜头中复用"
+      ]
+    },
+    "characterReuse": {
+      "description": "验证角色在多个镜头中复用",
+      "checks": [
+        "所有镜头使用相同的角色",
+        "角色引用格式一致",
+        "角色引用不影响镜头独立性"
+      ]
+    },
+    "apiCall": {
+      "description": "验证故事板 API 调用",
+      "checks": [
+        "API 端点：POST /api/video/storyboard",
+        "请求包含 platform: juxin",
+        "请求包含 model: sora-2-all",
+        "请求包含 shots 数组（3个镜头）",
+        "每个镜头包含 duration 和 scene",
+        "响应包含 taskId"
+      ]
+    },
+    "taskResult": {
+      "description": "验证批量任务结果显示",
+      "checks": [
+        "TaskResultNode 显示任务ID",
+        "轮询状态更新",
+        "视频URL正确显示",
+        "支持下载视频"
+      ]
+    }
+  },
+  "createdAt": "2026-01-18T00:00:00.000Z",
+  "updatedAt": "2026-01-18T00:00:00.000Z"
+}

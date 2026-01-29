@@ -1322,6 +1322,24 @@ PORT=9000
 
 ## 参考文档
 
-- **开发经验**: `reference/用户输入文件夹/开发经验/Sora2_Character_Best_Practices.md`
-- **聚鑫 API**: `reference/用户输入文件夹/聚鑫sora2/`
-- **贞贞 API**: `reference/用户输入文件夹/贞贞工坊/`
+### 节点参考文档 ⭐ 新增 (2026-01-18)
+
+**路径**: `.claude/03-node-development/node-reference/`
+
+**用途**: AI 和开发者理解每个节点的功能、Handles、配置和数据传递方式。
+
+**核心文档**:
+- [README.md](.claude/03-node-development/node-reference/README.md) - 节点功能参考手册总入口
+- [TextNode.md](.claude/03-node-development/node-reference/input-nodes/TextNode.md) - 文本输入节点 ⭐ 模板
+- [VideoGenerateNode.md](.claude/03-node-development/node-reference/process-nodes/VideoGenerateNode.md) - 视频生成节点 ⭐ 模板
+- [TaskResultNode.md](.claude/03-node-development/node-reference/output-nodes/TaskResultNode.md) - 任务结果节点 ⭐ 模板
+
+**AI 使用规范**:
+1. 创建或修改节点时，**必须**先阅读对应的节点文档
+2. 生成工作流时，参考节点的 Handles 连接规范
+3. 遇到数据传递问题时，查看节点的"数据传递"章节
+4. 修复错误时，查看节点的"常见问题"章节
+
+### 项目参考文档
+
+⚠️ **注意**: 原项目参考文档（reference/ 文件夹）已不再维护。所有 API 规范已整合到本规则文件的"API 规范"章节。
