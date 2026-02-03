@@ -1,49 +1,18 @@
-import React, { createContext, useState, useCallback } from 'react';
+import React, { createContext, useState, useCallback, useEffect } from 'react';
 
 /**
- * 获取平台支持的模型列表
+ * API_BASE - API 基础 URL
  */
-const PLATFORM_MODELS = {
-  juxin: ['sora-2-all'],           // 聚鑫只支持 sora-2-all
-  zhenzhen: ['sora-2', 'sora-2-pro'], // 贞贞支持 sora-2 和 sora-2-pro
-};
+const API_BASE = 'http://localhost:9000';
 
 /**
- * 获取平台的有效模型（自动修正不匹配的模型）
+ * Cherry Studio style configuration structure
  *
- * @param {string} platform - 平台名称 ('juxin' | 'zhenzhen')
- * @param {string} currentModel - 当前模型名称
- * @returns {string} 有效的模型名称
- */
-const getValidModelForPlatform = (platform, currentModel) => {
-  const validModels = PLATFORM_MODELS[platform];
-
-  if (!validModels) {
-    console.warn(`[APIConfigContext] 未知平台: ${platform}，使用默认模型`);
-    return 'sora-2-all';
-  }
-
-  // 如果当前模型有效，直接返回
-  if (validModels.includes(currentModel)) {
-    return currentModel;
-  }
-
-  // ⭐ 模型不匹配，返回该平台的默认模型
-  const defaultModel = validModels[0];
-  console.warn(`[APIConfigContext] 模型 ${currentModel} 不支持平台 ${platform}，切换到 ${defaultModel}`);
-  return defaultModel;
-};
-
-/**
- * APIConfigContext - API 配置全局状态管理
- *
- * 功能：
- * - 提供全局 API 配置状态 (platform, model, aspect, watermark)
- * - 自动同步配置到 localStorage
- * - 提供 updateConfig 函数修改配置
- * - 通知下游节点配置变化
- *
- * 解决问题：错误56 - useState 异步闭包问题导致配置丢失
+ * 支持的功能：
+ * - 用户自定义平台和模型
+ * - 配置存储在 config.json（通过 API 管理）
+ * - 提供默认配置模板（聚鑫/贞贞）
+ * - 支持 VEO 模型和 Gemini 文本模型
  */
 
 export const APIConfigContext = createContext({
@@ -53,94 +22,398 @@ export const APIConfigContext = createContext({
     aspect: '16:9',
     watermark: false,
   },
+  // Text model configuration
+  textConfig: {
+    platform: 'deepseek',
+    model: 'deepseek-chat',
+    apiKey: '',
+    style: 'picture-book',
+  },
+  // Concurrency limits
+  concurrencyLimits: {
+    juxin: 3,
+    zhenzhen: 3,
+  },
+  platforms: [],
+  textModels: [],
   updateConfig: () => {},
+  updateTextConfig: () => {},
+  updateConcurrencyLimits: () => {},
+  addPlatform: () => {},
+  updatePlatform: () => {},
+  deletePlatform: () => {},
+  addModel: () => {},
+  loadConfig: () => {},
+  reloadConfig: () => {},
+  isLoading: true,
 });
 
 /**
- * APIConfigProvider - API 配置提供者
+ * APIConfigProvider - Cherry Studio style 配置提供者
+ *
+ * 功能：
+ * - 从 API 加载完整配置（平台、模型、文本模型）
+ * - 自动同步配置到 localStorage（向后兼容）
+ * - 提供动态配置管理功能（添加/删除平台和模型）
+ * - 支持用户自定义平台
  *
  * @param {Object} props
  * @param {React.ReactNode} props.children - 子组件
  */
 export const APIConfigProvider = ({ children }) => {
-  const [config, setConfig] = useState(() => {
-    // 从 localStorage 初始化 (支持工作流恢复)
-    const saved = localStorage.getItem('winjin-api-config');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        console.log('[APIConfigContext] 从 localStorage 恢复配置:', parsed);
+  const [config, setConfig] = useState({
+    platform: 'juxin',
+    model: 'sora-2-all',
+    aspect: '16:9',
+    watermark: false,
+    apiKey: '',
+  });
 
-        // ⭐ 智能模型修正：确保模型与平台匹配
-        const validModel = getValidModelForPlatform(parsed.platform, parsed.model);
-        if (validModel !== parsed.model) {
-          console.log('[APIConfigContext] 自动修正模型:', {
-            platform: parsed.platform,
-            oldModel: parsed.model,
-            newModel: validModel,
-          });
-          parsed.model = validModel;
-        }
+  const [platforms, setPlatforms] = useState([]);
+  const [textModels, setTextModels] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-        return parsed;
-      } catch (error) {
-        console.error('[APIConfigContext] 读取 localStorage 失败:', error);
+  // Text model configuration state
+  const [textConfig, setTextConfig] = useState(() => {
+    // ⭐ 从 localStorage 初始化（向后兼容）
+    try {
+      const local = localStorage.getItem('winjin-text-config');
+      if (local) {
+        const parsed = JSON.parse(local);
+        console.log('[APIConfigContext] 从 localStorage 初始化 textConfig:', parsed);
+        return {
+          platform: parsed.platform || 'deepseek',
+          model: parsed.model || 'deepseek-chat',
+          apiKey: parsed.apiKey || '',
+          style: parsed.style || 'picture-book',
+        };
       }
+    } catch (error) {
+      console.warn('[APIConfigContext] 读取 localStorage 失败:', error);
     }
-    // 默认配置
+    // 默认值
     return {
-      platform: 'juxin',
-      model: 'sora-2-all',
-      aspect: '16:9',
-      watermark: false,
+      platform: 'deepseek',
+      model: 'deepseek-chat',
+      apiKey: '',
+      style: 'picture-book',
     };
   });
 
+  // Concurrency limits state
+  const [concurrencyLimits, setConcurrencyLimits] = useState({
+    juxin: 3,
+    zhenzhen: 3,
+  });
+
+  /**
+   * 从 API 加载完整配置
+   */
+  const loadConfig = useCallback(async () => {
+    // ⭐ 先读取 localStorage 配置作为备份
+    let localStorageTextConfig = null;
+    try {
+      const local = localStorage.getItem('winjin-text-config');
+      if (local) {
+        localStorageTextConfig = JSON.parse(local);
+      }
+    } catch (e) {
+      console.warn('[APIConfigContext] 读取 localStorage 失败:', e);
+    }
+
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${API_BASE}/api/config`);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const { platforms: platformList, textModels: textModelList, userDefaults } = result.data;
+
+        setPlatforms(platformList || []);
+        setTextModels(textModelList || []);
+
+        // 使用用户默认配置
+        if (userDefaults && userDefaults.videoGeneration) {
+          const videoDefaults = userDefaults.videoGeneration;
+          setConfig({
+            platform: videoDefaults.platform || 'juxin',
+            model: videoDefaults.model || 'sora-2-all',
+            aspect: videoDefaults.aspectRatio || '16:9',
+            watermark: videoDefaults.watermark || false,
+            apiKey: '',
+            concurrencyLimits: videoDefaults.concurrencyLimits || { juxin: 3, zhenzhen: 3 },
+          });
+        }
+
+        // ⭐ 文本模型配置：优先使用 API 返回值，否则使用 localStorage
+        if (userDefaults && userDefaults.textGeneration) {
+          const textDefaults = userDefaults.textGeneration;
+          setTextConfig({
+            platform: textDefaults.platform || 'deepseek',
+            model: textDefaults.model || 'deepseek-chat',
+            apiKey: textDefaults.apiKey || '',
+            style: textDefaults.style || 'picture-book',
+          });
+          // ⭐ 同步更新 localStorage
+          localStorage.setItem('winjin-text-config', JSON.stringify({
+            platform: textDefaults.platform || 'deepseek',
+            model: textDefaults.model || 'deepseek-chat',
+            apiKey: textDefaults.apiKey || '',
+            style: textDefaults.style || 'picture-book',
+          }));
+        } else if (localStorageTextConfig) {
+          // ⭐ API 没有返回 textDefaults，使用 localStorage 值
+          console.log('[APIConfigContext] 使用 localStorage 配置:', localStorageTextConfig);
+          setTextConfig(localStorageTextConfig);
+        }
+
+        // 同时保存到 localStorage（向后兼容）
+        const localStorageConfig = {
+          platform: videoDefaults?.platform || 'juxin',
+          model: videoDefaults?.model || 'sora-2-all',
+          aspect: videoDefaults?.aspectRatio || '16:9',
+          watermark: videoDefaults?.watermark || false,
+        };
+        localStorage.setItem('winjin-api-config', JSON.stringify(localStorageConfig));
+
+        console.log('[APIConfigContext] 配置已从 API 加载:', {
+          platforms: platformList?.length || 0,
+          textModels: textModelList?.length || 0,
+          userDefaults: videoDefaults,
+        });
+      }
+    } catch (error) {
+      console.error('[APIConfigContext] 加载配置失败:', error);
+      // ⭐ 加载失败时，使用 localStorage 配置
+      if (localStorageTextConfig) {
+        console.log('[APIConfigContext] 加载失败，使用 localStorage 配置:', localStorageTextConfig);
+        setTextConfig(localStorageTextConfig);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  /**
+   * 组件挂载时加载配置
+   */
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
+
   /**
    * 更新 API 配置
-   * 自动持久化到 localStorage
-   * 智能切换模型（确保模型与平台匹配）
-   *
-   * @param {Object} updates - 要更新的配置字段
+   * 同时更新 localStorage 和服务器配置
    */
-  const updateConfig = useCallback((updates) => {
+  const updateConfig = useCallback(async (updates) => {
     setConfig((prev) => {
-      let newConfig = { ...prev, ...updates };
+      const newConfig = { ...prev, ...updates };
 
-      // ⭐ 智能模型切换：如果切换了平台，自动切换到有效的模型
+      // ⭐ 智能模型切换：如果切换了平台，确保模型有效
       if (updates.platform && updates.platform !== prev.platform) {
-        const validModel = getValidModelForPlatform(updates.platform, newConfig.model);
-        if (validModel !== newConfig.model) {
-          console.log('[APIConfigContext] 切换平台，自动调整模型:', {
-            oldPlatform: prev.platform,
-            newPlatform: updates.platform,
-            oldModel: newConfig.model,
-            newModel: validModel,
-          });
-          newConfig.model = validModel;
+        const platform = platforms.find(p => p.key === updates.platform);
+        if (platform && platform.models && platform.models.length > 0) {
+          const firstModel = platform.models[0];
+          if (firstModel && !platform.models.some(m => m.id === newConfig.model)) {
+            console.log('[APIConfigContext] 切换平台，自动调整模型:', {
+              oldPlatform: prev.platform,
+              newPlatform: updates.platform,
+              oldModel: newConfig.model,
+              newModel: firstModel.id,
+            });
+            newConfig.model = firstModel.id;
+          }
         }
       }
 
-      // ⭐ 再次验证：如果用户手动修改了模型，确保它匹配当前平台
-      if (updates.model && !PLATFORM_MODELS[newConfig.platform].includes(updates.model)) {
-        const validModel = getValidModelForPlatform(newConfig.platform, updates.model);
-        console.log('[APIConfigContext] 模型不匹配当前平台，自动修正:', {
-          platform: newConfig.platform,
-          requestedModel: updates.model,
-          correctedModel: validModel,
-        });
-        newConfig.model = validModel;
-      }
+      // 保存到 localStorage（向后兼容）
+      const localStorageConfig = {
+        platform: newConfig.platform,
+        model: newConfig.model,
+        aspect: newConfig.aspect,
+        watermark: newConfig.watermark,
+      };
+      localStorage.setItem('winjin-api-config', JSON.stringify(localStorageConfig));
 
-      // 自动持久化到 localStorage
-      localStorage.setItem('winjin-api-config', JSON.stringify(newConfig));
-      console.log('[APIConfigContext] 配置已更新并保存:', newConfig);
+      // ⭐ 更新服务器端的用户默认配置
+      updateUserDefaults({ videoGeneration: localStorageConfig });
+
+      return newConfig;
+    });
+  }, [platforms]);
+
+  /**
+   * 更新服务器端用户默认配置
+   */
+  const updateUserDefaults = async (defaults) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/config/defaults`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ defaults }),
+      });
+      const result = await response.json();
+      if (!result.success) {
+        console.warn('[APIConfigContext] 更新服务器配置失败:', result.error);
+      }
+    } catch (error) {
+      console.error('[APIConfigContext] 更新服务器配置失败:', error);
+    }
+  };
+
+  /**
+   * 添加自定义平台
+   */
+  const addPlatform = useCallback(async (platformData) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/config/platforms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(platformData),
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        await loadConfig(); // 重新加载配置
+        return { success: true };
+      }
+      return result;
+    } catch (error) {
+      console.error('[APIConfigContext] 添加平台失败:', error);
+      return { success: false, error: error.message };
+    }
+  }, [loadConfig]);
+
+  /**
+   * 更新平台配置
+   */
+  const updatePlatform = useCallback(async (platformKey, updates) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/config/platforms/${platformKey}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        await loadConfig(); // 重新加载配置
+        return { success: true };
+      }
+      return result;
+    } catch (error) {
+      console.error('[APIConfigContext] 更新平台失败:', error);
+      return { success: false, error: error.message };
+    }
+  }, [loadConfig]);
+
+  /**
+   * 删除自定义平台
+   */
+  const deletePlatform = useCallback(async (platformKey) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/config/platforms/${platformKey}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        await loadConfig(); // 重新加载配置
+        return { success: true };
+      }
+      return result;
+    } catch (error) {
+      console.error('[APIConfigContext] 删除平台失败:', error);
+      return { success: false, error: error.message };
+    }
+  }, [loadConfig]);
+
+  /**
+   * 为平台添加模型
+   */
+  const addModel = useCallback(async (platformKey, modelData) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/config/platforms/${platformKey}/models`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(modelData),
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        await loadConfig(); // 重新加载配置
+        return { success: true };
+      }
+      return result;
+    } catch (error) {
+      console.error('[APIConfigContext] 添加模型失败:', error);
+      return { success: false, error: error.message };
+    }
+  }, [loadConfig]);
+
+  /**
+   * 更新文本模型配置
+   */
+  const updateTextConfig = useCallback((updates) => {
+    setTextConfig((prev) => {
+      const newConfig = { ...prev, ...updates };
+
+      // 保存到 localStorage
+      const localStorageConfig = {
+        platform: newConfig.platform,
+        model: newConfig.model,
+        apiKey: newConfig.apiKey,
+        style: newConfig.style,
+      };
+      localStorage.setItem('winjin-text-config', JSON.stringify(localStorageConfig));
+
+      // 更新服务器端用户默认配置
+      updateUserDefaults({ textGeneration: localStorageConfig });
+
       return newConfig;
     });
   }, []);
 
+  /**
+   * 更新并发限制
+   */
+  const updateConcurrencyLimits = useCallback((limits) => {
+    setConcurrencyLimits((prev) => {
+      const newLimits = typeof limits === 'function' ? limits(prev) : { ...prev, ...limits };
+
+      // 保存到配置
+      setConfig((prevConfig) => ({
+        ...prevConfig,
+        concurrencyLimits: newLimits,
+      }));
+
+      // 更新服务器端用户默认配置
+      updateUserDefaults({ videoGeneration: { ...config, concurrencyLimits: newLimits } });
+
+      return newLimits;
+    });
+  }, [config]);
+
   return (
-    <APIConfigContext.Provider value={{ config, updateConfig }}>
+    <APIConfigContext.Provider
+      value={{
+        config,
+        textConfig,
+        concurrencyLimits,
+        platforms,
+        textModels,
+        updateConfig,
+        updateTextConfig,
+        updateConcurrencyLimits,
+        addPlatform,
+        updatePlatform,
+        deletePlatform,
+        addModel,
+        loadConfig,
+        reloadConfig: loadConfig, // 别名，用于 UI 重新加载配置
+        isLoading
+      }}
+    >
       {children}
     </APIConfigContext.Provider>
   );
@@ -149,16 +422,15 @@ export const APIConfigProvider = ({ children }) => {
 /**
  * useAPIConfig - 获取 API 配置的 Hook
  *
- * @returns {Object} { config, updateConfig }
- * @returns {Object} config - 当前 API 配置
- * @returns {Function} config.updateConfig - 更新配置的函数
+ * @returns {Object} API 配置和方法
  *
  * @throws {Error} 如果在 APIConfigProvider 外部使用
  *
  * @example
- * const { config, updateConfig } = useAPIConfig();
+ * const { config, platforms, updateConfig, addPlatform } = useAPIConfig();
  * console.log(config.platform); // 'juxin'
  * updateConfig({ platform: 'zhenzhen' });
+ * addPlatform({ id: 'custom', name: '自定义平台', baseURL: '...' });
  */
 export const useAPIConfig = () => {
   const context = React.useContext(APIConfigContext);

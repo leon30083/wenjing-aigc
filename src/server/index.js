@@ -14,6 +14,7 @@ const Sora2Client = require('./sora2-client');
 const BatchQueue = require('./batch-queue');
 const HistoryStorage = require('./history-storage');
 const CharacterStorage = require('./character-storage');
+const configManager = require('./config-manager'); // 单例实例
 const openaiRoutes = require('./routes/openai');
 
 const app = express();
@@ -74,7 +75,18 @@ app.post('/api/video/create', async (req, res) => {
       const { Sora2Client } = require('./sora2-client');
       client = new Sora2Client({ platform, apiKey: apiKey.trim() });
     } else {
-      client = getClient(platform);
+      // ⭐ 获取平台的模型配置（用于模型专属 Key）
+      const platforms = configManager.getPlatforms();
+      const platformData = platforms.find(p => p.key === platform || p.id === platform);
+
+      // 创建客户端实例并传入模型配置
+      const { Sora2Client } = require('./sora2-client');
+      client = new Sora2Client({
+        platform,
+        models: platformData?.models ?
+          Object.fromEntries(platformData.models.map(m => [m.id, m])) :
+          null
+      });
     }
 
     const result = await client.createVideo(req.body);
@@ -780,6 +792,525 @@ app.post('/api/metrics/clear', (req, res) => {
 // ==================== OpenAI API 集成 ====================
 
 app.use('/api/openai', openaiRoutes);
+
+// ==================== 配置管理 API ====================
+// ⭐ 必须在全局 404 处理器之前定义
+
+/**
+ * 获取完整配置
+ * GET /api/config
+ */
+app.get('/api/config', (req, res) => {
+  try {
+    const config = configManager.getFullConfig();
+    res.json({ success: true, data: config });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 更新用户默认配置
+ * PUT /api/config/defaults
+ */
+app.put('/api/config/defaults', (req, res) => {
+  try {
+    const { defaults } = req.body;
+    const result = configManager.updateUserDefaults(defaults);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 获取平台列表
+ * GET /api/config/platforms
+ */
+app.get('/api/config/platforms', (req, res) => {
+  try {
+    const platforms = configManager.getPlatforms();
+    res.json({ success: true, data: platforms });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 添加自定义平台
+ * POST /api/config/platforms
+ */
+app.post('/api/config/platforms', (req, res) => {
+  try {
+    const result = configManager.addPlatform(req.body);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 更新平台配置
+ * PUT /api/config/platforms/:key
+ */
+app.put('/api/config/platforms/:key', (req, res) => {
+  try {
+    const { key } = req.params;
+    const result = configManager.updatePlatform(key, req.body);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 删除自定义平台
+ * DELETE /api/config/platforms/:key
+ */
+app.delete('/api/config/platforms/:key', (req, res) => {
+  try {
+    const { key } = req.params;
+    const result = configManager.deletePlatform(key);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 添加文本平台 ⭐ 新增
+ * POST /api/config/text-platforms
+ *
+ * 文本平台使用 OpenAI 格式，自动补全 /v1 后缀
+ */
+app.post('/api/config/text-platforms', (req, res) => {
+  try {
+    const result = configManager.addTextPlatform(req.body);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 为平台添加模型
+ * POST /api/config/platforms/:key/models
+ */
+app.post('/api/config/platforms/:key/models', (req, res) => {
+  try {
+    let { key } = req.params;
+
+    // ⭐ 平台名称到 key 的映射（支持中文名称）
+    const nameToKeyMap = {
+      '贞贞': 'zhenzhen',
+      '聚鑫': 'juxin',
+      'zhenzhen': 'zhenzhen',
+      'juxin': 'juxin'
+    };
+
+    // 如果传入的是中文名称，转换为 key
+    if (nameToKeyMap[key]) {
+      key = nameToKeyMap[key];
+    }
+
+    const result = configManager.addModelToPlatform(key, req.body);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 获取文本模型列表
+ * GET /api/config/text-models
+ */
+app.get('/api/config/text-models', (req, res) => {
+  try {
+    const textModels = configManager.getTextModels();
+    res.json({ success: true, data: textModels });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 删除文本平台 ⭐ 新增
+ * DELETE /api/config/text-platforms/:key
+ */
+app.delete('/api/config/text-platforms/:key', (req, res) => {
+  try {
+    const { key } = req.params;
+    const result = configManager.deleteTextPlatform(key);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 从文本平台移除模型 ⭐ 新增
+ * DELETE /api/config/text-platforms/:key/models/:modelId
+ */
+app.delete('/api/config/text-platforms/:key/models/:modelId', (req, res) => {
+  try {
+    const { key, modelId } = req.params;
+    const result = configManager.deleteModelFromTextPlatform(key, modelId);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 从平台移除模型 ⭐ 新增
+ * DELETE /api/config/platforms/:key/models/:modelId
+ */
+app.delete('/api/config/platforms/:key/models/:modelId', (req, res) => {
+  try {
+    let { key, modelId } = req.params;
+
+    // 平台名称到 key 的映射
+    const nameToKeyMap = {
+      '贞贞': 'zhenzhen',
+      '聚鑫': 'juxin',
+      'zhenzhen': 'zhenzhen',
+      'juxin': 'juxin'
+    };
+
+    if (nameToKeyMap[key]) {
+      key = nameToKeyMap[key];
+    }
+
+    const result = configManager.removeModelFromPlatform(key, modelId);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 更新平台模型 ⭐ 新增
+ * PUT /api/config/platforms/:key/models/:modelId
+ */
+app.put('/api/config/platforms/:key/models/:modelId', (req, res) => {
+  try {
+    let { key, modelId } = req.params;
+
+    // 平台名称到 key 的映射
+    const nameToKeyMap = {
+      '贞贞': 'zhenzhen',
+      '聚鑫': 'juxin',
+      'zhenzhen': 'zhenzhen',
+      'juxin': 'juxin'
+    };
+
+    if (nameToKeyMap[key]) {
+      key = nameToKeyMap[key];
+    }
+
+    const result = configManager.updateModelInPlatform(key, modelId, req.body);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 更新平台设置（baseURL、端点等）⭐ 新增
+ * PUT /api/config/platforms/:key/settings
+ */
+app.put('/api/config/platforms/:key/settings', (req, res) => {
+  try {
+    let { key } = req.params;
+
+    // 平台名称到 key 的映射
+    const nameToKeyMap = {
+      '贞贞': 'zhenzhen',
+      '聚鑫': 'juxin',
+      'zhenzhen': 'zhenzhen',
+      'juxin': 'juxin'
+    };
+
+    if (nameToKeyMap[key]) {
+      key = nameToKeyMap[key];
+    }
+
+    const result = configManager.updatePlatformSettings(key, req.body);
+    res.json(result);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 测试指定模型的 API Key ⭐ 简化版（仅模型 Key）
+ * POST /api/config/test-model
+ */
+app.post('/api/config/test-model', async (req, res) => {
+  try {
+    const { platform, modelId, baseURL } = req.body;
+
+    if (!platform || !modelId || !baseURL) {
+      return res.json({ success: false, error: '缺少必要参数' });
+    }
+
+    const { Sora2Client } = require('./sora2-client');
+    const configManager = require('./config-manager');
+
+    // 加载平台和模型配置
+    const platforms = configManager.getPlatforms();
+    const platformData = platforms.find(p => p.key === platform || p.id === platform);
+
+    if (!platformData) {
+      return res.json({ success: false, error: `平台 ${platform} 不存在` });
+    }
+
+    const model = platformData.models.find(m => m.id === modelId);
+    if (!model) {
+      return res.json({ success: false, error: `模型 ${modelId} 不存在` });
+    }
+
+    // ⭐ 只获取模型的 API Key（无降级）
+    const apiKey = model.apiKey || '';
+
+    if (!apiKey) {
+      return res.json({
+        success: true,
+        data: {
+          valid: false,
+          message: `⚠️ 模型 ${model.name} 未配置 API Key`
+        }
+      });
+    }
+
+    // 创建客户端并测试
+    const client = new Sora2Client({ platform: platformData, models: Object.fromEntries(platformData.models.map(m => [m.id, m])) });
+
+    // 调用测试接口
+    let apiResponse;
+    try {
+      if (platform === 'zhenzhen' || platform === '贞贞') {
+        apiResponse = await client.client.get(`/v2/videos/generations/test_validation_${Date.now()}`, {
+          timeout: 10000,
+          validateStatus: () => true
+        });
+      } else {
+        apiResponse = await client.client.get('/v1/video/query', {
+          timeout: 10000,
+          validateStatus: () => true,
+          params: { id: 'test_validation' }
+        });
+      }
+    } catch (error) {
+      return res.json({
+        success: true,
+        data: {
+          valid: false,
+          message: `❌ 测试失败: ${error.message}`
+        }
+      });
+    }
+
+    // 判断结果
+    const isValid = apiResponse.status === 401 || apiResponse.status === 403
+      ? false
+      : apiResponse.status >= 200 && apiResponse.status < 500;
+
+    const message = isValid
+      ? `✅ ${model.name} API Key 有效`
+      : apiResponse.status === 401
+        ? `❌ ${model.name} API Key 无效 (401)`
+        : apiResponse.status === 403
+          ? `❌ ${model.name} API Key 无效 (403)`
+          : `⚠️ ${model.name} 返回异常 (${apiResponse.status})`;
+
+    res.json({
+      success: true,
+      data: {
+        valid: isValid,
+        status: apiResponse.status,
+        message: message
+      }
+    });
+
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * 测试平台连接 ⭐ 完整测试（API Key + 模型）
+ * POST /api/config/test-connection
+ */
+app.post('/api/config/test-connection', async (req, res) => {
+  try {
+    const { platform, baseURL } = req.body;
+
+    if (!platform || !baseURL) {
+      return res.json({ success: false, error: '缺少必要参数' });
+    }
+
+    console.log(`[测试连接] 平台: ${platform}, BaseURL: ${baseURL}`);
+
+    const axios = require('axios');
+    const Sora2Client = require('./sora2-client');
+
+    // 获取平台的 API Key
+    let apiKey = '';
+    if (platform === 'zhenzhen' || platform === '贞贞') {
+      apiKey = process.env.ZHENZHEN_API_KEY || process.env.SORA2_API_KEY || '';
+    } else {
+      apiKey = process.env.SORA2_API_KEY || '';
+    }
+
+    if (!apiKey) {
+      return res.json({
+        success: true,
+        data: {
+          valid: false,
+          message: '⚠️ 未配置 API Key，请在后端 .env 文件中配置'
+        }
+      });
+    }
+
+    console.log(`[测试连接] 使用 API Key: ${apiKey.substring(0, 10)}...`);
+
+    // 创建 Sora2 客户端实例
+    const client = new Sora2Client({ apiKey, platform });
+
+    // 测试查询接口（使用一个假的任务ID）
+    const testTaskId = 'test_validation_' + Date.now();
+
+    let apiResponse;
+    try {
+      if (platform === 'zhenzhen' || platform === '贞贞') {
+        // 贞贞平台：查询任务状态接口
+        apiResponse = await client.client.get(`/v2/videos/generations/${testTaskId}`, {
+          timeout: 10000,
+          validateStatus: () => true
+        });
+      } else {
+        // 聚鑫平台：查询任务状态接口
+        apiResponse = await client.client.get('/v1/video/query', {
+          timeout: 10000,
+          validateStatus: () => true,
+          params: { id: testTaskId }
+        });
+      }
+
+      console.log(`[测试连接] API 响应状态码: ${apiResponse.status}`);
+
+      // 判断 API Key 是否有效
+      if (apiResponse.status === 401 || apiResponse.status === 403) {
+        return res.json({
+          success: true,
+          data: {
+            valid: false,
+            status: apiResponse.status,
+            message: `❌ API Key 无效 (状态码: ${apiResponse.status})`
+          }
+        });
+      }
+
+      if (apiResponse.status >= 200 && apiResponse.status < 500) {
+        return res.json({
+          success: true,
+          data: {
+            valid: true,
+            status: apiResponse.status,
+            message: `✅ 平台连接正常，API Key 有效`
+          }
+        });
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          valid: false,
+          status: apiResponse.status,
+          message: `⚠️ 平台返回异常 (状态码: ${apiResponse.status})`
+        }
+      });
+
+    } catch (error) {
+      console.log(`[测试连接] API 调用错误:`, error.message);
+
+      // 网络错误
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        return res.json({
+          success: true,
+          data: {
+            valid: false,
+            message: `❌ 无法连接到平台: ${error.message}`
+          }
+        });
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          valid: false,
+          message: `❌ 测试失败: ${error.message}`
+        }
+      });
+    }
+
+  } catch (error) {
+    console.log(`[测试连接] 系统错误:`, error);
+
+    res.json({
+      success: true,
+      data: {
+        valid: false,
+        message: `❌ 系统错误: ${error.message}`
+      }
+    });
+  }
+});
+
+/**
+ * 获取并发状态 ⭐ Stage 3
+ * GET /api/concurrency/status
+ */
+app.get('/api/concurrency/status', (req, res) => {
+  try {
+    const status = concurrencyManager.getStatus();
+    res.json({ success: true, data: status });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 更新并发限制 ⭐ Stage 3
+ * PUT /api/concurrency/limits
+ */
+app.put('/api/concurrency/limits', (req, res) => {
+  try {
+    const { limits } = req.body;
+    concurrencyManager.updateLimits(limits);
+    res.json({ success: true, data: { message: '并发限制已更新' } });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 获取任务并发状态 ⭐ Stage 3
+ * GET /api/concurrency/task/:taskId
+ */
+app.get('/api/concurrency/task/:taskId', (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const status = concurrencyManager.getTaskStatus(taskId);
+    res.json({ success: true, data: status });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
 
 // ==================== 错误处理 ====================
 

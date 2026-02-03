@@ -16,7 +16,7 @@ const API_BASE = 'http://localhost:9000';
 const TextModelConfigPanel = ({ onClose }) => {
   const {
     textModels,
-    config: textConfig,
+    textConfig,
     updateTextConfig
   } = useAPIConfig();
 
@@ -64,17 +64,6 @@ const TextModelConfigPanel = ({ onClose }) => {
               <option key={m.id} value={m.id}>{m.name}</option>
             ))}
           </select>
-        </div>
-
-        <div className="config-item">
-          <label>API Key</label>
-          <input
-            type="password"
-            value={textConfig.apiKey || ''}
-            onChange={(e) => updateTextConfig({ apiKey: e.target.value })}
-            placeholder="sk-..."
-            className="nodrag"
-          />
         </div>
       </div>
 

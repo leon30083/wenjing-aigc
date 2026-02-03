@@ -1,0 +1,92 @@
+{
+  "platforms": {
+    "juxin": {
+      "key": "juxin",
+      "name": "聚鑫",
+      "baseURL": "https://api.jxincm.cn",
+      "builtIn": true,
+      "enabled": true,
+      "models": [
+        {
+          "id": "sora-2-all",
+          "name": "Sora 2 All",
+          "type": "sora"
+        },
+        {
+          "id": "veo_3_1-fast",
+          "name": "VEO 3.1 Fast",
+          "type": "veo"
+        }
+      ],
+      "settings": {
+        "videoEndpoint": "/v1/videos",
+        "queryEndpoint": "/v1/video/query",
+        "characterEndpoint": "/sora/v1/characters"
+      }
+    },
+    "zhenzhen": {
+      "key": "zhenzhen",
+      "name": "贞贞",
+      "baseURL": "https://ai.t8star.cn",
+      "builtIn": true,
+      "enabled": true,
+      "models": [
+        {
+          "id": "sora-2",
+          "name": "Sora 2",
+          "type": "sora"
+        },
+        {
+          "id": "sora-2-pro",
+          "name": "Sora 2 Pro",
+          "type": "sora"
+        }
+      ],
+      "settings": {
+        "videoEndpoint": "/v2/videos/generations",
+        "queryEndpoint": "/v2/videos/generations",
+        "characterEndpoint": "/sora/v1/characters"
+      }
+    }
+  },
+  "textModels": {
+    "openai": {
+      "key": "openai",
+      "name": "OpenAI Compatible",
+      "baseURL": "https://api.openai.com/v1",
+      "models": [
+        {
+          "id": "gpt-4",
+          "name": "GPT-4"
+        },
+        {
+          "id": "gpt-3.5-turbo",
+          "name": "GPT-3.5 Turbo"
+        }
+      ]
+    },
+    "deepseek": {
+      "key": "deepseek",
+      "name": "DeepSeek",
+      "baseURL": "https://api.deepseek.com/v1",
+      "models": [
+        {
+          "id": "deepseek-chat",
+          "name": "DeepSeek Chat"
+        }
+      ]
+    },
+    "gemini": {
+      "key": "gemini",
+      "name": "Gemini",
+      "baseURL": "https://generativelanguage.googleapis.com/v1beta",
+      "models": [
+        {
+          "id": "gemini-2.5-pro-maxthinking",
+          "name": "Gemini 2.5 Pro Maxthinking"
+        }
+      ]
+    }
+  },
+  "version": "1.0.0"
+}

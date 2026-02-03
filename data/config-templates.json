@@ -1,0 +1,161 @@
+{
+  "version": "1.0.0",
+  "description": "Cherry Studio style configuration templates for WinJin AIGC",
+  "platforms": {
+    "juxin": {
+      "id": "juxin",
+      "name": "聚鑫",
+      "baseURL": "https://api.jxincm.cn",
+      "enabled": true,
+      "models": {
+        "sora2": {
+          "id": "sora-2-all",
+          "name": "Sora-2-all",
+          "type": "video",
+          "enabled": true,
+          "description": "Sora2 视频生成模型（聚鑫平台）"
+        },
+        "veo": {
+          "id": "veo_3_1-components",
+          "name": "VEO 3.1 Components",
+          "type": "video",
+          "enabled": true,
+          "description": "VEO 3.1 Components（多图元素）"
+        },
+        "veo_fast_4k": {
+          "id": "veo_3_1-fast-4K",
+          "name": "VEO 3.1 Fast 4K",
+          "type": "video",
+          "enabled": true,
+          "description": "VEO 3.1 Fast 4K（快速 4K）"
+        },
+        "veo_components_4k": {
+          "id": "veo_3_1-fast-components-4K",
+          "name": "VEO 3.1 Fast Components 4K",
+          "type": "video",
+          "enabled": true,
+          "description": "VEO 3.1 Fast Components 4K"
+        }
+      },
+      "defaultModel": "sora-2-all",
+      "capabilities": {
+        "videoGeneration": true,
+        "storyboard": true,
+        "characterCreation": true,
+        "enhancePrompt": false,
+        "upscale": false,
+        "hd": false,
+        "orientation": ["landscape", "portrait"],
+        "size": ["small", "large"]
+      }
+    },
+    "zhenzhen": {
+      "id": "zhenzhen",
+      "name": "贞贞",
+      "baseURL": "https://ai.t8star.cn",
+      "enabled": true,
+      "models": {
+        "sora2": {
+          "id": "sora-2",
+          "name": "Sora-2",
+          "type": "video",
+          "enabled": true,
+          "description": "Sora2 视频生成模型（贞贞平台）"
+        },
+        "sora2_pro": {
+          "id": "sora-2-pro",
+          "name": "Sora-2 Pro",
+          "type": "video",
+          "enabled": true,
+          "description": "Sora2 Pro 高级视频生成模型"
+        },
+        "veo_fast": {
+          "id": "veo3.1-fast",
+          "name": "VEO 3.1 Fast",
+          "type": "video",
+          "enabled": true,
+          "description": "VEO 3.1 Fast（快速）"
+        },
+        "veo_components_4k": {
+          "id": "veo3.1-components-4k",
+          "name": "VEO 3.1 Components 4K",
+          "type": "video",
+          "enabled": true,
+          "description": "VEO 3.1 Components 4K"
+        },
+        "veo_components": {
+          "id": "veo3.1-components",
+          "name": "VEO 3.1 Components",
+          "type": "video",
+          "enabled": true,
+          "description": "VEO 3.1 Components（多图元素）"
+        }
+      },
+      "defaultModel": "sora-2",
+      "capabilities": {
+        "videoGeneration": true,
+        "storyboard": true,
+        "characterCreation": true,
+        "enhancePrompt": true,
+        "upscale": true,
+        "hd": true,
+        "aspectRatio": ["16:9", "9:16"]
+      }
+    }
+  },
+  "textModels": {
+    "gemini": {
+      "id": "gemini",
+      "name": "Gemini (DeepSeek)",
+      "baseURL": "http://170.106.152.118:2999",
+      "enabled": true,
+      "models": {
+        "gemini_3_pro_preview": {
+          "id": "gemini-3-pro-preview",
+          "name": "Gemini 3 Pro Preview",
+          "type": "text",
+          "enabled": true,
+          "description": "Gemini 3 Pro Preview（预览版）"
+        },
+        "gemini_3_pro_preview_thinking": {
+          "id": "gemini-3-pro-preview-thinking",
+          "name": "Gemini 3 Pro Preview Thinking",
+          "type": "text",
+          "enabled": true,
+          "description": "Gemini 3 Pro Preview Thinking（思维链）"
+        },
+        "gemini_3_flash_preview": {
+          "id": "gemini-3-flash-preview",
+          "name": "Gemini 3 Flash Preview",
+          "type": "text",
+          "enabled": true,
+          "description": "Gemini 3 Flash Preview（快速预览）"
+        }
+      },
+      "defaultModel": "gemini-3-pro-preview",
+      "capabilities": {
+        "promptOptimization": true,
+        "textGeneration": true,
+        "translation": true
+      }
+    }
+  },
+  "userDefaults": {
+    "videoGeneration": {
+      "platform": "juxin",
+      "model": "sora-2-all",
+      "aspectRatio": "16:9",
+      "watermark": false
+    },
+    "textProcessing": {
+      "platform": "gemini",
+      "model": "gemini-3-pro-preview",
+      "style": "picture-book"
+    }
+  },
+  "concurrencyLimits": {
+    "juxin": 3,
+    "zhenzhen": 3,
+    "_description": "视频生成并发限制（每个平台同时处理的最大任务数）"
+  }
+}

@@ -11,9 +11,11 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import './App.css';
+import './components/GlobalConfigPanel.css';
 import { useWorkflowExecution } from './hooks/useWorkflowExecution';
 import { WorkflowStorage } from './utils/workflowStorage';
 import { useNodeConnections } from './hooks/useNodeConnections';
+import GlobalConfigPanel from './components/GlobalConfigPanel';
 
 // API base URL
 const API_BASE = 'http://localhost:9000';
@@ -27,12 +29,11 @@ import OpenAIConfigNode from './nodes/input/OpenAIConfigNode';
 import NarratorNode from './nodes/input/NarratorNode';
 import CharacterCreateNode from './nodes/process/CharacterCreateNode';
 import BatchVideoGenerateNode from './nodes/process/BatchVideoGenerateNode';
-import VideoGenerateNode from './nodes/process/VideoGenerateNode';
+// ⭐ 2026-02-03: 拆分为 VEOGenerateNode 和 Sora2GenerateNode
+import VEOGenerateNode from './nodes/process/VEOGenerateNode';
+import Sora2GenerateNode from './nodes/process/Sora2GenerateNode';
 import StoryboardNode from './nodes/process/StoryboardNode';
 import NarratorProcessorNode from './nodes/process/NarratorProcessorNode';
-// ⚠️ 停用平台专用故事板节点 (2026-01-07) - 使用统一的 VideoGenerateNode 代替
-// import JuxinStoryboardNode from './nodes/process/JuxinStoryboardNode';
-// import ZhenzhenStoryboardNode from './nodes/process/ZhenzhenStoryboardNode';
 import PromptOptimizerNode from './nodes/process/PromptOptimizerNode';
 import TaskResultNode from './nodes/output/TaskResultNode';
 import CharacterResultNode from './nodes/output/CharacterResultNode';
@@ -75,9 +76,9 @@ const initialNodes = [
   },
   {
     id: '6',
-    type: 'videoGenerateNode',
-    position: { x: 350, y: 230 },
-    data: { label: '视频生成' },
+    type: 'sora2GenerateNode',  // ⭐ 2026-02-03: 替换为 Sora2GenerateNode
+    position: { x: 350, y:  230 },
+    data: { label: 'Sora2 视频生成' },
   },
   {
     id: '7',
@@ -132,14 +133,14 @@ const nodeTemplates = [
   { type: 'characterCreateNode', label: '🎭 角色生成', category: 'process' },
   { type: 'promptOptimizerNode', label: '📝 提示词优化', category: 'process' },
   { type: 'narratorProcessorNode', label: '⚙️ 旁白处理', category: 'process' },
-  { type: 'batchVideoGenerateNode', label: '🎬 批量视频生成', category: 'process' },  // ⭐ 新增
-  { type: 'videoGenerateNode', label: '🎬 单个视频生成', category: 'process' },  // ⭐ 更新标签
+  { type: 'batchVideoGenerateNode', label: '🎬 批量视频生成', category: 'process' },
+  // ⭐ 2026-02-03: 拆分为 VEOGenerateNode 和 Sora2GenerateNode
+  { type: 'veoGenerateNode', label: '🎬 VEO 视频生成', category: 'process' },
+  { type: 'sora2GenerateNode', label: '🎬 Sora2 视频生成', category: 'process' },
   { type: 'storyboardNode', label: '🎞️ 故事板', category: 'process' },
-  // ⚠️ 停用平台专用故事板节点 (2026-01-07) - 使用统一的 VideoGenerateNode 代替
-  // { type: 'juxinStoryboardNode', label: '🎬 聚鑫故事板', category: 'process' },
-  // { type: 'zhenzhenStoryboardNode', label: '🎬 贞贞故事板', category: 'process' },
   { type: 'taskResultNode', label: '📺 任务结果', category: 'output' },
   { type: 'characterResultNode', label: '📊 角色结果', category: 'output' },
+  { type: 'batchResultNode', label: '📊 批量结果', category: 'output' },
 ];
 
 function App() {
@@ -157,16 +158,33 @@ function App() {
     characterCreateNode: CharacterCreateNode,
     batchVideoGenerateNode: BatchVideoGenerateNode,  // ⭐ 批量视频生成节点
     narratorProcessorNode: NarratorProcessorNode,
-    // ⚠️ 停用平台专用故事板节点 (2026-01-07)
-    // juxinStoryboardNode: JuxinStoryboardNode,
-    // zhenzhenStoryboardNode: ZhenzhenStoryboardNode,
-    videoGenerateNode: VideoGenerateNode,
+    // ⭐ 2026-02-03: 拆分为 VEOGenerateNode 和 Sora2GenerateNode
+    veoGenerateNode: VEOGenerateNode,
+    sora2GenerateNode: Sora2GenerateNode,
     storyboardNode: StoryboardNode,
     promptOptimizerNode: PromptOptimizerNode,
     taskResultNode: TaskResultNode,
     characterResultNode: CharacterResultNode,
     batchResultNode: BatchResultNode,  // ⭐ 批量结果节点
   }), []);
+
+  // ⭐ 工作流节点迁移函数（2026-02-03: videoGenerateNode → veoGenerateNode/sora2GenerateNode）
+  const migrateWorkflowNodes = (nodes) => {
+    return nodes.map(node => {
+      if (node.type === 'videoGenerateNode') {
+        // 根据模型名称判断应该迁移到哪个节点
+        const model = node.data?.apiConfig?.model || '';
+        if (model.toLowerCase().includes('veo')) {
+          console.log(`[App] 迁移节点: ${node.id} videoGenerateNode → veoGenerateNode`);
+          return { ...node, type: 'veoGenerateNode' };
+        } else {
+          console.log(`[App] 迁移节点: ${node.id} videoGenerateNode → sora2GenerateNode`);
+          return { ...node, type: 'sora2GenerateNode' };
+        }
+      }
+      return node;
+    });
+  };
 
   // ✅ 加载当前命名工作流（替代旧的自动保存系统）
   const loadCurrentWorkflow = () => {
@@ -175,9 +193,25 @@ function App() {
       const result = WorkflowStorage.loadWorkflow(currentName);
       if (result.success) {
         console.log(`[App] 已加载工作流: ${currentName}`);
+        const nodes = result.data.nodes || [];
+        const edges = result.data.edges || [];
+
+        // ⭐ 自动迁移旧节点类型
+        const migratedNodes = migrateWorkflowNodes(nodes);
+
+        // 检查是否有节点被迁移，如果有则自动保存
+        const hasMigration = nodes.some(n => n.type === 'videoGenerateNode');
+        if (hasMigration) {
+          console.log(`[App] 检测到旧节点，已自动迁移并保存工作流`);
+          // 异步保存迁移后的工作流
+          setTimeout(() => {
+            WorkflowStorage.saveWorkflow(currentName, migratedNodes, edges);
+          }, 0);
+        }
+
         return {
-          nodes: result.data.nodes || [],
-          edges: result.data.edges || []
+          nodes: migratedNodes,
+          edges: edges
         };
       }
     }
@@ -215,6 +249,9 @@ function App() {
   const [showSaveAsDialog, setShowSaveAsDialog] = useState(false);
   const [saveAsName, setSaveAsName] = useState('');
   const [saveAsDescription, setSaveAsDescription] = useState('');
+
+  // Global config panel state
+  const [showConfigPanel, setShowConfigPanel] = useState(false);
 
   // Get React Flow instance for coordinate conversion
   const { project } = useReactFlow();
@@ -1226,6 +1263,25 @@ function App() {
             ↺ 重置
           </button>
         )}
+
+        {/* ⭐ 新增：全局配置按钮 */}
+        <button
+          className="toolbar-btn config-btn nodrag"
+          onClick={() => setShowConfigPanel(true)}
+          title="全局配置"
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#8b5cf6',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '13px',
+            fontWeight: 'bold',
+          }}
+        >
+          ⚙️ 配置
+        </button>
       </div>
 
       {/* Canvas */}
@@ -1719,6 +1775,12 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* ⭐ Global Config Panel - 阶段 2 完成 */}
+      <GlobalConfigPanel
+        isOpen={showConfigPanel}
+        onClose={() => setShowConfigPanel(false)}
+      />
     </div>
   );
 }

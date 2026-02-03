@@ -220,6 +220,7 @@ useEffect(() => {
 | **错误53** | Storage | NarratorProcessorNode 优化结果刷新后丢失 |
 | **错误54** | React Flow | VideoGenerateNode getNodes() 快照延迟 |
 | **错误56** | React Flow | API 配置节点平台选择刷新后丢失 |
+| **错误57** | React Flow | 文本模型平台选择无法切换 |
 
 **查看完整错误模式**: [`.claude/rules/error-patterns.md`](../rules/error-patterns.md)
 

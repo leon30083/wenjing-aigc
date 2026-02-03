@@ -24,6 +24,7 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
   const [selectedPlatformKey, setSelectedPlatformKey] = useState('');
   const [message, setMessage] = useState({ text: '', type: '' });
   const [testingConnection, setTestingConnection] = useState(false);
+  const [editingModel, setEditingModel] = useState(null); // { platformKey, modelId, modelData }
 
   // 模型类型选项（根据平台类型）
   const modelTypeOptions = platformType === 'text'
@@ -150,7 +151,12 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
     if (!confirm(`确定要删除平台 "${platformKey}" 吗？`)) return;
 
     try {
-      const response = await fetch(`${API_BASE}/api/config/platforms/${platformKey}`, {
+      // ⭐ 根据平台类型使用不同的端点
+      const endpoint = platformType === 'text'
+        ? `${API_BASE}/api/config/text-platforms/${platformKey}`
+        : `${API_BASE}/api/config/platforms/${platformKey}`;
+
+      const response = await fetch(endpoint, {
         method: 'DELETE',
       });
       const result = await response.json();
@@ -173,7 +179,12 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
     if (!confirm(`确定要从 ${platformKey} 删除模型 "${modelName}" 吗？`)) return;
 
     try {
-      const response = await fetch(`${API_BASE}/api/config/platforms/${platformKey}/models/${modelId}`, {
+      // ⭐ 根据平台类型使用不同的端点
+      const endpoint = platformType === 'text'
+        ? `${API_BASE}/api/config/text-platforms/${platformKey}/models/${modelId}`
+        : `${API_BASE}/api/config/platforms/${platformKey}/models/${modelId}`;
+
+      const response = await fetch(endpoint, {
         method: 'DELETE',
       });
       const result = await response.json();
@@ -205,8 +216,8 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
       const result = await response.json();
 
       if (result.success) {
-        const { valid, message } = result.data;
-        setMessage({ text: message, type: valid ? 'success' : 'error' });
+        const { valid, message: msg } = result.data;
+        setMessage({ text: msg, type: valid ? 'success' : 'error' });
       } else {
         setMessage({ text: `❌ 测试失败: ${result.error}`, type: 'error' });
       }
@@ -216,6 +227,53 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
 
     setTestingConnection(false);
     setTimeout(() => setMessage({ text: '', type: '' }), 8000);
+  };
+
+  // ⭐ 编辑模型
+  const handleEditModel = (platformKey, model) => {
+    setEditingModel({
+      platformKey,
+      modelId: model.id,
+      modelData: {
+        name: model.name,
+        type: model.type,
+        apiKey: model.apiKey || ''
+      }
+    });
+  };
+
+  // ⭐ 保存编辑的模型
+  const handleSaveEditModel = async () => {
+    if (!editingModel) return;
+
+    try {
+      // ⭐ 使用统一的端点（updateModelInPlatform 现在支持所有平台类型）
+      const endpoint = `${API_BASE}/api/config/platforms/${editingModel.platformKey}/models/${editingModel.modelId}`;
+
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingModel.modelData),
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        setMessage({ text: `✅ 模型 "${editingModel.modelData.name}" 已更新`, type: 'success' });
+        setEditingModel(null);
+        await reloadConfig();
+      } else {
+        setMessage({ text: `❌ 更新失败: ${result.error}`, type: 'error' });
+      }
+    } catch (error) {
+      setMessage({ text: `❌ 网络错误: ${error.message}`, type: 'error' });
+    }
+
+    setTimeout(() => setMessage({ text: '', type: '' }), 3000);
+  };
+
+  // ⭐ 取消编辑
+  const handleCancelEdit = () => {
+    setEditingModel(null);
   };
 
   return (
@@ -463,6 +521,22 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <button
                         className="nodrag"
+                        onClick={() => handleEditModel(platform.key, model)}
+                        title="编辑模型"
+                        style={{
+                          padding: '1px 4px',
+                          borderRadius: '3px',
+                          border: '1px solid #f59e0b',
+                          backgroundColor: '#f59e0b',
+                          color: 'white',
+                          fontSize: '8px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        className="nodrag"
                         onClick={() => handleTestModel(platform.key, model.id, platform.baseURL)}
                         disabled={testingConnection}
                         title="测试模型 Key"
@@ -502,6 +576,112 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
           ))}
         </div>
       </div>
+
+      {/* 编辑模型模态框 */}
+      {editingModel && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '20px',
+            width: '320px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '16px', fontSize: '14px', color: '#1e40af' }}>
+              ✏️ 编辑模型
+            </h3>
+
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>
+                模型名称
+              </label>
+              <input
+                className="nodrag"
+                type="text"
+                value={editingModel.modelData.name}
+                onChange={(e) => setEditingModel({
+                  ...editingModel,
+                  modelData: { ...editingModel.modelData, name: e.target.value }
+                })}
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  borderRadius: '4px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '12px',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>
+                API Key
+              </label>
+              <input
+                className="nodrag"
+                type="password"
+                value={editingModel.modelData.apiKey}
+                onChange={(e) => setEditingModel({
+                  ...editingModel,
+                  modelData: { ...editingModel.modelData, apiKey: e.target.value }
+                })}
+                placeholder="输入模型的 API Key"
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  borderRadius: '4px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '12px',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button
+                className="nodrag"
+                onClick={handleCancelEdit}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid #94a3b8',
+                  backgroundColor: 'white',
+                  color: '#64748b',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                取消
+              </button>
+              <button
+                className="nodrag"
+                onClick={handleSaveEditModel}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid #22c55e',
+                  backgroundColor: '#22c55e',
+                  color: 'white',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

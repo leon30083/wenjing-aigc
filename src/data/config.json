@@ -47,21 +47,29 @@
       "watermark": false
     },
     "textGeneration": {
-      "platform": "platform-ml6dtui0",
+      "platform": "juxin2",
       "model": "gemini-2.5-flash",
-      "apiKey": "",
+      "apiKey": "sk-mRdUpi4datQJZvuyFWFg8dONVrv508hu29eBSe9ZCGvlV9uM",
       "style": "picture-book"
     }
   },
   "customPlatforms": {},
   "textPlatforms": {
-    "platform-ml6dtui0": {
-      "id": "platform-ml6dtui0",
-      "name": "聚鑫",
+    "juxin2": {
+      "id": "juxin2",
+      "name": "聚鑫2",
       "baseURL": "https://api.jxincm.cn/v1",
       "enabled": true,
       "type": "text",
-      "models": {}
+      "models": {
+        "gemini-3-flash-preview": {
+          "id": "gemini-3-flash-preview",
+          "name": "gemini-3-flash-preview",
+          "type": "text",
+          "enabled": true,
+          "apiKey": "sk-mRdUpi4datQJZvuyFWFg8dONVrv508hu29eBSe9ZCGvlV9uM"
+        }
+      }
     }
   }
 }

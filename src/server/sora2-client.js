@@ -13,8 +13,8 @@ const PLATFORMS = {
   JUXIN: {
     name: '聚鑫',
     baseURL: 'https://api.jxincm.cn',
-    videoEndpoint: '/v1/video/create',
-    storyboardEndpoint: '/v1/videos',  // ⭐ 故事板专用端点
+    videoEndpoint: '/v1/videos',  // ⭐ 2026-01-23 更改：sora-2-all 模型使用 /v1/videos 路由（支持并发）
+    storyboardEndpoint: '/v1/videos',  // 故事板也使用相同端点
     // 聚鑫使用 orientation + size
     useAspectRatio: false,
   },
@@ -22,7 +22,7 @@ const PLATFORMS = {
     name: '贞贞',
     baseURL: 'https://ai.t8star.cn',
     videoEndpoint: '/v2/videos/generations',
-    storyboardEndpoint: '/v2/videos/generations',  // ⭐ 贞贞平台使用普通视频端点+特殊prompt格式
+    storyboardEndpoint: '/v2/videos/generations',  // 贞贞平台使用普通视频端点+特殊prompt格式
     // 贞贞使用 aspect_ratio + hd
     useAspectRatio: true,
   },
@@ -37,16 +37,23 @@ class Sora2Client {
    * @param {object} config - 配置对象
    * @param {string} config.apiKey - API 密钥
    * @param {string} [config.platform='juxin'] - 平台选择 ('juxin' | 'zhenzhen')
+   * @param {object} [config.models] - 模型配置映射 (可选)
    */
   constructor(config = {}) {
-    const { apiKey, platform = 'juxin' } = config;
+    const { apiKey, platform = 'juxin', models } = config;
 
     // 设置平台
     const platformKey = platform.toUpperCase();
     this.platform = PLATFORMS[platformKey] || PLATFORMS.JUXIN;
     this.platformType = platformKey;
 
-    // 根据平台获取对应的 API Key
+    // ⭐ 存储模型配置映射（用于获取模型专属 Key）
+    this.models = models || null;
+
+    // ⭐ 追踪当前使用的模型 ID
+    this.currentModelId = null;
+
+    // 根据平台获取对应的 API Key（使用模型 Key 或平台 Key）
     if (!apiKey) {
       if (platformKey === 'ZHENZHEN') {
         this.apiKey = process.env.ZHENZHEN_API_KEY || process.env.SORA2_API_KEY || '';
@@ -68,13 +75,39 @@ class Sora2Client {
   }
 
   /**
-   * 获取认证头
+   * 获取指定模型的 API Key ⭐ 简化版（仅模型 Key）
+   * @param {string} modelId - 模型 ID
+   * @returns {string} API Key
+   */
+  getModelApiKey(modelId) {
+    // 只从模型配置获取 Key
+    if (this.models && this.models[modelId]?.apiKey) {
+      const modelKey = this.models[modelId].apiKey;
+      if (modelKey && modelKey.trim()) {
+        console.log(`[Sora2Client] 使用模型专属 Key [${modelId}]:`, modelKey.substring(0, 10) + '...');
+        return modelKey;
+      }
+    }
+
+    console.error(`[Sora2Client] ❌ 模型 [${modelId}] 未配置 API Key`);
+    return '';
+  }
+
+  /**
+   * 获取认证头（使用模型专属 Key）
    * @private
    * @returns {object} 请求头
    */
   _getAuthHeaders() {
+    // ⭐ 动态获取 Key（根据当前调用的模型）
+    const apiKey = this.getModelApiKey(this.currentModelId);
+
+    if (!apiKey) {
+      console.warn('[Sora2Client] ⚠️ 缺少 API Key，请求可能失败');
+    }
+
     return {
-      'Authorization': `Bearer ${this.apiKey}`,
+      'Authorization': `Bearer ${apiKey}`,
     };
   }
 
@@ -142,14 +175,30 @@ class Sora2Client {
         images = [],
       } = options;
 
-      // ⭐ 平台模型映射（2026-01-14 新增）
+      // ⭐ 设置当前使用的模型 ID（用于获取对应的 API Key）
+      this.currentModelId = model || (this.platformType === 'JUXIN' ? 'sora-2-all' : 'sora-2');
+
+      // ⭐ 平台模型映射（2026-01-14 新增，2026-01-15 扩展 VEO 支持）
       const PLATFORM_MODELS = {
-        JUXIN: ['sora-2-all'],           // 聚鑫只支持 sora-2-all
-        ZHENZHEN: ['sora-2', 'sora-2-pro'], // 贞贞支持 sora-2 和 sora-2-pro
+        JUXIN: {
+          SORA: ['sora-2-all'],           // 聚鑫 Sora2 模型
+          VEO: ['veo_3_1-components', 'veo_3_1-fast-4K', 'veo_3_1-fast-components-4K'], // 聚鑫 VEO 模型
+        },
+        ZHENZHEN: {
+          SORA: ['sora-2', 'sora-2-pro'], // 贞贞 Sora2 模型
+          VEO: ['veo3.1-fast', 'veo3.1-components-4k', 'veo3.1-components'], // 贞贞 VEO 模型
+        },
       };
 
-      // 获取当前平台支持的模型列表
-      const validModelsForPlatform = PLATFORM_MODELS[this.platformType] || [];
+      // ⭐ 判断模型类型（SORA 或 VEO）
+      const getModelType = (modelName) => {
+        const isVEOModel = modelName.toLowerCase().includes('veo');
+        return isVEOModel ? 'VEO' : 'SORA';
+      };
+
+      // 获取当前平台支持的模型列表（根据模型类型）
+      const modelType = getModelType(model || '');
+      const validModelsForPlatform = PLATFORM_MODELS[this.platformType]?.[modelType] || PLATFORM_MODELS[this.platformType]?.SORA || [];
 
       // ⭐ 智能模型选择和验证
       let finalModel;
@@ -503,6 +552,123 @@ class Sora2Client {
       return {
         success: false,
         error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * 创建 VEO 视频（图生视频，支持多图元素）
+   * @param {object} options - VEO 视频创建参数
+   * @param {string} options.prompt - 提示词
+   * @param {string} [options.model] - VEO 模型名称
+   * @param {string[]} options.images - 参考图片链接数组（VEO 必填）
+   * @param {boolean} [options.enhance_prompt=false] - 是否增强提示词（中文转英文，仅贞贞）
+   * @param {boolean} [options.upscale=false] - 是否 4K 超分（仅贞贞）
+   * @param {string} [options.orientation='landscape'] - 画面方向（仅聚鑫）
+   * @param {string} [options.size='small'] - 分辨率（仅聚鑫）
+   * @param {string} [options.aspect_ratio='16:9'] - 比例（仅贞贞）
+   * @param {boolean} [options.watermark=false] - 是否无水印
+   * @returns {Promise<object>} 任务信息
+   */
+  async createVEO(options) {
+    try {
+      const {
+        prompt,
+        model,
+        images = [],
+        enhance_prompt = false,
+        upscale = false,
+        orientation = 'landscape',
+        size = 'small',
+        aspect_ratio = '16:9',
+        watermark = false,
+      } = options;
+
+      // ⭐ VEO 平台模型映射
+      const VEO_MODELS = {
+        JUXIN: ['veo_3_1-components', 'veo_3_1-fast-4K', 'veo_3_1-fast-components-4K'],
+        ZHENZHEN: ['veo3.1-fast', 'veo3.1-components-4k', 'veo3.1-components'],
+      };
+
+      // 获取当前平台支持的 VEO 模型列表
+      const validVEOModels = VEO_MODELS[this.platformType] || [];
+
+      // ⭐ 智能模型选择和验证
+      let finalModel;
+      if (model) {
+        if (validVEOModels.includes(model)) {
+          finalModel = model;
+        } else {
+          const defaultModel = validVEOModels[0];
+          console.warn(`[Sora2Client] ⚠️ VEO 模型 ${model} 不支持平台 ${this.platform.name}，自动修正为 ${defaultModel}`);
+          finalModel = defaultModel;
+        }
+      } else {
+        finalModel = validVEOModels[0];
+      }
+
+      // 参数校验
+      if (!prompt) {
+        throw new Error('prompt 是必填参数');
+      }
+
+      // VEO 必须提供参考图片
+      if (!images || images.length === 0) {
+        throw new Error('VEO 模型必须提供参考图片（images 参数）');
+      }
+
+      // 构建请求体
+      const body = {
+        model: finalModel,
+        prompt,
+        images,
+        watermark,
+      };
+
+      // ⭐ 根据平台添加不同的参数
+      if (this.platformType === 'ZHENZHEN') {
+        // 贞贞平台特有参数
+        if (enhance_prompt) {
+          body.enhance_prompt = enhance_prompt;
+        }
+        if (upscale) {
+          body.upscale = upscale;
+        }
+
+        // 转换画面方向参数
+        const orientationParam = this._convertOrientationParam(aspect_ratio);
+        body.aspect_ratio = orientationParam;
+      } else {
+        // 聚鑫平台特有参数
+        // 转换画面方向参数
+        const orientationParam = this._convertOrientationParam(orientation);
+        body.orientation = orientationParam;
+
+        // 转换分辨率参数
+        body.size = size === 'large' ? 'large' : 'small';
+      }
+
+      // ⭐ 调试日志：打印实际发送的请求
+      const authHeaders = this._getAuthHeaders();
+      console.log('[Sora2Client] 发送 VEO 请求到 API:');
+      console.log('  URL:', this.platform.baseURL + this.platform.videoEndpoint);
+      console.log('  Authorization:', authHeaders.Authorization ? `Bearer ${authHeaders.Authorization.substring(0, 20)}...` : 'MISSING');
+      console.log('  请求体:', JSON.stringify(body, null, 2));
+
+      const response = await this.client.post(this.platform.videoEndpoint, body, {
+        headers: authHeaders,
+      });
+
+      console.log('[Sora2Client] VEO API 响应:', JSON.stringify(response.data, null, 2));
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message,
       };
     }
   }

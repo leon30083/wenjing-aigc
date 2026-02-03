@@ -1,52 +1,34 @@
 /**
  * OpenAI 配置节点
- * 用于配置 OpenAI 格式 API (DeepSeek, GLM 等)
+ * 用于配置 OpenAI 格式 API (DeepSeek, GLM, Gemini 等)
+ *
+ * ⭐ Stage 5 更新：使用 Cherry Studio style 动态配置
+ * - 从 APIConfigContext 获取文本模型列表
+ * - 支持用户自定义文本平台和模型
+ * - 配置存储在 config.json（通过 API 管理）
  */
 
 import React, { useState, useEffect } from 'react';
 import { Handle, Position, useReactFlow, useNodeId } from 'reactflow';
-
-// 预设配置常量
-const PRESETS = {
-  deepseek: {
-    name: 'DeepSeek',
-    base_url: 'https://api.deepseek.com',
-    model: 'deepseek-chat',
-    color: '#6366f1',
-  },
-  glm_coding: {
-    name: 'GLM 编程',
-    base_url: 'https://open.bigmodel.cn/api/coding/paas/v4',
-    model: 'GLM-4.7',
-    color: '#ec4899',
-  },
-  ge25: {
-    name: '[ge2.5]',
-    base_url: 'http://170.106.152.118:2999',
-    model: 'gemini-2.5-pro-maxthinking',
-    color: '#8b5cf6',
-  },
-  empty: {
-    name: '空配置',
-    base_url: '',
-    api_key: '',
-    model: '',
-    color: '#6b7280',
-  },
-};
+import { useAPIConfig } from '../../contexts/APIConfigContext';
 
 function OpenAIConfigNode({ data }) {
   const nodeId = useNodeId();
   const { setNodes, getEdges, edges } = useReactFlow();
 
-  // 预设选择状态
-  const [selectedPreset, setSelectedPreset] = useState(null);
+  // ⭐ 从 Context 获取文本模型配置
+  const { textModels } = useAPIConfig();
 
-  // 从 node.data 或 localStorage 初始化（优先级调整）
+  // 当前选中文本平台
+  const [currentTextPlatform, setCurrentTextPlatform] = useState(null);
+
+  // 当前选中文本平台的模型列表
+  const currentPlatformModels = textModels.find(tm => tm.key === currentTextPlatform)?.models || [];
+
+  // 获取当前配置（从 node.data 或全局配置）
   const [config, setConfig] = useState(() => {
     // ✅ 优先使用 node.data.openaiConfig（工作流专属配置）
     if (data.openaiConfig) {
-      console.log('[OpenAIConfigNode] 使用 node.data 配置:', data.openaiConfig);
       return data.openaiConfig;
     }
 
@@ -54,45 +36,33 @@ function OpenAIConfigNode({ data }) {
     try {
       const local = localStorage.getItem('winjin-openai-config');
       if (local) {
-        const parsed = JSON.parse(local);
-        console.log('[OpenAIConfigNode] 降级到 localStorage 配置:', parsed);
-        return parsed;
+        return JSON.parse(local);
       }
     } catch (error) {
       console.error('[OpenAIConfigNode] 读取 localStorage 失败:', error);
     }
 
-    // ⚠️ 最后降级到空配置（不使用硬编码测试数据）
-    console.log('[OpenAIConfigNode] 使用默认空配置');
+    // ⚠️ 默认空配置
     return {
-      base_url: '',
+      textPlatform: '',
+      textModel: '',
       api_key: '',
-      model: '',
     };
   });
+
+  // ⭐ 根据配置推断当前文本平台
+  useEffect(() => {
+    if (textModels.length > 0 && config.textPlatform) {
+      setCurrentTextPlatform(config.textPlatform);
+    } else if (textModels.length > 0) {
+      // 默认选择第一个文本平台
+      setCurrentTextPlatform(textModels[0].key);
+    }
+  }, [textModels, config.textPlatform]);
 
   // 保存配置到 localStorage
   const saveConfig = (newConfig) => {
     localStorage.setItem('winjin-openai-config', JSON.stringify(newConfig));
-  };
-
-  // 获取所有保存的 API Key
-  const getSavedApiKeys = () => {
-    try {
-      const saved = localStorage.getItem('winjin-openai-api-keys');
-      return saved ? JSON.parse(saved) : {};
-    } catch (error) {
-      console.error('[OpenAIConfigNode] 读取 API Keys 失败:', error);
-      return {};
-    }
-  };
-
-  // 保存当前服务的 API Key
-  const saveApiKeyForService = (presetKey, apiKey) => {
-    const keys = getSavedApiKeys();
-    keys[presetKey] = apiKey;
-    localStorage.setItem('winjin-openai-api-keys', JSON.stringify(keys));
-    console.log(`[OpenAIConfigNode] 保存 ${presetKey} 的 API Key`);
   };
 
   // 加载配置
@@ -116,10 +86,19 @@ function OpenAIConfigNode({ data }) {
 
   // 测试连接
   const testConnection = async () => {
-    const { base_url, api_key, model } = config;
+    const platform = getCurrentTextPlatform();
 
-    if (!base_url || !api_key || !model) {
-      alert('⚠️ 请先填写完整的 API 配置');
+    if (!platform) {
+      alert('⚠️ 请先选择文本平台');
+      return;
+    }
+
+    const { api_key } = config;
+    const base_url = platform.baseURL;
+    const model = config.textModel || platform.models[0]?.id;
+
+    if (!api_key) {
+      alert('⚠️ 请先填写 API Key');
       return;
     }
 
@@ -133,7 +112,7 @@ function OpenAIConfigNode({ data }) {
       const result = await response.json();
 
       if (result.success) {
-        alert(`✅ 连接成功\n\n模型: ${result.data.model}\n响应: ${result.data.message}`);
+        alert(`✅ 连接成功\n\n平台: ${platform.name}\n模型: ${result.data.model}\n响应: ${result.data.message}`);
       } else {
         alert(`❌ 连接失败\n\n${result.error}`);
       }
@@ -171,55 +150,25 @@ function OpenAIConfigNode({ data }) {
     saveConfig(newConfig);
     syncToData(newConfig);
 
-    // ⭐ 如果修改的是 api_key，保存到当前对应的服务
-    if (field === 'api_key' && selectedPreset) {
-      saveApiKeyForService(selectedPreset, value);
+    // ⭐ 如果切换了文本平台，自动选择该平台的第一个模型
+    if (field === 'textPlatform') {
+      const platform = textModels.find(tm => tm.key === value);
+      if (platform && platform.models.length > 0) {
+        newConfig.textModel = platform.models[0].id;
+        setConfig(newConfig);
+      }
     }
-
-    // 更新预设选择状态
-    updateSelectedPreset(newConfig);
   };
 
-  // 应用预设配置
-  const applyPreset = (presetKey) => {
-    const preset = PRESETS[presetKey];
-    if (!preset) return;
-
-    setSelectedPreset(presetKey);
-
-    // ⭐ 自动加载对应服务已保存的 API Key
-    const savedKeys = getSavedApiKeys();
-    const savedApiKey = savedKeys[presetKey] || '';
-
-    const newConfig = {
-      base_url: preset.base_url || '',
-      model: preset.model || '',
-      api_key: savedApiKey,  // ✅ 使用该服务之前保存的 key
-    };
-
-    setConfig(newConfig);
-    saveConfig(newConfig);
-    syncToData(newConfig);
-
-    console.log(`[OpenAIConfigNode] 应用预设: ${preset.name}`, {
-      ...newConfig,
-      hasApiKey: !!savedApiKey,
-    });
+  // 获取当前文本平台的配置
+  const getCurrentTextPlatform = () => {
+    return textModels.find(tm => tm.key === currentTextPlatform);
   };
 
-  // 更新预设选择状态
-  const updateSelectedPreset = (currentConfig) => {
-    if (!currentConfig.base_url && !currentConfig.model) {
-      setSelectedPreset('empty');
-    } else if (currentConfig.base_url === 'https://api.deepseek.com' || currentConfig.model === 'deepseek-chat') {
-      setSelectedPreset('deepseek');
-    } else if (currentConfig.base_url?.includes('bigmodel.cn/api/coding') || currentConfig.model === 'GLM-4.7') {
-      setSelectedPreset('glm_coding');
-    } else if (currentConfig.base_url?.includes('170.106.152.118') || currentConfig.model === 'gemini-2.5-pro-maxthinking') {
-      setSelectedPreset('ge25');
-    } else {
-      setSelectedPreset(null);  // 自定义配置
-    }
+  // 获取模型名称
+  const getModelName = (modelId) => {
+    const model = currentPlatformModels.find(m => m.id === modelId);
+    return model?.name || modelId;
   };
 
   // 同步配置到 node.data（初始化时同步一次，延迟执行确保工作流已加载）
@@ -237,21 +186,19 @@ function OpenAIConfigNode({ data }) {
     return () => clearTimeout(timer);
   }, []); // ⭐ 空依赖数组，只在挂载时运行一次
 
-  // 初始化预设选择状态
-  useEffect(() => {
-    // 检测当前配置匹配哪个预设
-    if (config.base_url === 'https://api.deepseek.com' || config.model === 'deepseek-chat') {
-      setSelectedPreset('deepseek');
-    } else if (config.base_url?.includes('bigmodel.cn/api/coding') || config.model === 'GLM-4.7') {
-      setSelectedPreset('glm_coding');
-    } else if (config.base_url?.includes('170.106.152.118') || config.model === 'gemini-2.5-pro-maxthinking') {
-      setSelectedPreset('ge25');
-    } else if (!config.base_url && !config.model) {
-      setSelectedPreset('empty');
-    } else {
-      setSelectedPreset(null);  // 自定义配置
-    }
-  }, []);  // 只在挂载时运行一次
+  // ⭐ 获取下游节点兼容的配置格式
+  // 内部使用新格式 { textPlatform, textModel, api_key }
+  // 下游节点期望旧格式 { base_url, api_key, model }
+  const getDownstreamConfig = () => {
+    const platform = getCurrentTextPlatform();
+    if (!platform) return null;
+
+    return {
+      base_url: platform.baseURL,
+      api_key: config.api_key || '',
+      model: config.textModel || platform.models[0]?.id || ''
+    };
+  };
 
   // 传递配置到下游节点
   useEffect(() => {
@@ -260,8 +207,12 @@ function OpenAIConfigNode({ data }) {
       const outgoingEdges = edges.filter(e => e.source === nodeId);
 
       if (outgoingEdges.length > 0) {
+        // ⭐ 转换配置格式为下游节点兼容的格式
+        const downstreamConfig = getDownstreamConfig();
+
         console.log('[OpenAIConfigNode] 推送配置到下游节点:', {
-          config: { base_url: config.base_url, model: config.model },
+          originalConfig: { textPlatform: config.textPlatform, textModel: config.textModel },
+          downstreamConfig,
           targetNodes: outgoingEdges.map(e => e.target),
         });
 
@@ -269,14 +220,14 @@ function OpenAIConfigNode({ data }) {
           nds.map((node) => {
             const isConnected = outgoingEdges.some(e => e.target === node.id);
             if (isConnected) {
-              console.log('[OpenAIConfigNode] 更新节点:', node.id, '配置:', config);
+              console.log('[OpenAIConfigNode] 更新节点:', node.id, 'downstreamConfig:', downstreamConfig);
               return {
                 ...node,
                 data: {
                   ...node.data,
-                  openaiConfig: config,
+                  openaiConfig: downstreamConfig,  // ⭐ 使用转换后的格式
                   openaiConfigSourceId: nodeId,
-                  openaiConfigSourceLabel: data.label || 'OpenAI 配置'
+                  openaiConfigSourceLabel: data.label || '文本处理配置'
                 }
               };
             }
@@ -316,236 +267,205 @@ function OpenAIConfigNode({ data }) {
         marginBottom: '8px',
         textAlign: 'center',
       }}>
-        ⚙️ OpenAI 配置
+        ⚙️ 文本处理配置
       </div>
 
-      {/* 快速预设 */}
-      <div style={{
-        marginBottom: '10px',
-      }}>
+      {/* ⭐ 加载状态 */}
+      {textModels.length === 0 ? (
         <div style={{
+          padding: '20px',
+          textAlign: 'center',
           fontSize: '10px',
-          color: '#1e40af',
-          fontWeight: 'bold',
-          marginBottom: '4px',
+          color: '#64748b',
         }}>
-          ⚡ 快速预设
+          加载文本平台中...
         </div>
-        <div style={{
-          display: 'flex',
-          gap: '4px',
-          justifyContent: 'space-between'
-        }}>
-          <button
-            className="nodrag"
-            onClick={() => applyPreset('deepseek')}
-            style={{
-              flex: 1,
-              padding: '4px 2px',
-              backgroundColor: selectedPreset === 'deepseek' ? '#6366f1' : '#e0e7ff',
-              color: selectedPreset === 'deepseek' ? 'white' : '#1e40af',
-              border: `1px solid ${selectedPreset === 'deepseek' ? '#6366f1' : '#c7d2fe'}`,
-              borderRadius: '4px',
-              fontSize: '9px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              textAlign: 'center',
-            }}
-            title="DeepSeek API"
-          >
-            DeepSeek
-          </button>
+      ) : (
+        <>
+          {/* 文本平台选择 */}
+          <div style={{ marginBottom: '8px' }}>
+            <div style={{ fontSize: '10px', color: '#1e40af', marginBottom: '4px', fontWeight: 'bold' }}>
+              文本平台
+            </div>
+            <select
+              className="nodrag"
+              value={currentTextPlatform || ''}
+              onChange={(e) => {
+                const newPlatform = e.target.value;
+                setCurrentTextPlatform(newPlatform);
 
-          <button
-            className="nodrag"
-            onClick={() => applyPreset('glm_coding')}
-            style={{
-              flex: 1,
-              padding: '4px 2px',
-              backgroundColor: selectedPreset === 'glm_coding' ? '#ec4899' : '#fce7f3',
-              color: selectedPreset === 'glm_coding' ? 'white' : '#9f1239',
-              border: `1px solid ${selectedPreset === 'glm_coding' ? '#ec4899' : '#fbcfe8'}`,
-              borderRadius: '4px',
-              fontSize: '9px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              textAlign: 'center',
-            }}
-            title="GLM 编程套餐（OpenAI Compatible）"
-          >
-            GLM 编程
-          </button>
+                // 获取该平台的第一个可用模型
+                const platform = textModels.find(tm => tm.key === newPlatform);
+                const newModel = platform?.models?.[0]?.id || '';
 
-          <button
-            className="nodrag"
-            onClick={() => applyPreset('ge25')}
-            style={{
-              flex: 1,
-              padding: '4px 2px',
-              backgroundColor: selectedPreset === 'ge25' ? '#8b5cf6' : '#ede9fe',
-              color: selectedPreset === 'ge25' ? 'white' : '#5b21b6',
-              border: `1px solid ${selectedPreset === 'ge25' ? '#8b5cf6' : '#ddd6fe'}`,
-              borderRadius: '4px',
-              fontSize: '9px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              textAlign: 'center',
-            }}
-            title="ge2.5"
-          >
-            [ge2.5]
-          </button>
+                handleConfigChange('textPlatform', newPlatform);
+                handleConfigChange('textModel', newModel);
+              }}
+              onWheel={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                padding: '4px 6px',
+                borderRadius: '3px',
+                border: '1px solid #93c5fd',
+                fontSize: '10px',
+                backgroundColor: 'white',
+                color: '#1e293b',
+                cursor: 'pointer',
+              }}
+            >
+              {textModels.map((platform) => (
+                <option
+                  key={platform.key}
+                  value={platform.key}
+                  style={{ backgroundColor: 'white', color: '#1e293b' }}
+                >
+                  {platform.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          <button
-            className="nodrag"
-            onClick={() => applyPreset('empty')}
-            style={{
-              flex: 1,
-              padding: '4px 2px',
-              backgroundColor: selectedPreset === 'empty' ? '#6b7280' : '#f3f4f6',
-              color: selectedPreset === 'empty' ? 'white' : '#374151',
-              border: `1px solid ${selectedPreset === 'empty' ? '#6b7280' : '#d1d5db'}`,
-              borderRadius: '4px',
-              fontSize: '9px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              textAlign: 'center',
-            }}
-            title="空配置"
-          >
-            空配置
-          </button>
-        </div>
-      </div>
+          {/* 模型选择 */}
+          <div style={{ marginBottom: '8px' }}>
+            <div style={{ fontSize: '10px', color: '#1e40af', marginBottom: '4px', fontWeight: 'bold' }}>
+              模型 ({currentPlatformModels.length} 个)
+            </div>
+            <select
+              className="nodrag"
+              value={config.textModel || ''}
+              onChange={(e) => handleConfigChange('textModel', e.target.value)}
+              onWheel={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                padding: '4px 6px',
+                borderRadius: '3px',
+                border: '1px solid #93c5fd',
+                fontSize: '10px',
+                backgroundColor: 'white',
+                color: '#1e293b',
+                cursor: 'pointer',
+              }}
+            >
+              {currentPlatformModels.map((model) => (
+                <option
+                  key={model.id}
+                  value={model.id}
+                  style={{ backgroundColor: 'white', color: '#1e293b' }}
+                >
+                  {getModelName(model.id)}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      {/* API 配置表单 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {/* Base URL */}
-        <div className="nodrag">
-          <label style={{ fontSize: '10px', color: '#1e40af', fontWeight: 'bold' }}>
-            Base URL
-          </label>
-          <input
-            className="nodrag"
-            type="text"
-            name="base_url"
-            value={config.base_url}
-            onChange={(e) => handleConfigChange('base_url', e.target.value)}
-            onWheel={(e) => e.stopPropagation()}
-            placeholder="https://api.deepseek.com"
-            style={{
-              width: '100%',
-              padding: '4px 6px',
-              borderRadius: '3px',
-              border: '1px solid #93c5fd',
-              fontSize: '10px',
-              marginTop: '2px',
-            }}
-          />
-        </div>
+          {/* API Key */}
+          <div style={{ marginBottom: '8px' }}>
+            <div style={{ fontSize: '10px', color: '#1e40af', marginBottom: '4px', fontWeight: 'bold' }}>
+              🔑 API Key
+            </div>
+            <input
+              className="nodrag"
+              type="password"
+              name="apiKey"
+              value={config.api_key || ''}
+              onChange={(e) => handleConfigChange('api_key', e.target.value)}
+              onWheel={(e) => e.stopPropagation()}
+              placeholder="输入 API Key..."
+              style={{
+                width: '100%',
+                padding: '4px 6px',
+                borderRadius: '3px',
+                border: '1px solid #93c5fd',
+                fontSize: '10px',
+                backgroundColor: 'white',
+                color: '#1e293b',
+                fontFamily: 'monospace',
+              }}
+            />
+            <div style={{ fontSize: '8px', color: '#64748b', marginTop: '2px', fontStyle: 'italic' }}>
+              💡 {getCurrentTextPlatform()?.name || '请选择平台'}
+            </div>
+          </div>
 
-        {/* API Key */}
-        <div className="nodrag">
-          <label style={{ fontSize: '10px', color: '#1e40af', fontWeight: 'bold' }}>
-            API Key
-          </label>
-          <input
-            className="nodrag"
-            type="password"
-            name="api_key"
-            value={config.api_key}
-            onChange={(e) => handleConfigChange('api_key', e.target.value)}
-            onWheel={(e) => e.stopPropagation()}
-            placeholder="sk-xxxxx..."
-            style={{
-              width: '100%',
-              padding: '4px 6px',
-              borderRadius: '3px',
-              border: '1px solid #93c5fd',
-              fontSize: '10px',
-              marginTop: '2px',
-            }}
-          />
-        </div>
-
-        {/* Model */}
-        <div className="nodrag">
-          <label style={{ fontSize: '10px', color: '#1e40af', fontWeight: 'bold' }}>
-            Model
-          </label>
-          <input
-            className="nodrag"
-            type="text"
-            name="model"
-            value={config.model}
-            onChange={(e) => handleConfigChange('model', e.target.value)}
-            onWheel={(e) => e.stopPropagation()}
-            placeholder="deepseek-chat"
-            style={{
-              width: '100%',
-              padding: '4px 6px',
-              borderRadius: '3px',
-              border: '1px solid #93c5fd',
-              fontSize: '10px',
-              marginTop: '2px',
-            }}
-          />
-        </div>
-
-        {/* 操作按钮 */}
-        <div className="nodrag" style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-          <button
-            className="nodrag"
-            onClick={testConnection}
-            style={{
-              flex: 1,
+          {/* ⭐ 平台信息 */}
+          {getCurrentTextPlatform() && (
+            <div style={{
               padding: '6px',
-              backgroundColor: '#10b981',
-              color: 'white',
-              border: 'none',
+              backgroundColor: '#dbeafe',
               borderRadius: '3px',
-              fontSize: '10px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            🧪 测试
-          </button>
-          <button
-            className="nodrag"
-            onClick={loadConfig}
-            style={{
-              flex: 1,
-              padding: '6px',
-              backgroundColor: '#6366f1',
-              color: 'white',
-              border: 'none',
-              borderRadius: '3px',
-              fontSize: '10px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            📂 加载
-          </button>
-          <button
-            className="nodrag"
-            onClick={() => applyPreset('deepseek')}
-            style={{
-              flex: 1,
-              padding: '6px',
-              backgroundColor: '#ef4444',
-              color: 'white',
-              border: 'none',
-              borderRadius: '3px',
-              fontSize: '10px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-            }}
-          >
-            🗑️ 清除
-          </button>
-        </div>
+              fontSize: '9px',
+              color: '#0369a1',
+              marginBottom: '8px',
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>
+                📊 {getCurrentTextPlatform().name}
+              </div>
+              <div style={{ fontSize: '8px' }}>
+                Base URL: {getCurrentTextPlatform().baseURL}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* 操作按钮 */}
+      <div className="nodrag" style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+        <button
+          className="nodrag"
+          onClick={testConnection}
+          style={{
+            flex: 1,
+            padding: '6px',
+            backgroundColor: '#10b981',
+            color: 'white',
+            border: 'none',
+            borderRadius: '3px',
+            fontSize: '10px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+          }}
+        >
+          🧪 测试
+        </button>
+        <button
+          className="nodrag"
+          onClick={loadConfig}
+          style={{
+            flex: 1,
+            padding: '6px',
+            backgroundColor: '#6366f1',
+            color: 'white',
+            border: 'none',
+            borderRadius: '3px',
+            fontSize: '10px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+          }}
+        >
+          📂 加载
+        </button>
+        <button
+          className="nodrag"
+          onClick={() => {
+            const emptyConfig = { textPlatform: '', textModel: '', api_key: '' };
+            setConfig(emptyConfig);
+            saveConfig(emptyConfig);
+            syncToData(emptyConfig);
+          }}
+          style={{
+            flex: 1,
+            padding: '6px',
+            backgroundColor: '#ef4444',
+            color: 'white',
+            border: 'none',
+            borderRadius: '3px',
+            fontSize: '10px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+          }}
+        >
+          🗑️ 清除
+        </button>
       </div>
 
       {/* 输出端口 */}

@@ -1,7 +1,7 @@
 # WinJin AIGC - 错误模式参考
 
 > **说明**: 本文档按类型分类，包含所有已知的错误模式和解决方案。
-> **更新日期**: 2026-01-13 (新增错误56)
+> **更新日期**: 2026-01-23 (新增错误57)
 
 ---
 
@@ -10,7 +10,7 @@
 | 类型 | 错误数量 | 关键词 |
 |------|----------|--------|
 | [API 相关](#api-相关) | 9个 | 双平台、轮询、端点、模型、故事板、输出格式 |
-| [React Flow 相关](#react-flow-相关) | 10个 | 数据传递、Handle、连接、事件、竞态条件、旁白模式、快照延迟、配置恢复 |
+| [React Flow 相关](#react-flow-相关) | 11个 | 数据传递、Handle、连接、事件、竞态条件、旁白模式、快照延迟、配置恢复、平台选择 |
 | [角色系统相关](#角色系统相关) | 7个 | 引用、显示、焦点、双显示、优化、匹配失败 |
 | [表单/输入相关](#表单输入相关) | 2个 | id/name、验证 |
 | [存储/持久化相关](#存储持久化相关) | 7个 | localStorage、工作流、配置持久化、优化结果持久化 |
@@ -2486,6 +2486,55 @@ function StoryboardNode({ data }) {
 4. **解决方案**: 将函数定义移到 Hook 调用之前
 
 **修复日期**: 2026-01-02
+
+---
+
+### 错误57: 文本模型平台选择无法切换 `React Flow` `状态管理` ⭐⭐⭐ 2026-01-23 新增
+
+**现象**:
+- 添加新的文本平台（如"聚鑫2"）后，平台下拉框中可以显示该选项
+- 但选择后值无法切换，始终显示旧的平台值（如"DeepSeek"）
+- 模型下拉框也显示不对应的模型列表
+
+**根本原因**:
+1. **TextModelConfigPanel 获取错误的配置对象**: 组件使用 `config: textConfig` 而非 `textConfig`，导致获取的是视频模型配置而非文本模型配置
+2. **config.json 中模型不匹配**: `userDefaults.textGeneration.model` 使用了错误平台的模型（如 `gemini-2.5-flash` 是 Gemini 平台的模型，但 textGeneration.platform 是 `juxin2`）
+3. **API 加载失败时的降级处理不当**: `loadConfig()` 加载失败时没有正确使用 localStorage 备份
+
+```javascript
+// ❌ 错误：TextModelConfigPanel 获取视频配置
+const TextModelConfigPanel = ({ onClose }) => {
+  const {
+    textModels,
+    config: textConfig,  // ❌ 获取到的是 video config，不是 text config
+    updateTextConfig
+  } = useAPIConfig();
+  // ...
+};
+
+// ✅ 正确：直接获取 textConfig
+const TextModelConfigPanel = ({ onClose }) => {
+  const {
+    textModels,
+    textConfig,  // ✅ 获取 text config
+    updateTextConfig
+  } = useAPIConfig();
+  // ...
+};
+```
+
+**关键点**:
+1. **Context 解构正确性**: 确保从 `useAPIConfig()` 解构出正确的状态变量名
+2. **模型-平台匹配**: `userDefaults.textGeneration.model` 必须是 `userDefaults.textGeneration.platform` 平台下的有效模型
+3. **localStorage 降级处理**: API 加载失败时，正确使用 localStorage 备份初始化 textConfig
+4. **useState 初始化**: 使用回调函数从 localStorage 初始化，确保刷新后状态保持
+
+**修复文件**:
+- `src/client/src/components/TextModelConfigPanel.jsx` - 修复 config 解构
+- `src/data/config.json` - 修复模型名称匹配
+- `src/client/src/contexts/APIConfigContext.jsx` - 添加 localStorage 初始化和降级处理
+
+**修复日期**: 2026-01-23
 
 ---
 
