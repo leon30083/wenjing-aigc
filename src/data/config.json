@@ -1,0 +1,67 @@
+{
+  "version": "1.0.0",
+  "platforms": {
+    "zhenzhen": {
+      "id": "zhenzhen",
+      "name": "贞贞",
+      "baseURL": "https://ai.t8star.cn",
+      "enabled": true,
+      "models": {
+        "veo3.1-fast": {
+          "id": "veo3.1-fast",
+          "name": "veo3.1-fast",
+          "type": "sora",
+          "enabled": true
+        }
+      }
+    },
+    "juxin": {
+      "id": "juxin",
+      "name": "聚鑫",
+      "baseURL": "https://api.jxincm.cn",
+      "enabled": true,
+      "models": {
+        "sora-2-all": {
+          "id": "sora-2-all",
+          "name": "sora-2-all",
+          "type": "sora",
+          "enabled": true
+        }
+      }
+    }
+  },
+  "textModels": {},
+  "UserDefaults": {
+    "videoGeneration": {
+      "platform": "juxin",
+      "model": "sora-2-all",
+      "aspectRatio": "16:9",
+      "watermark": false
+    }
+  },
+  "userDefaults": {
+    "videoGeneration": {
+      "platform": "juxin",
+      "model": "sora-2-all",
+      "aspect": "16:9",
+      "watermark": false
+    },
+    "textGeneration": {
+      "platform": "platform-ml6dtui0",
+      "model": "gemini-2.5-flash",
+      "apiKey": "",
+      "style": "picture-book"
+    }
+  },
+  "customPlatforms": {},
+  "textPlatforms": {
+    "platform-ml6dtui0": {
+      "id": "platform-ml6dtui0",
+      "name": "聚鑫",
+      "baseURL": "https://api.jxincm.cn/v1",
+      "enabled": true,
+      "type": "text",
+      "models": {}
+    }
+  }
+}

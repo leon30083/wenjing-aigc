@@ -1,0 +1,146 @@
+/* 全局配置面板样式 */
+.global-config-panel {
+  position: fixed;
+  top: 0;
+  right: -600px;
+  width: 600px;
+  height: 100vh;
+  background: #f9fafb;
+  box-shadow: -2px 0 8px rgba(0,0,0,0.1);
+  transition: right 0.3s ease;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.global-config-panel.open {
+  right: 0;
+}
+
+.config-panel-header {
+  padding: 20px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+}
+
+.config-panel-header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.config-panel-header .close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.config-panel-header .close-btn:hover {
+  background: #f3f4f6;
+}
+
+.config-tabs {
+  display: flex;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
+}
+
+.config-tab {
+  flex: 1;
+  padding: 14px;
+  text-align: center;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  transition: all 0.2s;
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.config-tab:hover {
+  background: #f3f4f6;
+  color: #1e40af;
+}
+
+.config-tab.active {
+  background: #3b82f6;
+  color: #ffffff;
+  border-bottom: 2px solid #2563eb;
+}
+
+.config-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.config-section {
+  margin-bottom: 24px;
+}
+
+.config-group {
+  margin-bottom: 16px;
+}
+
+.config-item {
+  margin-bottom: 12px;
+}
+
+.config-item label {
+  display: block;
+  font-size: 14px;
+  font-weight: bold;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.config-item input[type="text"],
+.config-item input[type="password"],
+.config-item select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+  color: #1e293b;
+}
+
+.config-item input[type="checkbox"] {
+  margin-right: 6px;
+}
+
+.manage-btn {
+  width: 100%;
+  padding: 10px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.manage-btn:hover {
+  background: #2563eb;
+}
+
+.manage-panel {
+  padding: 12px;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+}
