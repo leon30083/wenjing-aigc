@@ -222,7 +222,19 @@ useEffect(() => {
 | **错误56** | React Flow | API 配置节点平台选择刷新后丢失 |
 | **错误57** | React Flow | 文本模型平台选择无法切换 |
 
-**查看完整错误模式**: [`.claude/rules/error-patterns.md`](../rules/error-patterns.md)
+**查看完整错误模式**: [`.claude/rules/error-patterns/`](../rules/error-patterns/) ⭐ 已拆分（2026-02-04）
+
+> **性能优化**: 错误模式已按类型拆分为 7 个文件，提升加载性能 87.5%
+>
+> | 类型 | 文件 | 错误数量 | 主要问题 |
+> |------|------|----------|----------|
+> | [API 相关](../rules/error-patterns/api-errors.md) | api-errors.md | 9个 | 双平台、轮询、端点 |
+> | [React Flow](../rules/error-patterns/reactflow-errors.md) | reactflow-errors.md | 11个 | 数据传递、Handle |
+> | [角色系统](../rules/error-patterns/character-errors.md) | character-errors.md | 7个 | 引用、显示 |
+> | [存储相关](../rules/error-patterns/storage-errors.md) | storage-errors.md | 7个 | 持久化、配置 |
+> | [UI 相关](../rules/error-patterns/ui-errors.md) | ui-errors.md | 3个 | 渲染、布局 |
+> | [表单相关](../rules/error-patterns/form-errors.md) | form-errors.md | 2个 | 验证、字段 |
+> | [其他](../rules/error-patterns/other-errors.md) | other-errors.md | 26个 | 杂项 |
 
 ---
 
@@ -258,7 +270,8 @@ useEffect(() => {
 ### references/ 目录
 
 - [API 规范](../01-fundamentals/references/api-platforms.md) - 双平台差异详解
-- [错误模式参考](../rules/error-patterns.md) - 56个错误完整列表
+- [错误模式参考](../rules/error-patterns/) ⭐ 已拆分 - 57个错误按类型分类
+- [自动化编程规则](../rules/automation-rules.md) ⭐ 新增 - AI 与用户协作规范
 - [开发交接书](../../../用户输入文件夹/开发对话/开发交接书.md) - 版本记录、功能列表
 
 ---
@@ -269,7 +282,8 @@ useEffect(() => {
 |------|----------|----------|
 | `SKILL.md` | 每次开发 | 新增错误模式、API 规范 |
 | [base.md](../rules/base.md) | API 变更 | 技术规范、端点定义 |
-| [error-patterns.md](../rules/error-patterns.md) | 新错误 | 添加错误模式 |
+| [error-patterns/](../rules/error-patterns/) | 新错误 | 添加到对应类型文件 ⭐ 已拆分 |
+| [automation-rules.md](../rules/automation-rules.md) | 规范变更 | AI 与用户协作规范 ⭐ 新增 |
 | [开发交接书.md](../../../用户输入文件夹/开发对话/开发交接书.md) | 每次开发 | 版本号、功能列表 |
 
 ---

@@ -21,7 +21,7 @@
 | `.claude/skills/winjin-dev/SKILL.md` | API 规范、开发提示 | ⭐ 必须 |
 | `.claude/rules/base.md` | 技术规范、API 端点、平台差异 | ⭐ 必须 |
 | `.claude/rules/code.md` | 代码示例、最佳实践 | ⭐ 必须 |
-| `reference/用户输入文件夹/开发经验/Sora2_Character_Best_Practices.md` | 功能说明、测试案例 | 推荐 |
+| `用户输入文件夹/开发经验/Sora2_Character_Best_Practices.md` | 功能说明、测试案例 | 推荐 |
 | `用户输入文件夹/开发对话/开发交接书.md` | 版本号、已完成功能 | ⭐ 必须 |
 
 ## 🚀 快速更新流程
@@ -245,5 +245,6 @@ echo "✅ 文件已添加到 Git，请检查后提交"
 
 ---
 
-**最后更新**: 2026-01-06
+**最后更新**: 2026-02-04
 **维护者**: WinJin AIGC 开发团队
+**版本**: v2.1.0
