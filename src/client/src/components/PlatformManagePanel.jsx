@@ -25,6 +25,7 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
   const [message, setMessage] = useState({ text: '', type: '' });
   const [testingConnection, setTestingConnection] = useState(false);
   const [editingModel, setEditingModel] = useState(null); // { platformKey, modelId, modelData }
+  const [editingPlatform, setEditingPlatform] = useState(null); // { platformKey, platformData: { name, baseURL } }
 
   // 模型类型选项（根据平台类型）
   const modelTypeOptions = platformType === 'text'
@@ -271,9 +272,54 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
     setTimeout(() => setMessage({ text: '', type: '' }), 3000);
   };
 
-  // ⭐ 取消编辑
+  // ⭐ 取消模型编辑
   const handleCancelEdit = () => {
     setEditingModel(null);
+  };
+
+  // ⭐ 编辑平台
+  const handleEditPlatform = (platform) => {
+    setEditingPlatform({
+      platformKey: platform.key,
+      platformData: {
+        name: platform.name,
+        baseURL: platform.baseURL
+      }
+    });
+  };
+
+  // ⭐ 保存编辑的平台
+  const handleSaveEditPlatform = async () => {
+    if (!editingPlatform) return;
+
+    try {
+      // 使用 settings 端点更新平台配置
+      const endpoint = `${API_BASE}/api/config/platforms/${editingPlatform.platformKey}/settings`;
+
+      const response = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingPlatform.platformData),
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        setMessage({ text: `✅ 平台 "${editingPlatform.platformData.name}" 已更新`, type: 'success' });
+        setEditingPlatform(null);
+        await reloadConfig();
+      } else {
+        setMessage({ text: `❌ 更新失败: ${result.error}`, type: 'error' });
+      }
+    } catch (error) {
+      setMessage({ text: `❌ 网络错误: ${error.message}`, type: 'error' });
+    }
+
+    setTimeout(() => setMessage({ text: '', type: '' }), 3000);
+  };
+
+  // ⭐ 取消平台编辑
+  const handleCancelEditPlatform = () => {
+    setEditingPlatform(null);
   };
 
   return (
@@ -477,6 +523,22 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    className="nodrag"
+                    onClick={() => handleEditPlatform(platform)}
+                    title="编辑平台"
+                    style={{
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      border: '1px solid #f59e0b',
+                      backgroundColor: '#f59e0b',
+                      color: 'white',
+                      fontSize: '9px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ✏️
+                  </button>
                   {!platform.builtIn && (
                     <button
                       className="nodrag"
@@ -666,6 +728,117 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
               <button
                 className="nodrag"
                 onClick={handleSaveEditModel}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid #22c55e',
+                  backgroundColor: '#22c55e',
+                  color: 'white',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 编辑平台模态框 */}
+      {editingPlatform && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '20px',
+            width: '320px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '16px', fontSize: '14px', color: '#1e40af' }}>
+              ✏️ 编辑平台
+            </h3>
+
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>
+                平台名称
+              </label>
+              <input
+                className="nodrag"
+                type="text"
+                value={editingPlatform.platformData.name}
+                onChange={(e) => setEditingPlatform({
+                  ...editingPlatform,
+                  platformData: { ...editingPlatform.platformData, name: e.target.value }
+                })}
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  borderRadius: '4px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '12px',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>
+                Base URL
+              </label>
+              <input
+                className="nodrag"
+                type="text"
+                value={editingPlatform.platformData.baseURL}
+                onChange={(e) => setEditingPlatform({
+                  ...editingPlatform,
+                  platformData: { ...editingPlatform.platformData, baseURL: e.target.value }
+                })}
+                placeholder={platformType === 'text' ? "https://api.example.com" : "https://api.example.com"}
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  borderRadius: '4px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '12px',
+                }}
+              />
+              {platformType === 'text' && (
+                <div style={{ fontSize: '9px', color: '#64748b', marginTop: '4px' }}>
+                  💡 文本平台会自动添加 /v1 后缀
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button
+                className="nodrag"
+                onClick={handleCancelEditPlatform}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid #94a3b8',
+                  backgroundColor: 'white',
+                  color: '#64748b',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                取消
+              </button>
+              <button
+                className="nodrag"
+                onClick={handleSaveEditPlatform}
                 style={{
                   padding: '6px 12px',
                   borderRadius: '4px',

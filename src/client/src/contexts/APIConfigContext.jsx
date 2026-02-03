@@ -127,10 +127,13 @@ export const APIConfigProvider = ({ children }) => {
       const result = await response.json();
 
       if (result.success && result.data) {
-        const { platforms: platformList, textModels: textModelList, userDefaults } = result.data;
+        const { platforms: platformList, userDefaults } = result.data;
+
+        // ⭐⭐⭐ 统一架构：从 platforms 中过滤文本平台
+        const textPlatformList = (platformList || []).filter(p => p.type === 'text');
 
         setPlatforms(platformList || []);
-        setTextModels(textModelList || []);
+        setTextModels(textPlatformList);  // ⭐ 从 platforms 过滤，不再使用单独的 textModels 字段
 
         // 使用用户默认配置
         if (userDefaults && userDefaults.videoGeneration) {

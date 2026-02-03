@@ -26,6 +26,15 @@ const TextModelConfigPanel = ({ onClose }) => {
     return textModels.find(p => p.key === textConfig.platform);
   };
 
+  // ⭐ 新增：动态获取平台默认模型
+  const getPlatformDefaultModel = (platformKey) => {
+    const platform = textModels.find(p => p.key === platformKey);
+    if (platform && platform.models && platform.models.length > 0) {
+      return platform.models[0].id;  // 返回第一个模型作为默认
+    }
+    return null;
+  };
+
   const currentTextPlatform = getCurrentTextPlatform();
   const currentTextModels = currentTextPlatform?.models || [];
 
@@ -41,8 +50,8 @@ const TextModelConfigPanel = ({ onClose }) => {
             value={textConfig.platform}
             onChange={(e) => {
               const newPlatform = e.target.value;
-              // 智能模型切换
-              const newModel = newPlatform === 'deepseek' ? 'deepseek-chat' : 'gemini-2.5-flash';
+              // ⭐ 智能模型切换：动态获取平台默认模型
+              const newModel = getPlatformDefaultModel(newPlatform) || textConfig.model;
               updateTextConfig({ platform: newPlatform, model: newModel });
             }}
             className="nodrag"

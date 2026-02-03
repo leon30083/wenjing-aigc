@@ -65,30 +65,11 @@ const VideoModelConfigPanel = ({ onClose }) => {
             ))}
           </select>
         </div>
+      </div>
 
-        <div className="config-item">
-          <label>画面比例</label>
-          <select
-            value={config.aspect}
-            onChange={(e) => updateConfig({ aspect: e.target.value })}
-            className="nodrag"
-          >
-            <option value="16:9">16:9 (横屏)</option>
-            <option value="9:16">9:16 (竖屏)</option>
-          </select>
-        </div>
-
-        <div className="config-item">
-          <label>
-            <input
-              type="checkbox"
-              checked={config.watermark}
-              onChange={(e) => updateConfig({ watermark: e.target.checked })}
-              className="nodrag"
-            />
-            启用水印
-          </label>
-        </div>
+      {/* 提示信息 */}
+      <div className="config-group" style={{ marginTop: '12px', padding: '8px', backgroundColor: '#f0f9ff', borderRadius: '4px', fontSize: '12px', color: '#0369a1' }}>
+        💡 提示：画面比例和水印在视频生成节点中配置
       </div>
 
       {/* 管理按钮 */}

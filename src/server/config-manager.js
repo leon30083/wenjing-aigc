@@ -186,47 +186,13 @@ class ConfigManager {
           defaultModel: "sora-2"
         }
       },
-      textModels: {
-        gemini: {
-          id: "gemini",
-          name: "Gemini (DeepSeek)",
-          baseURL: "http://170.106.152.118:2999",
-          enabled: true,
-          apiKey: "",
-          models: {
-            "gemini-3-pro-preview": {
-              id: "gemini-3-pro-preview",
-              name: "Gemini 3 Pro Preview",
-              type: "text",
-              enabled: true
-            },
-            "gemini-3-pro-preview-thinking": {
-              id: "gemini-3-pro-preview-thinking",
-              name: "Gemini 3 Pro Preview Thinking",
-              type: "text",
-              enabled: true
-            },
-            "gemini-3-flash-preview": {
-              id: "gemini-3-flash-preview",
-              name: "Gemini 3 Flash Preview",
-              type: "text",
-              enabled: true
-            }
-          },
-          defaultModel: "gemini-3-pro-preview"
-        }
-      },
+      textModels: {},
       userDefaults: {
         videoGeneration: {
           platform: "juxin",
           model: "sora-2-all",
           aspectRatio: "16:9",
           watermark: false
-        },
-        textProcessing: {
-          platform: "gemini",
-          model: "gemini-3-pro-preview",
-          style: "picture-book"
         }
       },
       customPlatforms: {}
@@ -262,15 +228,16 @@ class ConfigManager {
   getPlatforms() {
     const config = this.loadUserConfig();
     const platforms = [];
+    const processedKeys = new Set(); // 防止重复添加
 
-    // ⭐ 内置平台（从模板）
+    // ⭐ 内置视频平台（从模板）
     if (this.templates && this.templates.platforms) {
       for (const [key, templatePlatform] of Object.entries(this.templates.platforms)) {
         // 从模板加载基础模型列表
         const templateModels = (templatePlatform.models || []).map(m => ({
           id: m.id,
           name: m.name,
-          type: m.type,
+          type: m.type || 'video',
           enabled: m.enabled !== false
         }));
 
@@ -286,13 +253,12 @@ class ConfigManager {
               id: modelId,
               name: userModel.name || modelsMap.get(modelId)?.name || modelId,
               type: userModel.type || modelsMap.get(modelId)?.type || 'video',
-              enabled: userModel.enabled !== false, // 用户配置覆盖
-              apiKey: userModel.apiKey || modelsMap.get(modelId)?.apiKey || ''  // ⭐ 保留模型 Key
+              enabled: userModel.enabled !== false,
+              apiKey: userModel.apiKey || modelsMap.get(modelId)?.apiKey || ''
             });
           }
         }
 
-        // ⭐ 过滤掉被禁用的模型（enabled: false）
         const enabledModels = Array.from(modelsMap.values()).filter(m => m.enabled !== false);
 
         platforms.push({
@@ -302,48 +268,53 @@ class ConfigManager {
           baseURL: templatePlatform.baseURL,
           enabled: templatePlatform.enabled !== false,
           builtIn: true,
+          type: 'video',  // ⭐ 视频平台
           models: enabledModels
         });
+        processedKeys.add(key);
       }
     }
 
-    // ⭐ 用户配置中的额外内置平台（不在模板中的）
+    // ⭐ 用户配置中的额外平台（config.platforms）
+    // ⭐⭐⭐ 统一架构：支持 type 字段区分平台类型
     for (const [key, platform] of Object.entries(config.platforms || {})) {
-      const existingIndex = platforms.findIndex(p => p.key === key);
-      if (existingIndex >= 0) {
-        // 已经在模板处理阶段合并过了，跳过
-        continue;
-      }
+      if (processedKeys.has(key)) continue; // 已处理过
 
-      // 不在模板中的平台，直接使用用户配置
       const enabledModels = Object.values(platform.models || {})
         .filter(m => m.enabled !== false)
         .map(m => ({
           id: m.id,
           name: m.name,
-          type: m.type,
-          enabled: m.enabled !== false
+          type: m.type || platform.type || 'video',
+          enabled: m.enabled !== false,
+          apiKey: m.apiKey || ''
         }));
 
+      // ⭐⭐⭐ 关键修复：使用平台自己的 type 字段，而不是硬编码 'video'
       platforms.push({
-        id: platform.id,
+        id: platform.id || key,
         key: key,
         name: platform.name,
         baseURL: platform.baseURL,
-        enabled: platform.enabled,
-        builtIn: true,
+        enabled: platform.enabled !== false,
+        builtIn: platform.builtIn || false,
+        type: platform.type || 'video',  // ⭐ 使用平台的 type 字段
+        apiKey: platform.apiKey || '',
         models: enabledModels
       });
+      processedKeys.add(key);
     }
 
-    // ⭐ 用户自定义平台
+    // ⭐ 用户自定义平台（customPlatforms）
     for (const [key, platform] of Object.entries(config.customPlatforms || {})) {
+      if (processedKeys.has(key)) continue;
+
       const enabledModels = Object.values(platform.models || {})
         .filter(m => m.enabled !== false)
         .map(m => ({
           id: m.id,
           name: m.name,
-          type: m.type,
+          type: m.type || 'video',
           enabled: m.enabled !== false
         }));
 
@@ -354,193 +325,229 @@ class ConfigManager {
         baseURL: platform.baseURL,
         enabled: platform.enabled !== false,
         builtIn: false,
+        type: platform.type || 'video',
         models: enabledModels
       });
+      processedKeys.add(key);
+    }
+
+    // ⭐⭐⭐ 文本平台（textPlatforms）- 统一迁移到 platforms ⭐⭐⭐
+    for (const [key, platform] of Object.entries(config.textPlatforms || {})) {
+      if (processedKeys.has(key)) continue;
+
+      const enabledModels = Object.values(platform.models || {})
+        .filter(m => m.enabled !== false)
+        .map(m => ({
+          id: m.id,
+          name: m.name,
+          type: m.type || 'text',
+          enabled: m.enabled !== false,
+          apiKey: m.apiKey || ''
+        }));
+
+      platforms.push({
+        id: platform.id || key,
+        key: key,
+        name: platform.name,
+        baseURL: platform.baseURL,
+        enabled: platform.enabled !== false,
+        builtIn: false,
+        type: 'text',  // ⭐ 文本平台
+        models: enabledModels
+      });
+      processedKeys.add(key);
     }
 
     return platforms;
   }
 
   /**
-   * 获取文本模型列表
+   * 获取文本模型列表 ⭐ 已简化
+   * 统一从 getPlatforms() 获取，过滤 type: 'text' 的平台
    */
   getTextModels() {
-    const config = this.loadUserConfig();
-    const textModels = [];
-
-    // ⭐ 文本模型提供商（从模板）
-    if (this.templates && this.templates.textModels) {
-      for (const [key, provider] of Object.entries(this.templates.textModels)) {
-        textModels.push({
-          id: provider.key,
-          key: provider.key,
-          name: provider.name,
-          baseURL: provider.baseURL,
-          enabled: provider.enabled !== false,
-          builtIn: true,
-          models: (provider.models || []).map(m => ({
-            id: m.id,
-            name: m.name,
-            type: m.type || 'text',
-            enabled: m.enabled !== false
-          }))
-        });
-      }
-    }
-
-    // ⭐ 用户自定义文本平台（新增：支持 textPlatforms）
-    for (const [key, provider] of Object.entries(config.textPlatforms || {})) {
-      const existingIndex = textModels.findIndex(t => t.key === key);
-      const providerData = {
-        id: provider.id || key,
-        key: key,
-        name: provider.name,
-        baseURL: provider.baseURL,
-        enabled: provider.enabled !== false,
-        builtIn: false,
-        models: Object.values(provider.models || {}).map(m => ({
-          id: m.id,
-          name: m.name,
-          type: m.type || 'text',
-          enabled: m.enabled !== false
-        }))
-      };
-
-      if (existingIndex >= 0) {
-        textModels[existingIndex] = providerData;
-      } else {
-        textModels.push(providerData);
-      }
-    }
-
-    // 用户自定义文本模型提供商（向后兼容）
-    for (const [key, provider] of Object.entries(config.textModels || {})) {
-      const existingIndex = textModels.findIndex(t => t.key === key);
-      const providerData = {
-        id: provider.id || key,
-        key: key,
-        name: provider.name,
-        baseURL: provider.baseURL,
-        enabled: provider.enabled !== false,
-        builtIn: false,
-        models: Object.values(provider.models || {}).map(m => ({
-          id: m.id,
-          name: m.name,
-          type: m.type,
-          enabled: m.enabled !== false
-        }))
-      };
-
-      if (existingIndex >= 0) {
-        // 已存在，跳过（避免重复）
-      } else {
-        textModels.push(providerData);
-      }
-    }
-
-    return textModels;
+    // ⭐ 统一架构：调用 getPlatforms() 并过滤文本平台
+    return this.getPlatforms().filter(p => p.type === 'text');
   }
 
   /**
-   * 添加自定义平台
+   * 添加平台 ⭐ 统一架构
+   * @param {Object} platformData - 平台数据
+   * @param {string} [platformData.id] - 平台ID（唯一标识，可选）
+   * @param {string} platformData.name - 平台显示名称
+   * @param {string} platformData.baseURL - API Base URL
+   * @param {string} [platformData.type] - 平台类型 ('video'|'text'|'image')
+   * @param {boolean} [platformData.enabled] - 是否启用
+   * @param {string} [platformData.apiKey] - 平台级API Key
+   * @param {Array} [platformData.models] - 模型数组
    */
   addPlatform(platformData) {
     const config = this.loadUserConfig();
 
-    if (!config.customPlatforms) {
-      config.customPlatforms = {};
+    // ⭐ 确保 platforms 对象存在
+    if (!config.platforms) {
+      config.platforms = {};
     }
 
-    const key = platformData.id || platformData.name.toLowerCase().replace(/\s+/g, '_');
-    config.customPlatforms[key] = {
-      id: platformData.id || key,
-      name: platformData.name,
-      baseURL: platformData.baseURL,
-      enabled: platformData.enabled !== false,
-      apiKey: platformData.apiKey || '',
-      models: platformData.models || {},
-      defaultModel: platformData.defaultModel
-    };
+    const platformType = platformData.type || 'text';
 
-    return this.saveUserConfig(config);
-  }
-
-  /**
-   * 更新平台
-   */
-  updatePlatform(platformKey, updates) {
-    const config = this.loadUserConfig();
-
-    // 检查是否是内置平台
-    if (config.platforms && config.platforms[platformKey]) {
-      return { success: false, error: 'Cannot modify built-in platform' };
-    }
-
-    if (!config.customPlatforms || !config.customPlatforms[platformKey]) {
-      return { success: false, error: 'Platform not found' };
-    }
-
-    Object.assign(config.customPlatforms[platformKey], updates);
-    return this.saveUserConfig(config);
-  }
-
-  /**
-   * 删除自定义平台
-   */
-  deletePlatform(platformKey) {
-    const config = this.loadUserConfig();
-
-    // 不允许删除内置平台
-    if (config.platforms && config.platforms[platformKey]) {
-      return { success: false, error: 'Cannot delete built-in platform' };
-    }
-
-    if (!config.customPlatforms || !config.customPlatforms[platformKey]) {
-      return { success: false, error: 'Platform not found' };
-    }
-
-    delete config.customPlatforms[platformKey];
-    return this.saveUserConfig(config);
-  }
-
-  /**
-   * 为平台添加模型
-   */
-  addModelToPlatform(platformKey, modelData) {
-    const config = this.loadUserConfig();
-    let platform;
-    let isBuiltIn = false;
-
-    // ⭐ 先在模板中查找内置平台
-    if (this.templates && this.templates.platforms && this.templates.platforms[platformKey]) {
-      platform = this.templates.platforms[platformKey];
-      isBuiltIn = true;
-
-      // ⭐ 关键：为内置平台在用户配置中创建引用（用于存储自定义模型）
-      if (!config.platforms) {
-        config.platforms = {};
-      }
-      if (!config.platforms[platformKey]) {
-        config.platforms[platformKey] = {
-          id: platform.key,
-          name: platform.name,
-          baseURL: platform.baseURL,
-          enabled: platform.enabled,
-          models: {} // 自定义模型存储在这里
+    // ⭐⭐⭐ 唯一性验证：检查平台名称是否已存在
+    const displayName = platformData.name;
+    if (!displayName) {
+      // ⭐ 自动命名：未提供 name 时生成友好名称
+      const typeLabel = platformType === 'video' ? '视频平台' : platformType === 'text' ? '文本平台' : '平台';
+      const existingCount = Object.values(config.platforms).filter(p => p.name && p.name.includes(typeLabel)).length;
+      displayName = `${typeLabel} ${existingCount + 1}`;
+    } else {
+      // ⭐⭐⭐ 验证平台名称是否已存在
+      const existingPlatform = Object.values(config.platforms).find(p => p.name === displayName);
+      if (existingPlatform) {
+        return {
+          success: false,
+          error: `平台名称 "${displayName}" 已存在（Key: ${existingPlatform.key}），请使用不同的名称。`
         };
       }
     }
 
-    // 在用户配置中查找平台
-    if (config.platforms && config.platforms[platformKey]) {
-      platform = config.platforms[platformKey];
-    } else if (config.customPlatforms && config.customPlatforms[platformKey]) {
-      platform = config.customPlatforms[platformKey];
-      isBuiltIn = false;
-    } else {
+    // ⭐ 自动生成 key：基于类型 + 随机字符串
+    const typePrefix = platformType === 'video' ? 'video' : platformType === 'text' ? 'text' : 'platform';
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    let key = platformData.id || platformData.key || `${typePrefix}-${randomSuffix}`;
+
+    // 确保生成的 key 不重复（自动修正）
+    while (config.platforms[key]) {
+      key = `${typePrefix}-${Math.random().toString(36).substring(2, 8)}`;
+    }
+
+    // ⭐⭐⭐ 统一架构：所有平台存储在 config.platforms
+    // 使用 type 字段区分平台类型
+    config.platforms[key] = {
+      id: key,
+      key: key,
+      name: displayName,
+      baseURL: platformData.baseURL,
+      enabled: platformData.enabled !== false,
+      builtIn: false,
+      type: platformType,
+      apiKey: platformData.apiKey || '',
+      models: platformData.models || {},  // ⭐ 修复：模型存储为对象而非数组
+      settings: platformData.settings || {},
+      createdAt: new Date().toISOString()
+    };
+
+    const result = this.saveUserConfig(config);
+    if (result.success) {
+      return {
+        success: true,
+        data: {
+          key: key,
+          name: displayName,
+          type: platformType,
+          message: `平台 "${displayName}" 已成功添加，Key: ${key}`
+        }
+      };
+    }
+    return result;
+  }
+
+  /**
+   * 更新平台 ⭐ 统一架构
+   * @param {string} platformKey - 平台key
+   * @param {Object} updates - 要更新的字段
+   */
+  updatePlatform(platformKey, updates) {
+    const config = this.loadUserConfig();
+
+    // ⭐⭐⭐ 统一架构：所有平台在 config.platforms
+    // 检查平台是否存在
+    if (!config.platforms || !config.platforms[platformKey]) {
       return { success: false, error: 'Platform not found' };
     }
 
+    const platform = config.platforms[platformKey];
+
+    // ⚠️ 内置平台不允许修改某些字段
+    if (platform.builtIn) {
+      // 内置平台只允许修改 enabled 字段
+      const allowedUpdates = {};
+      if ('enabled' in updates) {
+        allowedUpdates.enabled = updates.enabled;
+      }
+      if (Object.keys(allowedUpdates).length === 0) {
+        return { success: false, error: 'Cannot modify built-in platform' };
+      }
+      Object.assign(platform, allowedUpdates);
+    } else {
+      // 自定义平台可以修改所有字段（除了 id 和 key）
+      Object.assign(platform, updates);
+      // 确保 id 和 key 不被修改
+      platform.id = platform.id || platformKey;
+      platform.key = platformKey;
+    }
+
+    return this.saveUserConfig(config);
+  }
+
+  /**
+   * 删除平台 ⭐ 统一架构
+   * @param {string} platformKey - 平台key
+   */
+  deletePlatform(platformKey) {
+    const config = this.loadUserConfig();
+
+    // ⭐⭐⭐ 统一架构：所有平台在 config.platforms
+    if (!config.platforms || !config.platforms[platformKey]) {
+      return { success: false, error: 'Platform not found' };
+    }
+
+    const platform = config.platforms[platformKey];
+
+    // ⚠️ 内置平台不允许删除
+    if (platform.builtIn) {
+      return { success: false, error: 'Cannot delete built-in platform' };
+    }
+
+    delete config.platforms[platformKey];
+    return this.saveUserConfig(config);
+  }
+
+  /**
+   * 为平台添加模型 ⭐ 统一处理所有类型平台
+   *
+   * 支持视频平台、文本平台、自定义平台
+   * 统一存储到 config.platforms，通过 type 字段区分
+   */
+  addModelToPlatform(platformKey, modelData) {
+    const config = this.loadUserConfig();
+
+    // ⭐ 第一步：确保 platforms 数组存在
+    if (!config.platforms) {
+      config.platforms = {};
+    }
+
+    // ⭐ 第二步：查找或创建平台
+    let platform = config.platforms[platformKey];
+
+    if (!platform) {
+      // 平台不存在，创建新平台
+      platform = {
+        id: platformKey,
+        name: platformKey,  // 默认使用 key 作为名称
+        baseURL: '',
+        enabled: true,
+        builtIn: false,
+        type: modelData.type || 'text',  // ⭐ 根据模型类型推断平台类型
+        models: {}
+      };
+      config.platforms[platformKey] = platform;
+    }
+
+    // ⭐ 第三步：更新平台的 type（如果模型指定了类型）
+    if (modelData.type && !platform.type) {
+      platform.type = modelData.type;
+    }
+
+    // ⭐ 第四步：添加模型
     if (!platform.models) {
       platform.models = {};
     }
@@ -548,9 +555,9 @@ class ConfigManager {
     platform.models[modelData.id] = {
       id: modelData.id,
       name: modelData.name,
-      type: modelData.type || 'video',
+      type: modelData.type || platform.type || 'text',
       enabled: modelData.enabled !== false,
-      apiKey: modelData.apiKey || ''  // ⭐ 新增：保存模型 Key
+      apiKey: modelData.apiKey || ''
     };
 
     return this.saveUserConfig(config);
@@ -717,87 +724,61 @@ class ConfigManager {
   }
 
   /**
-   * 添加文本平台 ⭐ 新增
+   * 添加文本平台 ⭐ 已废弃 - 请使用 addPlatform({ type: 'text', ... })
+   * @deprecated 请使用 addPlatform() 并传入 type: 'text'
    *
    * 文本平台使用 OpenAI 格式，只需填写 baseURL
    * 自动补全 /v1 等后缀
    */
   addTextPlatform(platformData) {
-    const config = this.loadUserConfig();
-
-    if (!config.textPlatforms) {
-      config.textPlatforms = {};
-    }
-
-    // 检查是否已存在
-    if (config.textPlatforms[platformData.key] || (this.templates?.textModels && this.templates.textModels[platformData.key])) {
-      return { success: false, error: '平台已存在（包括内置平台）' };
-    }
-
-    // 创建文本平台
-    config.textPlatforms[platformData.key] = {
-      id: platformData.key,
-      name: platformData.name,
-      baseURL: platformData.baseURL,  // 已经在前端补全了 /v1 后缀
-      enabled: platformData.enabled !== false,
-      type: 'text',
-      models: {}  // 文本模型列表（可以后续添加）
-    };
-
-    return this.saveUserConfig(config);
+    // ⭐⭐⭐ 重定向到统一的 addPlatform 方法
+    console.warn('[ConfigManager] addTextPlatform 已废弃，请使用 addPlatform({ type: \'text\', ... })');
+    return this.addPlatform({
+      ...platformData,
+      type: 'text'  // ⭐ 明确指定为文本平台
+    });
   }
 
   /**
-   * 删除文本平台 ⭐ 新增
+   * 删除文本平台 ⭐ 已废弃 - 请使用 deletePlatform()
+   * @deprecated 请使用 deletePlatform()
    */
   deleteTextPlatform(platformKey) {
-    const config = this.loadUserConfig();
-
-    // 不允许删除内置平台
-    if (this.templates?.textModels && this.templates.textModels[platformKey]) {
-      return { success: false, error: 'Cannot delete built-in platform' };
-    }
-
-    if (!config.textPlatforms || !config.textPlatforms[platformKey]) {
-      return { success: false, error: 'Platform not found' };
-    }
-
-    delete config.textPlatforms[platformKey];
-    return this.saveUserConfig(config);
+    // ⭐⭐⭐ 重定向到统一的 deletePlatform 方法
+    console.warn('[ConfigManager] deleteTextPlatform 已废弃，请使用 deletePlatform()');
+    return this.deletePlatform(platformKey);
   }
 
   /**
-   * 从文本平台删除模型 ⭐ 新增
+   * 从平台删除模型 ⭐ 统一架构
+   * @param {string} platformKey - 平台key
+   * @param {string} modelId - 模型ID
    */
-  deleteModelFromTextPlatform(platformKey, modelId) {
+  deleteModelFromPlatform(platformKey, modelId) {
     const config = this.loadUserConfig();
 
-    // 在模板中查找平台
-    if (this.templates?.textModels && this.templates.textModels[platformKey]) {
-      const templatePlatform = this.templates.textModels[platformKey];
-
-      // 在用户配置中创建引用
-      if (!config.textPlatforms) {
-        config.textPlatforms = {};
-      }
-      if (!config.textPlatforms[platformKey]) {
-        config.textPlatforms[platformKey] = {
-          id: templatePlatform.id,
-          name: templatePlatform.name,
-          baseURL: templatePlatform.baseURL,
-          enabled: templatePlatform.enabled,
-          type: 'text',
-          models: {} // 用户自定义模型
-        };
-      }
-    }
-
-    // 在用户配置中查找平台
-    const platform = config.textPlatforms?.[platformKey];
-    if (!platform) {
+    // ⭐⭐⭐ 统一架构：所有平台在 config.platforms
+    if (!config.platforms || !config.platforms[platformKey]) {
       return { success: false, error: 'Platform not found' };
     }
 
+    const platform = config.platforms[platformKey];
+
+    // 检查是否是内置平台
+    if (platform.builtIn) {
+      // 内置平台需要在用户配置中创建引用
+      if (!config.platforms[platformKey].models) {
+        config.platforms[platformKey].models = {};
+      }
+      // 从用户配置中删除模型
+      if (config.platforms[platformKey].models[modelId]) {
+        delete config.platforms[platformKey].models[modelId];
+        return this.saveUserConfig(config);
+      }
+      return { success: false, error: 'Model not found in user config' };
+    }
+
+    // 自定义平台直接删除
     if (!platform.models || !platform.models[modelId]) {
       return { success: false, error: 'Model not found' };
     }
@@ -807,13 +788,24 @@ class ConfigManager {
   }
 
   /**
-   * 获取完整配置（用于前端）
+   * 从文本平台删除模型 ⭐ 已废弃 - 请使用 deleteModelFromPlatform()
+   * @deprecated 请使用 deleteModelFromPlatform()
+   */
+  deleteModelFromTextPlatform(platformKey, modelId) {
+    // ⭐⭐⭐ 重定向到统一的 deleteModelFromPlatform 方法
+    console.warn('[ConfigManager] deleteModelFromTextPlatform 已废弃，请使用 deleteModelFromPlatform()');
+    return this.deleteModelFromPlatform(platformKey, modelId);
+  }
+
+  /**
+   * 获取完整配置（用于前端）⭐ 统一架构
    */
   getFullConfig() {
     const config = this.loadUserConfig();
     return {
+      // ⭐⭐� platforms 现在包含所有平台（video + text）
+      // 前端根据 type 字段区分：type === 'video' | 'text' | 'image'
       platforms: this.getPlatforms(),
-      textModels: this.getTextModels(),
       userDefaults: config.userDefaults || {},
       version: config.version
     };
