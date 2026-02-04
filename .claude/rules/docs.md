@@ -235,7 +235,7 @@ paths: *
 ```markdown
 | 类型 | 错误数量 | 关键词 |
 |------|----------|--------|
-| [API 相关](../error-patterns/api-errors.md) | 9个 | 双平台、轮询、端点、模型、... |
+| [API 相关](./error-patterns/api-errors.md) | 9个 | 双平台、轮询、端点、模型、... |
 ```
 
 ### 5. 检查清单

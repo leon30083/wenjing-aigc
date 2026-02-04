@@ -5,8 +5,8 @@ description: WinJin AIGC 项目开发规范和最佳实践。包含 Sora2 API �
 
 # WinJin AIGC 项目开发技能 v2.0
 
-> **更新日期**: 2026-01-23
-> **版本**: v2.0.0 (精简版，-50%)
+> **更新日期**: 2026-02-04
+> **版本**: v2.1.0 (错误56修复 + useRef模式)
 > **定位**: WinJin AIGC 项目的核心开发规范
 
 ---
@@ -219,7 +219,7 @@ useEffect(() => {
 | **错误51** | React Flow | TaskResultNode 轮询 interval 竞态条件 |
 | **错误53** | Storage | NarratorProcessorNode 优化结果刷新后丢失 |
 | **错误54** | React Flow | VideoGenerateNode getNodes() 快照延迟 |
-| **错误56** | React Flow | API 配置节点平台选择刷新后丢失 |
+| **错误56** | React Flow | useState 异步闭包导致 API Key 测试失败 (useRef 解决) |
 | **错误57** | React Flow | 文本模型平台选择无法切换 |
 
 **查看完整错误模式**: [`.claude/rules/error-patterns/`](../rules/error-patterns/) ⭐ 已拆分（2026-02-04）
@@ -262,6 +262,82 @@ useEffect(() => {
 3. **优化节点**: 始终使用真实ID（`@ebfb9a758.sunnykitte`）
 4. **视频生成节点**: 双显示（输入框显示别名，API使用真实ID）
 5. **不描述外观**: Sora2 会使用角色真实外观，只需描述活动
+
+### 4. useState vs useRef 选择原则 ⭐⭐⭐ 错误56经验
+
+**何时使用 useRef 而非 useState**:
+
+1. **异步操作后的立即访问** ⭐ 核心场景
+   ```javascript
+   // ❌ 错误：useState 异步闭包问题
+   const [newModel, setNewModel] = useState({ name: '', apiKey: '' });
+
+   const handleSave = async () => {
+     setNewModel({ name: '', apiKey: savedKey });  // 保存
+     await reloadConfig();  // 异步操作
+     // ❌ newModel.apiKey 已被清空（useState 异步特性）
+   };
+
+   // ✅ 正确：useRef 绕过异步闭包
+   const justSavedModelKeyRef = useRef(null);
+
+   const handleSave = async () => {
+     justSavedModelKeyRef.current = { apiKey: savedKey };  // 立即保存
+     await reloadConfig();
+     // ✅ justSavedModelKeyRef.current.apiKey 仍可用
+   };
+   ```
+
+2. **优先级系统设计**（多级降级）
+   ```javascript
+   // 优先级：ref > newModel > platforms
+   let apiKey = '';
+
+   // 1. 优先使用 ref（刚保存的值）
+   if (justSavedModelKeyRef.current?.apiKey) {
+     apiKey = justSavedModelKeyRef.current.apiKey;
+   }
+   // 2. 降级到 newModel
+   else if (newModel.apiKey) {
+     apiKey = newModel.apiKey;
+   }
+   // 3. 最后降级到 platforms
+   else {
+     apiKey = platforms[platformKey]?.models?.[modelId]?.apiKey;
+   }
+   ```
+
+3. **防止同步冲突**（isRecoveryDoneRef 模式）
+   ```javascript
+   const isRecoveryDoneRef = useRef(false);  // 防止同步冲突
+
+   useEffect(() => {
+     if (!isRecoveryDoneRef.current) {
+       // 从下游节点恢复配置
+       const targetConfig = getDownstreamConfig();
+       if (targetConfig) {
+         updateConfig(targetConfig);
+         isRecoveryDoneRef.current = true;  // 标记完成
+       }
+     }
+   }, [nodeId]);
+   ```
+
+**选择决策树**:
+```
+需要存储临时数据？
+├─ 是否需要在异步操作后立即访问？
+│  ├─ YES → 使用 useRef ⭐
+│  └─ NO → 使用 useState
+│
+需要触发 UI 重新渲染？
+├─ YES → 使用 useState
+└─ NO → 考虑 useRef（避免不必要的渲染）
+```
+
+**关键场景**:
+- ✅ **useRef**: 测试刚保存的 API Key、防止同步冲突、存储不触发渲染的值
+- ✅ **useState**: UI 表单输入、需要触发重新渲染的数据
 
 ---
 

@@ -442,7 +442,7 @@ _buildUserPrompt(prompt, style, context) {
 
 | Context/Hook | 文件位置 | 功能 |
 |--------------|----------|------|
-| **APIConfigContext** | `src/client/src/contexts/APIConfigContext.jsxx` | 全局 API 配置（解决错误56） |
+| **APIConfigContext** | `src/client/src/contexts/APIConfigContext.jsx` | 全局 API 配置（解决错误56） |
 | **useAPIConfig** | 待实现 | API 配置 Hook |
 | **useNodeConnections** | `src/client/src/hooks/useNodeConnections.js` | 节点连接验证 |
 | **useValidation** | `src/client/src/hooks/useValidation.js` | 验证逻辑 |
@@ -457,7 +457,7 @@ _buildUserPrompt(prompt, style, context) {
 
 **示例代码**:
 ```javascript
-// Context 层: APIConfigContext.jsxx
+// Context 层: APIConfigContext.jsx
 export const APIConfigProvider = ({ children }) => {
   const [config, setConfig] = useState(() => {
     // 从 localStorage 初始化
@@ -556,7 +556,7 @@ export const useNodeConnections = () => {
 
 **API 配置架构（Context + Hooks）** ⭐ 更新 (2026-01-14):
 - **设计目标**: 使用 Context 提供全局 API 配置，避免多个节点各自维护状态
-- **APIConfigContext** (`src/client/src/contexts/APIConfigContext.jsxx`):
+- **APIConfigContext** (`src/client/src/contexts/APIConfigContext.jsx`):
   - 全局 API 配置状态管理（platform, model, aspect, watermark）
   - 智能模型切换：平台切换时自动选择有效的模型
   - 模型自动修正：localStorage 恢复时验证并修正不匹配的模型
@@ -947,8 +947,8 @@ Scene: 老鹰降落在山顶
   - 使用 `getEdges()` 找到连接的节点
   - 一次 `setNodes()` 调用更新多个节点
   - 精确的依赖数组避免无限循环
-- **❌ 错误模式**: App.jsxx 中转（只监听 edges，节点内部状态变化不传递）
-- **✅ 正确模式**: 源节点直接更新（绕过 App.jsxx 的数据传递陷阱）
+- **❌ 错误模式**: App.jsx 中转（只监听 edges，节点内部状态变化不传递）
+- **✅ 正确模式**: 源节点直接更新（绕过 App.jsx 的数据传递陷阱）
 
 ### 节点连接验证机制 ⭐ 新增 (2026-01-03)
 
@@ -957,7 +957,7 @@ Scene: 老鹰降落在山顶
 - 确保只有特定类型的源节点才能连接到特定输入端口
 - 提供清晰的错误反馈（数据清除而非报错）
 
-**验证位置**: `src/client/src/App.jsxx` (useEffect 监听 edges 变化)
+**验证位置**: `src/client/src/App.jsx` (useEffect 监听 edges 变化)
 
 **输入端口到源节点类型的映射**:
 
@@ -968,7 +968,7 @@ Scene: 老鹰降落在山顶
 | `images-input` | `referenceImageNode` | 参考图片传递 |
 | `task-input` | `videoGenerateNode`, `storyboardNode`, `juxinStoryboardNode`, `zhenzhenStoryboardNode`, `characterCreateNode` | 任务结果监听 |
 
-**验证机制** (App.jsxx useEffect):
+**验证机制** (App.jsx useEffect):
 ```javascript
 useEffect(() => {
   setNodes((nds) =>
@@ -1086,7 +1086,7 @@ useEffect(() => {
 4. **性能优化**: 只在数据真正变化时才更新节点（避免无限循环）
 
 **新增节点时的注意事项**:
-- 如果新节点有输入端口，必须在 App.jsxx 添加对应的验证逻辑
+- 如果新节点有输入端口，必须在 App.jsx 添加对应的验证逻辑
 - 定义允许的源节点类型白名单
 - 测试无效连接时数据是否正确清除
 
@@ -1098,8 +1098,8 @@ useEffect(() => {
 - 保留角色和参考图协作功能
 
 **节点类型**:
-1. **JuxinStoryboardNode** (聚鑫故事板) - `src/client/src/nodes/process/JuxinStoryboardNode.jsx`
-2. **ZhenzhenStoryboardNode** (贞贞故事板) - `src/client/src/nodes/process/ZhenzhenStoryboardNode.jsx`
+1. **JuxinStoryboardNode** (聚鑫故事板) - `src/client/src/nodes/process/JuxinStoryboardNode.jsxx`
+2. **ZhenzhenStoryboardNode** (贞贞故事板) - `src/client/src/nodes/process/ZhenzhenStoryboardNode.jsxx`
 
 **核心差异**:
 

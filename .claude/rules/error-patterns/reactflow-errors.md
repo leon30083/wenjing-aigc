@@ -468,62 +468,127 @@ const updateVideoGenerateNode = (prompt, optimizedSentences, index = 0) => {
 
 ---
 
-## 错误56: API 配置节点平台选择刷新后丢失 `React Flow` `状态` `持久化` ⭐⭐⭐ 2026-01-13 新增
+## 错误56: useState 异步闭包导致 API Key 测试失败 `React Flow` `状态管理` ⭐⭐⭐ 2026-01-13 新增，2026-02-04 已修复
 
 **现象**:
-- 用户在 APISettingsNode 选择"贞贞"平台
-- 刷新页面后，APISettingsNode 正确显示"贞贞"
-- 但 batchVideoGenerateNode 显示"聚鑫 | SORA-2-ALL"（错误平台）
-- API 请求发送到错误平台
+- 用户添加新模型（填写 API Key）后立即点击"测试连接"
+- 网络请求显示 `api_key: ""`（空字符串）
+- 测试失败，但 API Key 实际已保存
 
 **根本原因**:
-1. **localStorage 保存旧配置**: 工作流保存的 `apiConfig` 是旧的 `juxin` 配置
-2. **初始化顺序问题**: APISettingsNode 从旧数据初始化状态（juxin）
-3. **useState 异步特性**: `setConfig(zhenzhen)` 是异步的，useEffect 闭包中的 `config` 仍是旧值
-4. **同步先于恢复运行**: 同步 useEffect 在恢复完成前就运行，推送旧配置到下游节点
+**useState 异步闭包问题** - `setNewModel({ name: '', apiKey: '' })` 清空数据后，异步操作 `reloadConfig()` 还未完成，用户点击测试时 `newModel.apiKey` 已是空字符串。
 
 **错误流程**:
 ```
-页面加载
-↓
-APISettingsNode 初始化: useState(() => {
-  return data.apiConfig || { platform: 'juxin' }  // ❌ 旧数据
-})
-↓
-早期恢复 useEffect 运行: setConfig(zhenzhen)
-↓
-同步 useEffect 运行（但 config 仍是旧值 juxin）
-↓
-推送旧配置到 batchVideoGenerateNode ❌
-↓
-setConfig() 完成，但已经太晚
+添加模型:
+  newModel.apiKey = "sk-xxx" ✅
+    ↓
+  setNewModel({ name: '', apiKey: '' }) ❌ 清空
+    ↓
+  reloadConfig() starts (异步) ⚠️ 未完成
+    ↓
+  用户点击测试:
+  handleTestModel() {
+    // ❌ newModel.apiKey 已经是空字符串
+    // ❌ currentPlatforms 中还没有新模型
+  }
 ```
 
-**可能的解决方案**:
-1. **方案 A**: 使用函数式更新 + refs
-   - 将配置存储在 ref 中
-   - 恢复时直接更新 ref
-   - 同步时从 ref 读取最新值
+**解决方案 A** ✅ 已实现:
+使用 `useRef` 存储刚保存的 API Key，绕过 useState 的异步闭包问题。
 
-2. **方案 B**: 延迟同步 useEffect
-   - 使用 setTimeout 延迟同步
-   - 确保恢复完成后再同步
+**代码实现** (APISettingsNode.jsx + PlatformManagePanel.jsx):
+```javascript
+// APISettingsNode.jsx - 添加 ref 存储
+const justSavedModelKeyRef = useRef(null); // { platformKey, modelId, apiKey }
 
-3. **方案 C**: 修改初始化逻辑
-   - 初始化时先检查下游节点
-   - 如果下游有新配置，直接使用
-   - 否则才使用 data.apiConfig
+// 保存模型后立即设置 ref
+const handleAddModel = async () => {
+  const savedApiKey = await apiCall.saveModel(newModel);
+
+  // ✅ 立即存储到 ref（绕过 useState 异步）
+  justSavedModelKeyRef.current = {
+    platformKey: selectedPlatformKey,
+    modelId: newModel.name,
+    apiKey: savedApiKey
+  };
+
+  setNewModel({ name: '', apiKey: '' });  // 清空表单
+  await reloadConfig();  // 异步重新加载
+};
+
+// PlatformManagePanel.jsx - 优先级系统
+const handleTestModel = async (platformKey, modelId) => {
+  let apiKey = '';
+
+  // ⭐ 优先级 1: 使用 ref（刚保存的值）
+  if (justSavedModelKeyRef.current &&
+      justSavedModelKeyRef.current.platformKey === platformKey &&
+      justSavedModelKeyRef.current.modelId === modelId) {
+    apiKey = justSavedModelKeyRef.current.apiKey;
+    console.log('[PlatformManagePanel] 使用刚保存的 API Key (justSavedModelKeyRef)');
+  }
+  // 优先级 2: 降级到 newModel
+  else if (newModel.apiKey) {
+    apiKey = newModel.apiKey;
+  }
+  // 优先级 3: 最后降级到 platforms
+  else {
+    apiKey = platforms[platformKey]?.models?.[modelId]?.apiKey;
+  }
+
+  // 测试连接...
+  const response = await fetch('/api/openai/test', {
+    method: 'POST',
+    body: JSON.stringify({ api_key: apiKey, model: modelId })
+  });
+};
+```
+
+**配置恢复和同步机制**:
+```javascript
+// APISettingsNode.jsx - 恢复逻辑
+const isRecoveryDoneRef = useRef(false); // 防止同步冲突
+
+useEffect(() => {
+  const edges = getEdges();
+  const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+  if (outgoingEdges.length > 0 && !isRecoveryDoneRef.current) {
+    for (const edge of outgoingEdges) {
+      const targetNode = getNodes().find(n => n.id === edge.target);
+      if (targetNode?.data?.apiConfig) {
+        updateConfig(targetNode.data.apiConfig);  // 从下游节点恢复
+        isRecoveryDoneRef.current = true;
+        break;
+      }
+    }
+  }
+}, [nodeId, getEdges, getNodes, updateConfig]);
+```
+
+**验证结果**:
+- ✅ Console: `[PlatformManagePanel] 使用刚保存的 API Key (justSavedModelKeyRef)`
+- ✅ Network: `{"api_key":"sk-Q6DwAtsNvutSlaZXYAzXR39pUmwKHAHDgll0QifCL5GbwJd7"}`
+- ✅ User confirmed: "这个不是我们的问题，已经测试成功了"
+
+**关键点**:
+1. **useRef 绕过异步**: ref 立即更新，不受 useState 异步特性影响
+2. **优先级系统**: ref > newModel > platforms（三级降级）
+3. **防止同步冲突**: 使用 `isRecoveryDoneRef` 防止配置恢复和同步冲突
+4. **函数式更新**: 配置恢复时优先检查下游节点，而非依赖 data.apiConfig
 
 **相关文件**:
-- `src/client/src/nodes/input/APISettingsNode.jsx` - API 设置节点
-- `src/client/src/nodes/process/BatchVideoGenerateNode.jsx` - 批量视频生成节点 (节点类型: batchVideoGenerateNode)
+- `src/client/src/nodes/input/APISettingsNode.jsx` - API 设置节点（方案 A 实现）
+- `src/client/src/components/PlatformManagePanel.jsx` - 平台管理面板（优先级系统）
+- `src/server/services/openaiClient.js` - 增加 max_tokens，支持推理模型
 
 **相关错误**:
 - 错误16 - React Flow 节点间数据传递错误
 - 错误54 - VideoGenerateNode 从 getNodes() 读取快照数据导致状态不同步
 - 错误33 - 工作流快照持久化时机问题
 
-**修复日期**: 2026-01-13 (问题记录，待修复)
+**修复日期**: 2026-02-04 (方案 A 成功实现并验证)
 
 ---
 
