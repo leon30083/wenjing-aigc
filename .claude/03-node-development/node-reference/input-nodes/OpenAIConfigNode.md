@@ -286,7 +286,7 @@ console.log(node.data.openaiConfig);  // 查看配置对象
 - [节点功能参考手册](../README.md)
 - [NarratorProcessorNode 文档](../process-nodes/NarratorProcessorNode.md)
 - [NarratorNode 文档](./NarratorNode.md)
-- [错误模式参考](../../../rules/error-patterns.md)
+- [错误模式参考](../../../rules/error-patterns/)
 
 ---
 

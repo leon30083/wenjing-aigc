@@ -10,9 +10,9 @@
 | [API 相关](./api-errors.md) | api-errors.md | 9个 | 双平台差异、轮询、端点、模型、故事板、输出格式 |
 | [React Flow](./reactflow-errors.md) | reactflow-errors.md | 11个 | 数据传递、Handle、连接、事件、竞态条件、旁白模式、快照延迟、配置恢复、平台选择 |
 | [角色系统](./character-errors.md) | character-errors.md | 7个 | 引用、显示、焦点、双显示、优化、匹配失败 |
-| [表单/输入](./form-errors.md) | form-errors.md | 2个 | id/name、验证 |
 | [存储相关](./storage-errors.md) | storage-errors.md | 7个 | localStorage、工作流、配置持久化、优化结果持久化 |
 | [UI 相关](./ui-errors.md) | ui-errors.md | 3个 | 布局抖动、对象渲染、CSS语法 |
+| [表单相关](./form-errors.md) | form-errors.md | 2个 | id/name、验证 |
 | [其他](./other-errors.md) | other-errors.md | 26个 | ... |
 
 ## 使用说明

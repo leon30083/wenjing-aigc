@@ -445,7 +445,7 @@ echo "✅ 预提交检查通过！"
 
 - [ ] 所有代码已通过 ESLint 检查
 - [ ] 所有测试已通过
-- [ ] 文档已更新（SKILL.md、error-patterns.md）
+- [ ] 文档已更新（SKILL.md、error-patterns/README.md）
 - [ ] 版本号已更新
 - [ ] 变更说明已记录
 - [ ] 冲突已解决

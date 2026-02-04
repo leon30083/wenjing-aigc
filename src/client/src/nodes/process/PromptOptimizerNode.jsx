@@ -5,13 +5,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Handle, Position, useNodeId, useReactFlow } from 'reactflow';
+import { useAPIConfig } from '../../contexts/APIConfigContext';
 
 function PromptOptimizerNode({ data }) {
   const nodeId = useNodeId();
   const { setNodes, getEdges, getNodes } = useReactFlow();
 
-  // 从连接的节点获取 OpenAI 配置
-  const [openaiConfig, setOpenaiConfig] = useState(data.openaiConfig || null);
+  // ⭐ 从 Context 读取文本配置（统一配置管理）
+  const { textConfig } = useAPIConfig();
 
   // 状态管理
   const [simplePrompt, setSimplePrompt] = useState(data.simplePrompt || '');
@@ -47,38 +48,12 @@ function PromptOptimizerNode({ data }) {
     }, 0);
   };
 
-  // 从 data 接收 OpenAI 配置（App.jsx 中转）
-  useEffect(() => {
-    if (data.openaiConfig) {
-      setOpenaiConfig(data.openaiConfig);
-    }
-  }, [data.openaiConfig]);
-
-  // ⭐ 主动从连接的 OpenAI Config Node 读取配置（持续监听 edges 和 nodes 变化）
-  useEffect(() => {
-    const edges = getEdges();
-    // 找到连接到 openai-config 端口的源节点
-    const configEdge = edges.find(e => e.target === nodeId && e.targetHandle === 'openai-config');
-
-    if (configEdge) {
-      // 读取所有节点，找到源节点
-      const allNodes = getNodes();
-      const sourceNode = allNodes.find(n => n.id === configEdge.source);
-
-      if (sourceNode?.type === 'openaiConfigNode' && sourceNode.data?.openaiConfig) {
-        const config = sourceNode.data.openaiConfig;
-        setOpenaiConfig(config);
-        // 同步到自己的 data
-        setNodes((nds) =>
-          nds.map((node) =>
-            node.id === nodeId
-              ? { ...node, data: { ...node.data, openaiConfig: config } }
-              : node
-          )
-        );
-      }
-    }
-  }, [nodeId, getEdges, getNodes, setNodes]); // ⭐ 依赖 getEdges 和 getNodes，确保源节点配置变化时能及时更新
+  // ⭐ 配置管理迁移到 Context 后，不再从 node.data 读取 openaiConfig
+  // 配置现在统一通过 useAPIConfig() Hook 读取：
+  // - textConfig.platform: 文本平台（deepseek, gemini, juxin2 等）
+  // - textConfig.model: 模型名称
+  // - textConfig.apiKey: API 密钥
+  // - textConfig.baseURL: API 基础 URL
 
   // 从 data 接收角色数据
   useEffect(() => {
@@ -145,15 +120,9 @@ function PromptOptimizerNode({ data }) {
       return;
     }
 
-    if (!openaiConfig) {
-      setStatusMessage({ type: 'warning', message: '请先连接 OpenAI 配置节点' });
-      return;
-    }
-
-    const { base_url, api_key, model } = openaiConfig;
-
-    if (!base_url || !api_key || !model) {
-      setStatusMessage({ type: 'warning', message: 'OpenAI 配置不完整，请检查配置节点' });
+    // ⭐ 从 Context 读取配置
+    if (!textConfig || !textConfig.apiKey) {
+      setStatusMessage({ type: 'warning', message: '请先在 API 设置中配置文本生成（DeepSeek/Gemini）' });
       return;
     }
 
@@ -169,9 +138,9 @@ function PromptOptimizerNode({ data }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          base_url,
-          api_key,
-          model,
+          base_url: textConfig?.baseURL || '',
+          api_key: textConfig?.apiKey || '',
+          model: textConfig?.model || '',
           prompt: simplePrompt,
           style,
           customStyleDescription: style === 'custom' ? customStyleDescription : undefined,
@@ -313,13 +282,13 @@ function PromptOptimizerNode({ data }) {
       <div style={{
         padding: '4px 8px',
         borderRadius: '3px',
-        backgroundColor: openaiConfig ? '#d1fae5' : '#fef3c7',
+        backgroundColor: textConfig?.apiKey ? '#d1fae5' : '#fef3c7',
         fontSize: '9px',
-        color: openaiConfig ? '#065f46' : '#92400e',
+        color: textConfig?.apiKey ? '#065f46' : '#92400e',
         textAlign: 'center',
         marginBottom: '8px',
       }}>
-        {openaiConfig ? '✅ OpenAI 配置已连接' : '⚠️ 未连接配置节点'}
+        {textConfig?.apiKey ? '✅ OpenAI 配置已连接' : '⚠️ 未连接配置节点'}
       </div>
 
       {/* ⭐ 候选角色显示（可点击插入） */}
@@ -527,7 +496,7 @@ function PromptOptimizerNode({ data }) {
       <button
         className="nodrag"
         onClick={optimizePrompt}
-        disabled={isOptimizing || !openaiConfig}
+        disabled={isOptimizing || !textConfig?.apiKey}
         style={{
           width: '100%',
           padding: '8px',

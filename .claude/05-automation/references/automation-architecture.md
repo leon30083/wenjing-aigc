@@ -188,7 +188,7 @@ actions:
 |---------|------|----------|
 | `base.md` | 技术栈约束 | - |
 | `code.md` | 代码规范 | - |
-| `error-patterns.md` | 错误模式 | 55个 |
+| `error-patterns/README.md` | 错误模式索引 | 7类 |
 | `reactflow.md` | React Flow 规则 | - |
 | `prompt-optimizer.md` | 提示词优化规则 | - |
 

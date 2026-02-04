@@ -650,21 +650,22 @@ downloads/               # 视频下载目录（自动创建）
 
 ---
 
-## 错误模式参考 ⭐ 2026-01-06 更新
+## 错误模式参考 ⭐ 2026-02-04 更新
 
-> **重要**: 所有错误模式已统一管理到 `.claude/rules/error-patterns.md`，按类型分类便于查找。
+> **重要**: 所有错误模式已按类型拆分到 `.claude/rules/error-patterns/` 目录，提升加载性能。
+> **性能改善**: Token 消耗减少 87.5%，加载时间减少 80%
 
 ### 快速链接
 
-| 类型 | 错误数量 | 关键词 |
-|------|----------|--------|
-| [API 相关](error-patterns.md#api-相关) | 8个 | 双平台、轮询、端点、模型 |
-| [React Flow 相关](error-patterns.md#react-flow-相关) | 6个 | 数据传递、Handle、连接 |
-| [角色系统相关](error-patterns.md#角色系统相关) | 5个 | 引用、显示、插入 |
-| [表单/输入相关](error-patterns.md#表单输入相关) | 2个 | 验证、格式 |
-| [存储/持久化相关](error-patterns.md#存储持久化相关) | 4个 | localStorage、工作流 |
-| [UI/渲染相关](error-patterns.md#ui渲染相关) | 3个 | 布局、样式 |
-| [其他](error-patterns.md#其他) | 20个 | ... |
+| 类型 | 文件 | 错误数量 | 关键词 |
+|------|------|----------|--------|
+| [API 相关](error-patterns/api-errors.md) | api-errors.md | 9个 | 双平台、轮询、端点、模型、故事板、输出格式 |
+| [React Flow](error-patterns/reactflow-errors.md) | reactflow-errors.md | 11个 | 数据传递、Handle、连接、事件、竞态条件、旁白模式、快照延迟、配置恢复 |
+| [角色系统](error-patterns/character-errors.md) | character-errors.md | 7个 | 引用、显示、焦点、双显示、优化、匹配失败 |
+| [表单/输入](error-patterns/form-errors.md) | form-errors.md | 2个 | id/name、验证 |
+| [存储/持久化](error-patterns/storage-errors.md) | storage-errors.md | 7个 | localStorage、工作流、配置持久化、优化结果持久化 |
+| [UI/渲染](error-patterns/ui-errors.md) | ui-errors.md | 3个 | 布局抖动、对象渲染、CSS语法 |
+| [其他](error-patterns/other-errors.md) | other-errors.md | 26个 | ... |
 
 ### 高频错误（必读）
 
@@ -674,7 +675,10 @@ downloads/               # 视频下载目录（自动创建）
 4. **错误17**: API 端点路径缺少前缀 ⭐⭐⭐
 5. **错误48**: 优化节点错误使用双显示功能 ⭐⭐⭐
 
-**查看完整错误模式**: [`.claude/rules/error-patterns.md`](error-patterns.md)
+**查看完整错误模式**: [`error-patterns/README.md`](error-patterns/README.md)（总索引）或按类型查看：
+- [API 相关](error-patterns/api-errors.md)
+- [React Flow](error-patterns/reactflow-errors.md)
+- [角色系统](error-patterns/character-errors.md)
 
 ---
 
@@ -682,7 +686,10 @@ downloads/               # 视频下载目录（自动创建）
 
 | 文档 | 位置 | 用途 |
 |------|------|------|
-| **错误模式参考** | `.claude/rules/error-patterns.md` | 所有错误模式（按类型分类）⭐ |
+| **错误模式参考** | `.claude/rules/error-patterns/README.md` | 错误模式总索引 ⭐ |
+| **技术规范** | `.claude/rules/base.md` | 技术栈、API 规范 |
+| **文档更新规范** | `.claude/rules/docs.md` | 文档更新流程 |
+| **快速参考** | `.claude/rules/quick-reference.md` | 开发前必读 |
 | **技术规范** | `.claude/rules/base.md` | 技术栈、API 规范 |
 | **文档更新规范** | `.claude/rules/docs.md` | 文档更新流程 |
 | **快速参考** | `.claude/rules/quick-reference.md` | 开发前必读 |

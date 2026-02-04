@@ -32,13 +32,13 @@ paths: *
 
 3. **问题调研**
    - [ ] 搜索错误模式和解决方案
-   - [ ] 查看项目错误模式库 (`error-patterns.md`)
+   - [ ] 查看项目错误模式库 (`error-patterns/`)
    - [ ] 了解已知问题和注意事项
 
 ### 调研工具
 
 - **官方文档**: [React Flow](https://reactflow.dev/), [Sora2 API](./api-platforms.md)
-- **错误模式**: [错误模式库](../04-error-patterns/errors-by-type.md)
+- **错误模式**: [错误模式库](../rules/error-patterns/)
 - **开发经验**: 查看已有代码实现
 
 ---
@@ -65,7 +65,7 @@ paths: *
 3. 查阅相关文档
    ├─ 技术栈规范 (tech-stack.md)
    ├─ API 规范 (api-platforms.md)
-   ├─ 错误模式 (error-patterns.md)
+   ├─ 错误模式 (error-patterns/)
    └─ 节点架构 (node-architecture.md)
 ```
 
@@ -99,7 +99,7 @@ paths: *
    └─ 双显示功能 (别名 vs 真实ID)
 
 2. 预防措施
-   ├─ 参考 [错误模式库](../04-error-patterns/errors-by-type.md)
+   ├─ 参考 [错误模式库](../rules/error-patterns/)
    ├─ 使用代码模板
    └─ 编写测试用例
 ```
@@ -214,7 +214,7 @@ const POLL_INTERVAL = 5000;  // 太短，会导致429错误
 1. 代码规范更新
    ├─ .claude/skills/winjin-dev/SKILL.md
    ├─ .claude/rules/code.md
-   └─ .claude/rules/error-patterns.md
+   └─ .claude/rules/error-patterns/
 
 2. 技术文档更新
    ├─ .claude/rules/base.md (API 规范)
@@ -318,7 +318,7 @@ const POLL_INTERVAL = 5000;  // 太短，会导致429错误
    └─ 用户反馈
 
 2. 记录错误
-   ├─ 添加到 error-patterns.md
+   ├─ 添加到 error-patterns/
    ├─ 标记类型标签
    └─ 记录解决方案
 
@@ -337,13 +337,13 @@ const POLL_INTERVAL = 5000;  // 太短，会导致429错误
 
 | 类型 | 错误数量 | 关键词 |
 |------|----------|--------|
-| [API 相关](../04-error-patterns/errors-by-type.md#api-相关) | 8个 | 双平台、轮询、端点、模型 |
-| [React Flow 相关](../04-error-patterns/errors-by-type.md#react-flow-相关) | 6个 | 数据传递、Handle、连接 |
-| [角色系统相关](../04-error-patterns/errors-by-type.md#角色系统相关) | 5个 | 引用、显示、插入 |
-| [表单/输入相关](../04-error-patterns/errors-by-type.md#表单输入相关) | 2个 | 验证、格式 |
-| [存储/持久化相关](../04-error-patterns/errors-by-type.md#存储持久化相关) | 4个 | localStorage、工作流 |
-| [UI/渲染相关](../04-error-patterns/errors-by-type.md#ui渲染相关) | 3个 | 布局、样式 |
-| [其他](../04-error-patterns/errors-by-type.md#其他) | 20+个 | ... |
+| [API 相关](../rules/error-patterns/api-errors.md) | 9个 | 双平台、轮询、端点、模型 |
+| [React Flow 相关](../rules/error-patterns/reactflow-errors.md) | 11个 | 数据传递、Handle、连接 |
+| [角色系统相关](../rules/error-patterns/character-errors.md) | 7个 | 引用、显示、插入 |
+| [表单/输入相关](../rules/error-patterns/form-errors.md) | 2个 | 验证、格式 |
+| [存储/持久化相关](../rules/error-patterns/storage-errors.md) | 7个 | localStorage、工作流 |
+| [UI/渲染相关](../rules/error-patterns/ui-errors.md) | 3个 | 布局、样式 |
+| [其他](../rules/error-patterns/other-errors.md) | 26个 | ... |
 
 ### 高频错误（必读）
 

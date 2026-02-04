@@ -385,21 +385,21 @@ function extractConnectionsFromRegistry(registry) {
  */
 function getKnownConnections() {
   return [
-    // NarratorProcessorNode → VideoGenerateNode
+    // NarratorProcessorNode → veoGenerateNode, sora2GenerateNode (updated 2026-02-03)
     {
       source: 'NarratorProcessorNode',
       sourcePort: 'sentence-output',
-      target: 'VideoGenerateNode',
-      targetPort: 'sentence-output',
+      targets: ['VEOGenerateNode', 'Sora2GenerateNode'],
+      targetPorts: ['sentence-output', 'sentence-output'],
       dataFields: ['manualPrompt', 'narratorMode', 'narratorIndex', 'narratorTotal', 'narratorSentences'],
       type: 'data-transfer'
     },
-    // CharacterLibraryNode → VideoGenerateNode
+    // CharacterLibraryNode → veoGenerateNode, sora2GenerateNode (updated 2026-02-03)
     {
       source: 'CharacterLibraryNode',
       sourcePort: 'characters-output',
-      target: 'VideoGenerateNode',
-      targetPort: 'character-input',
+      targets: ['VEOGenerateNode', 'Sora2GenerateNode'],
+      targetPorts: ['character-input', 'character-input'],
       dataFields: ['connectedCharacters'],
       type: 'data-transfer'
     },
@@ -412,21 +412,21 @@ function getKnownConnections() {
       dataFields: ['connectedCharacters'],
       type: 'data-transfer'
     },
-    // ReferenceImageNode → VideoGenerateNode
+    // ReferenceImageNode → veoGenerateNode, sora2GenerateNode (updated 2026-02-03)
     {
       source: 'ReferenceImageNode',
       sourcePort: 'images-output',
-      target: 'VideoGenerateNode',
-      targetPort: 'images-input',
+      targets: ['VEOGenerateNode', 'Sora2GenerateNode'],
+      targetPorts: ['images-input', 'images-input'],
       dataFields: ['connectedImages'],
       type: 'data-transfer'
     },
-    // APISettingsNode → VideoGenerateNode
+    // APISettingsNode → veoGenerateNode, sora2GenerateNode (updated 2026-02-03)
     {
       source: 'APISettingsNode',
       sourcePort: 'api-config',
-      target: 'VideoGenerateNode',
-      targetPort: 'api-config',
+      targets: ['VEOGenerateNode', 'Sora2GenerateNode'],
+      targetPorts: ['api-config', 'api-config'],
       dataFields: ['apiConfig'],
       type: 'data-transfer'
     },

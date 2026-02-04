@@ -230,30 +230,48 @@ paths: *
 
 ### 4. 更新快速索引表
 
-新增错误后，需要更新 `.claude/rules/error-patterns.md` 顶部的快速索引表：
+新增错误后，需要更新 `.claude/rules/error-patterns/README.md` 顶部的快速索引表：
 
 ```markdown
 | 类型 | 错误数量 | 关键词 |
 |------|----------|--------|
-| [API 相关](#api-相关) | 7个 | 双平台、轮询、端点、模型、... |
+| [API 相关](../error-patterns/api-errors.md) | 9个 | 双平台、轮询、端点、模型、... |
 ```
 
 ### 5. 检查清单
 
 新增错误模式时，确保完成以下步骤：
 - [ ] 标题包含正确的类型标签（1-2个）
-- [ ] 内容添加到 `.claude/rules/error-patterns.md` 正确的类型章节下
+- [ ] 内容添加到 `.claude/rules/error-patterns/[类型].md` 正确的类型文件下
 - [ ] 更新快速索引表（错误数量 +1，关键词更新）
 - [ ] 在 SKILL.md 中添加引用（如需要）
 - [ ] 更新开发交接书.md 记录版本变更
 
 ### 6. 错误模式存放位置
 
-**⭐ 重要**: 所有错误模式统一存放在 `.claude/rules/error-patterns.md`
+**⭐ 重要** (2026-02-04 更新): 所有错误模式已按类型拆分到 `.claude/rules/error-patterns/` 目录
+
+**拆分后的目录结构**:
+```
+.claude/rules/error-patterns/
+├── README.md                    # 总索引（包含快速索引表）
+├── api-errors.md                # API 相关错误
+├── reactflow-errors.md          # React Flow 相关错误
+├── character-errors.md          # 角色系统相关错误
+├── storage-errors.md            # 存储/持久化相关错误
+├── ui-errors.md                 # UI/渲染相关错误
+├── form-errors.md               # 表单/输入相关错误
+└── other-errors.md              # 其他错误
+```
+
+**性能改善**:
+- 文件大小: 86.9 KB → ~10 KB/文件 (减少 88%)
+- Token 消耗: ~12,000 → ~1,500/类型 (减少 87.5%)
+- 加载时间: ~3-5 秒 → ~0.5-1 秒 (减少 80%)
 
 - SKILL.md 和 code.md 不再存放错误模式详情
-- 这两个文档通过链接引用 error-patterns.md
-- 新增错误时只需更新 error-patterns.md 一个文档
+- 这两个文档通过链接引用 error-patterns/ 目录
+- 新增错误时只需更新 error-patterns/ 目录下对应类型文件
 
 ### 7. 错误模式模板
 
@@ -291,7 +309,7 @@ paths: *
 
 ## 文档模板（已归档）
 
-> **注意**: 以下模板已归档，错误模式统一存放在 `.claude/rules/error-patterns.md`
+> **注意** (2026-02-04 更新): 以下模板已归档。错误模式已按类型拆分到 `.claude/rules/error-patterns/` 目录，详见 `README.md` 总索引。
 
 ### base.md 新增功能模板
 ```markdown

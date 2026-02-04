@@ -118,7 +118,8 @@
       "Bash(WIN_CSC_LINK= WIN_CSC_KEY_PASSWORD= npx electron-builder:*)",
       "mcp__zai-mcp-server__extract_text_from_screenshot",
       "Bash(grep:*)",
-      "Bash(stop-dev.bat)"
+      "Bash(stop-dev.bat)",
+      "Bash(done)"
     ]
   }
 }

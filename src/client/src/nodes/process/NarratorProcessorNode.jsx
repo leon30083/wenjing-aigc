@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Handle, Position, useNodeId } from 'reactflow';
 import { useReactFlow } from 'reactflow';
 import { WorkflowStorage } from '../../utils/workflowStorage';
+import { useAPIConfig } from '../../contexts/APIConfigContext';
 
 /**
  * NarratorProcessorNode - 旁白处理器节点
@@ -21,6 +22,9 @@ export default function NarratorProcessorNode({ data }) {
   const nodeId = useNodeId();
   const { getEdges, getNodes, setNodes } = useReactFlow();
 
+  // ⭐ 从 Context 读取文本配置（统一配置管理）
+  const { textConfig } = useAPIConfig();
+
   // ⭐ 使用 ref 防止初始化时被源节点覆盖
   const hasLoadedFromSourceRef = React.useRef(false);
 
@@ -31,7 +35,6 @@ export default function NarratorProcessorNode({ data }) {
   const [isOptimizing, setIsOptimizing] = useState(data.isOptimizing || false);
   const [progress, setProgress] = useState(data.progress || 0);
   const [connectedCharacters, setConnectedCharacters] = useState(data.connectedCharacters || []);
-  const [openaiConfig, setOpenaiConfig] = useState(data.openaiConfig || null);
   const [style, setStyle] = useState(data.style || 'picture-book');
   const [targetDuration, setTargetDuration] = useState(data.targetDuration || 10);
   const [optimizationDirection, setOptimizationDirection] = useState(data.optimizationDirection || 'balanced');
@@ -111,44 +114,13 @@ export default function NarratorProcessorNode({ data }) {
   }, [nodeId, getEdges, getNodes]);
 
   /**
-   * 接收来自 OpenAIConfigNode 的配置
+   * ⭐ 配置管理迁移到 Context 后，不再从 node.data 读取 openaiConfig
+   * 配置现在统一通过 useAPIConfig() Hook 读取：
+   * - textConfig.platform: 文本平台（deepseek, gemini, juxin2 等）
+   * - textConfig.model: 模型名称
+   * - textConfig.apiKey: API 密钥
+   * - textConfig.baseURL: API 基础 URL
    */
-  useEffect(() => {
-    if (nodeId) {
-      const edges = getEdges();
-      const configEdge = edges.find(
-        (e) => e.target === nodeId && (e.targetHandle === 'openai-config' || e.targetHandle === undefined)
-      );
-
-      if (configEdge) {
-        const sourceNode = getNodes().find(n => n.id === configEdge.source);
-        // 兼容两种节点类型名称（注册时使用 openaiConfigNode，但可能存在大驼峰变体）
-        console.log('[NarratorProcessorNode] 检测到 OpenAI 配置连接:', {
-          sourceId: configEdge.source,
-          sourceType: sourceNode?.type,
-          hasOpenaiConfig: !!sourceNode?.data?.openaiConfig
-        });
-
-        if ((sourceNode?.type === 'openaiConfigNode' || sourceNode?.type === 'openAIConfigNode') && sourceNode.data?.openaiConfig) {
-          setOpenaiConfig(sourceNode.data.openaiConfig);
-          console.log('[NarratorProcessorNode] ✅ OpenAI 配置已加载');
-        }
-      } else {
-        console.log('[NarratorProcessorNode] ⚠️ 未检测到 OpenAI 配置连接');
-      }
-    }
-  }, [nodeId, getEdges, getNodes]);
-
-  /**
-   * ⭐ 新增：监听 node.data.openaiConfig 的变化（源节点推送数据时）
-   * 这个 useEffect 会在 OpenAIConfigNode 推送数据时触发
-   */
-  useEffect(() => {
-    if (data.openaiConfig && data.openaiConfig.api_key) {
-      console.log('[NarratorProcessorNode] 从 node.data 同步 OpenAI 配置:', data.openaiConfig);
-      setOpenaiConfig(data.openaiConfig);
-    }
-  }, [data.openaiConfig]);
 
   /**
    * 同步状态到 node.data（用于工作流保存）
@@ -247,9 +219,8 @@ export default function NarratorProcessorNode({ data }) {
               style,
               targetDuration,
               optimizationDirection,
-              customStyleDescription,
-              // 保存 OpenAI 配置（如果有）
-              openaiConfig,
+              customStyleDescription
+              // ⭐ 不再保存 openaiConfig（配置现在统一在 Context 中管理）
             }
           };
         })
@@ -260,18 +231,19 @@ export default function NarratorProcessorNode({ data }) {
     return () => {
       window.removeEventListener('workflow-before-save', handleBeforeSave);
     };
-  }, [sentences, currentIndex, style, targetDuration, optimizationDirection, customStyleDescription, openaiConfig, nodeId, setNodes]);
+  }, [sentences, currentIndex, style, targetDuration, optimizationDirection, customStyleDescription, nodeId, setNodes]);
 
   /**
    * 优化单个句子
    */
   const optimizeSentence = async (sentence) => {
-    if (!openaiConfig) {
-      console.error('[NarratorProcessorNode] 缺少 OpenAI 配置');
+    // ⭐ 从 Context 读取配置（不再使用 node.data.openaiConfig）
+    if (!textConfig || !textConfig.apiKey) {
+      console.error('[NarratorProcessorNode] 缺少文本配置');
       return {
         ...sentence,
         status: 'error',
-        error: '缺少 OpenAI 配置'
+        error: '缺少文本配置（请在 API 设置中配置文本生成）'
       };
     }
 
@@ -316,9 +288,9 @@ export default function NarratorProcessorNode({ data }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          base_url: openaiConfig.base_url,
-          api_key: openaiConfig.api_key,
-          model: openaiConfig.model,
+          base_url: textConfig.baseURL || '',
+          api_key: textConfig.apiKey,
+          model: textConfig.model,
           prompt: sentence.text,
           style: style,
           customStyleDescription: customStyleDescription,
@@ -421,8 +393,9 @@ export default function NarratorProcessorNode({ data }) {
       return;
     }
 
-    if (!openaiConfig) {
-      alert('请先连接 OpenAI 配置节点');
+    // ⭐ 从 Context 读取配置
+    if (!textConfig || !textConfig.apiKey) {
+      alert('请先在 API 设置中配置文本生成（DeepSeek/Gemini）');
       return;
     }
 
@@ -1050,7 +1023,7 @@ export default function NarratorProcessorNode({ data }) {
         <button
           className="nodrag"
           onClick={optimizeAllSentences}
-          disabled={isOptimizing || !openaiConfig}
+          disabled={isOptimizing || !textConfig?.apiKey}
           style={{
             padding: '6px 10px',
             fontSize: '11px',
@@ -1059,7 +1032,7 @@ export default function NarratorProcessorNode({ data }) {
             border: 'none',
             borderRadius: '4px',
             cursor: isOptimizing ? 'not-allowed' : 'pointer',
-            opacity: isOptimizing || !openaiConfig ? 0.5 : 1
+            opacity: isOptimizing || !textConfig?.apiKey ? 0.5 : 1
           }}
         >
           {isOptimizing ? '🔄 优化中...' : '🚀 全部优化'}
@@ -1068,7 +1041,7 @@ export default function NarratorProcessorNode({ data }) {
         <button
           className="nodrag"
           onClick={reoptimizeCurrent}
-          disabled={isOptimizing || !openaiConfig}
+          disabled={isOptimizing || !textConfig?.apiKey}
           style={{
             padding: '6px 10px',
             fontSize: '11px',
@@ -1076,8 +1049,8 @@ export default function NarratorProcessorNode({ data }) {
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: isOptimizing || !openaiConfig ? 'not-allowed' : 'pointer',
-            opacity: isOptimizing || !openaiConfig ? 0.5 : 1
+            cursor: isOptimizing || !textConfig?.apiKey ? 'not-allowed' : 'pointer',
+            opacity: isOptimizing || !textConfig?.apiKey ? 0.5 : 1
           }}
         >
           🔄 重新优化
@@ -1169,7 +1142,7 @@ export default function NarratorProcessorNode({ data }) {
       )}
 
       {/* 配置状态提示 */}
-      {!openaiConfig && (
+      {!textConfig?.apiKey && (
         <div
           style={{
             padding: '6px',
@@ -1180,11 +1153,11 @@ export default function NarratorProcessorNode({ data }) {
             border: '1px solid #fde68a'
           }}
         >
-          ⚠️ 请连接 OpenAI 配置节点
+          ⚠️ 请在 API 设置中配置文本生成（DeepSeek/Gemini）
         </div>
       )}
 
-      {sentences.length === 0 && openaiConfig && (
+      {sentences.length === 0 && textConfig?.apiKey && (
         <div
           style={{
             padding: '6px',

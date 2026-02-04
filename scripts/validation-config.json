@@ -43,19 +43,19 @@
     "description": "只在初始化时读取的字段，不需要监听变化",
     "fields": {
       "narratorMode": {
-        "node": "VideoGenerateNode",
+        "nodes": ["veoGenerateNode", "sora2GenerateNode"],
         "reason": "旁白模式状态通过事件系统和反向同步更新"
       },
       "narratorIndex": {
-        "node": "VideoGenerateNode",
+        "nodes": ["veoGenerateNode", "sora2GenerateNode"],
         "reason": "旁白索引通过事件系统和反向同步更新"
       },
       "narratorTotal": {
-        "node": "VideoGenerateNode",
+        "nodes": ["veoGenerateNode", "sora2GenerateNode"],
         "reason": "旁白总数通过事件系统和反向同步更新"
       },
       "narratorSentences": {
-        "node": "VideoGenerateNode",
+        "nodes": ["veoGenerateNode", "sora2GenerateNode"],
         "reason": "旁白句子数组通过事件系统和反向同步更新"
       }
     }
@@ -65,19 +65,19 @@
     "description": "已经正确监听的字段，避免误报",
     "fields": {
       "manualPrompt": {
-        "node": "VideoGenerateNode",
+        "nodes": ["veoGenerateNode", "sora2GenerateNode"],
         "reason": "已在 useEffect 中监听 (Line 133: [manualPrompt, ...data.manualPrompt])"
       },
       "connectedImages": {
-        "node": "VideoGenerateNode",
+        "nodes": ["veoGenerateNode", "sora2GenerateNode"],
         "reason": "已在 useEffect 中监听 (Line 71: [...data.connectedImages])"
       },
       "connectedCharacters": {
-        "node": "VideoGenerateNode",
+        "nodes": ["veoGenerateNode", "sora2GenerateNode"],
         "reason": "已在 useEffect 中监听 (Line 71: [...data.connectedCharacters])"
       },
       "connectedPrompt": {
-        "node": "VideoGenerateNode",
+        "nodes": ["veoGenerateNode", "sora2GenerateNode"],
         "reason": "已在 useEffect 中监听 (Line 78: [...data.connectedPrompt])"
       }
     }
@@ -88,14 +88,14 @@
     "overrides": [
       {
         "source": "CharacterLibraryNode",
-        "target": "VideoGenerateNode",
+        "targets": ["veoGenerateNode", "sora2GenerateNode"],
         "field": "connectedCharacters",
         "skipChecks": ["source_not_writing"],
         "reason": "Phase 2 架构：通过 Context 或连接传递，不直接写 setNodes()"
       },
       {
         "source": "APISettingsNode",
-        "target": "VideoGenerateNode",
+        "targets": ["veoGenerateNode", "sora2GenerateNode"],
         "field": "apiConfig",
         "skipChecks": ["source_not_writing"],
         "reason": "Phase 2 架构：使用 APIConfigContext"

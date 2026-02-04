@@ -15,7 +15,7 @@
 │          quick-reference.md (479行) ⭐ 开发前必读       │
 │          base.md (1,193行) - 技术栈约束                 │
 │          code.md (544行) - 代码规范                     │
-│          error-patterns.md (~2,500行) - 错误模式 ⭐      │
+│          error-patterns/ (~2,500行) - 错误模式 ⭐      │
 │          docs.md (451行) - 文档更新规范                 │
 └─────────────────────────────────────────────────────────┘
                             ↓
@@ -96,7 +96,7 @@
 | **quick-reference.md** | 479行 | 开发流程、启动命令、常见问题 | **扩展** "命令规范" 章节 |
 | **base.md** | 1,193行 | 技术栈、API规范、平台差异 | **扩展** "开发规范" 章节 |
 | **code.md** | 544行 | 代码规范、最佳实践 | **扩展** "代码风格" 章节 |
-| **error-patterns.md** | ~2,500行 | 错误模式（48个，7种类型） | **新增**，CLAUDE.md 未涉及 ⭐ |
+| **error-patterns/** | ~10KB/文件 | 错误模式（57个，7种类型） | **新增**，CLAUDE.md 未涉及 ⭐ 已拆分 |
 | **docs.md** | 451行 | 文档更新规范 | **新增**，CLAUDE.md 未涉及 |
 
 **与 CLAUDE.md 的关系**：
@@ -139,7 +139,7 @@
   rules/code.md:     "代码规范（通用）"
   SKILL.md:          "React Flow 节点开发规范" + "角色引用最佳实践"
 
-  rules/error-patterns.md: "错误模式（按类型分类）"
+  rules/error-patterns/: "错误模式（按类型分类）"
   SKILL.md:              "高频错误链接" + "开发提示（精选34条）"
   ```
 
@@ -164,7 +164,7 @@
 │    - quick-reference.md: 开发流程   │
 │    - base.md: 技术栈、API 规范      │
 │    - code.md: 代码规范              │
-│    - error-patterns.md: 错误模式    │
+│    - error-patterns/: 错误模式    │
 └─────────────────┬───────────────────┘
                   ↓
 ┌─────────────────────────────────────┐
@@ -183,7 +183,7 @@
 发现新错误模式
     ↓
 ┌─────────────────────────────────────┐
-│ 1. 更新 error-patterns.md ⭐ 第一  │
+│ 1. 更新 error-patterns/ ⭐ 第一  │
 │    - 添加到对应类型章节             │
 │    - 更新快速索引表                 │
 └─────────────────┬───────────────────┘
@@ -243,7 +243,7 @@ CLAUDE.md  = "目录/快速参考卡"（概览，快速查找）
 1. 读 CLAUDE.md（5分钟）→ 了解项目基本情况
 2. 读 quick-reference.md（10分钟）→ 了解开发流程
 3. 读 SKILL.md（20分钟）→ 了解项目特定规范
-4. 开始开发（遇到问题时查阅 error-patterns.md）
+4. 开始开发（遇到问题时查阅 error-patterns/README.md）
 ```
 
 **场景2: AI 开发新功能**
@@ -251,16 +251,16 @@ CLAUDE.md  = "目录/快速参考卡"（概览，快速查找）
 1. 读 CLAUDE.md → 项目上下文
 2. 读 quick-reference.md → Plan-First 流程
 3. 读 SKILL.md → 项目特定规范（如 Sora2 API）
-4. 读 error-patterns.md → 避免已知错误
+4. 读 error-patterns/README.md → 避免已知错误
 5. 开发完成 → 更新文档
 ```
 
 **场景3: 遇到问题**
 ```
-1. 在 error-patterns.md 中搜索问题
+1. 在 error-patterns/README.md 中搜索问题
 2. 找到对应的错误模式和解决方案
-3. 如果是新问题 → 添加到 error-patterns.md
-4. 如果是高频错误 → 在 SKILL.md 中添加链接
+3. 如果是新问题 → 添加到 error-patterns/ 对应类型文件
+4. 如果是高频错误 → 更新 error-patterns/README.md 快速索引表
 ```
 
 ---
@@ -271,7 +271,7 @@ CLAUDE.md  = "目录/快速参考卡"（概览，快速查找）
 
 | 场景 | 更新文档 | 优先级 |
 |------|----------|--------|
-| 新增错误模式 | error-patterns.md | ⭐⭐⭐ 第一优先 |
+| 新增错误模式 | error-patterns/README.md | ⭐⭐⭐ 第一优先 |
 | 新增开发提示 | SKILL.md | ⭐⭐ |
 | API 端点变更 | base.md + SKILL.md | ⭐⭐ |
 | 技术栈变更 | base.md + templates/ | ⭐ |
@@ -284,7 +284,7 @@ CLAUDE.md  = "目录/快速参考卡"（概览，快速查找）
 开发流程 → quick-reference.md
 技术规范 → base.md
 代码规范 → code.md
-错误模式 → error-patterns.md
+错误模式 → error-patterns/
 项目特定 → SKILL.md
 ```
 
@@ -314,7 +314,7 @@ skills/:      10.1% （项目特定）
 2. **rules/ 是核心**：详细规范，AI 开发助手的主要输入
 3. **skills/ 是精华**：项目特定经验，持续迭代
 4. **三层各司其职**：分工明确，互相配合
-5. **更新优先级**：error-patterns.md > SKILL.md > rules/ > CLAUDE.md
+5. **更新优先级**：error-patterns/ > SKILL.md > rules/ > CLAUDE.md
 
 ---
 

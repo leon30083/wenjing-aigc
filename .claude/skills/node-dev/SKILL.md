@@ -252,7 +252,7 @@ TaskResultNode.taskId
 
 ### 相关文档
 
-- [错误模式参考](../rules/error-patterns.md) - 节点相关错误
+- [错误模式参考](../rules/error-patterns/) - 节点相关错误（按类型拆分） |
 - [开发交接书](../../../用户输入文件夹/开发对话/开发交接书.md) - 版本记录
 
 ---

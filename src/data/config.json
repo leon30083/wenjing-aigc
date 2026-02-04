@@ -1,75 +1,74 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "platforms": {
-    "zhenzhen": {
-      "id": "zhenzhen",
-      "name": "贞贞",
-      "baseURL": "https://ai.t8star.cn",
+    "juxin": {
+      "id": "juxin",
+      "name": "聚鑫",
+      "baseURL": "https://api.jxincm.cn",
+      "type": "video",
       "enabled": true,
+      "defaultModel": "sora-2-all",
       "models": {
-        "veo3.1-fast": {
-          "id": "veo3.1-fast",
-          "name": "veo3.1-fast",
+        "sora-2-all": {
+          "id": "sora-2-all",
+          "name": "Sora-2-All",
           "type": "sora",
           "enabled": true
         }
       }
     },
-    "juxin": {
-      "id": "juxin",
-      "name": "聚鑫",
-      "baseURL": "https://api.jxincm.cn",
+    "zhenzhen": {
+      "id": "zhenzhen",
+      "name": "贞贞",
+      "baseURL": "https://ai.t8star.cn",
+      "type": "video",
       "enabled": true,
+      "defaultModel": "sora-2",
       "models": {
-        "sora-2-all": {
-          "id": "sora-2-all",
-          "name": "sora-2-all",
+        "sora-2": {
+          "id": "sora-2",
+          "name": "Sora-2",
+          "type": "sora",
+          "enabled": true
+        },
+        "sora-2-pro": {
+          "id": "sora-2-pro",
+          "name": "Sora-2 Pro",
           "type": "sora",
           "enabled": true
         }
       }
-    }
-  },
-  "textModels": {},
-  "UserDefaults": {
-    "videoGeneration": {
-      "platform": "juxin",
-      "model": "sora-2-all",
-      "aspectRatio": "16:9",
-      "watermark": false
+    },
+    "juxin2": {
+      "id": "juxin2",
+      "name": "聚鑫2",
+      "baseURL": "https://api.jxincm.cn/v1",
+      "type": "text",
+      "enabled": true,
+      "defaultModel": "gemini-3-flash-preview",
+      "models": {
+        "gemini-3-flash-preview": {
+          "id": "gemini-3-flash-preview",
+          "name": "Gemini 3 Flash Preview",
+          "type": "text",
+          "enabled": true,
+          "apiKey": "sk-mRdUpi4datQJZvuyFWFg8dONVrv508hu29eBSe9ZCGvlV9uM"
+        }
+      }
     }
   },
   "userDefaults": {
     "videoGeneration": {
       "platform": "juxin",
       "model": "sora-2-all",
-      "aspect": "16:9",
+      "aspectRatio": "16:9",
       "watermark": false
     },
     "textGeneration": {
       "platform": "juxin2",
-      "model": "gemini-2.5-flash",
-      "apiKey": "sk-mRdUpi4datQJZvuyFWFg8dONVrv508hu29eBSe9ZCGvlV9uM",
+      "model": "gemini-3-flash-preview",
+      "apiKey": "",
       "style": "picture-book"
-    }
-  },
-  "customPlatforms": {},
-  "textPlatforms": {
-    "juxin2": {
-      "id": "juxin2",
-      "name": "聚鑫2",
-      "baseURL": "https://api.jxincm.cn/v1",
-      "enabled": true,
-      "type": "text",
-      "models": {
-        "gemini-3-flash-preview": {
-          "id": "gemini-3-flash-preview",
-          "name": "gemini-3-flash-preview",
-          "type": "text",
-          "enabled": true,
-          "apiKey": "sk-mRdUpi4datQJZvuyFWFg8dONVrv508hu29eBSe9ZCGvlV9uM"
-        }
-      }
     }
   }
 }

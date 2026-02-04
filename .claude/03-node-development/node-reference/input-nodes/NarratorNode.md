@@ -305,7 +305,7 @@ OpenAIConfigNode (id: 13) ─────┤
 - [节点功能参考手册](../README.md)
 - [CharacterLibraryNode 文档](./CharacterLibraryNode.md)
 - [NarratorProcessorNode 文档](../process-nodes/NarratorProcessorNode.md)
-- [错误模式参考 - Error 55](../../../rules/error-patterns.md#error-16)
+- [错误模式参考 - Error 55](../../../rules/error-patterns/character-errors.md)
 
 ---
 

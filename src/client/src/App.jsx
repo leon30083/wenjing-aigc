@@ -473,22 +473,8 @@ function App() {
           // ⭐ 关键修复：没有 images-input 连接时，清除 connectedImages
           newData.connectedImages = undefined;
         }
-
-        // Check for OpenAI config input (for prompt optimizer node)
-        const openaiConfigEdge = incomingEdges.find((e) => e.targetHandle === 'openai-config');
-        if (openaiConfigEdge) {
-          const sourceNode = nds.find((n) => n.id === openaiConfigEdge.source);
-          // ⭐ 使用 useNodeConnections Hook 进行验证
-          if (sourceNode && isValidConnection('openai-config', sourceNode.type)) {
-            newData.openaiConfig = sourceNode.data.openaiConfig || null;
-          } else {
-            // ❌ 源节点类型无效，清除配置
-            newData.openaiConfig = undefined;
-          }
-        } else {
-          // 没有连线时，清除配置
-          newData.openaiConfig = undefined;
-        }
+        // ⭐ OpenAI 配置已迁移到 Context，不再通过节点连接传递
+        // PromptOptimizerNode 和 NarratorProcessorNode 现在从 useAPIConfig() Hook 读取 textConfig
 
         // ⭐ Check for API config input (for video generate/batch generate nodes) - 2026-01-13 新增
         const apiConfigEdge = incomingEdges.find((e) => e.targetHandle === 'api-config');
@@ -593,7 +579,7 @@ function App() {
           oldData.shots !== newData.shots ||
           oldData.useGlobalImages !== newData.useGlobalImages ||
           oldData.connectedSourceId !== newData.connectedSourceId || // ⭐ 新增：修复 TaskResultNode 连接检测
-          oldData.openaiConfig !== newData.openaiConfig || // ⭐ 新增：OpenAI 配置连接检测
+          // openaiConfig 已迁移到 Context，不再通过节点数据比较
           oldData.sentences !== newData.sentences || // ⭐ 新增：旁白句子数组
           oldData.style !== newData.style || // ⭐ 新增：优化风格
           oldData.targetDuration !== newData.targetDuration || // ⭐ 新增：目标时长

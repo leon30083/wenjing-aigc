@@ -17,7 +17,7 @@ function OpenAIConfigNode({ data }) {
   const { setNodes, getEdges, edges } = useReactFlow();
 
   // ⭐ 从 Context 获取文本模型配置
-  const { textModels } = useAPIConfig();
+  const { textModels, textConfig, updateTextConfig } = useAPIConfig();
 
   // 当前选中文本平台
   const [currentTextPlatform, setCurrentTextPlatform] = useState(null);
@@ -25,9 +25,19 @@ function OpenAIConfigNode({ data }) {
   // 当前选中文本平台的模型列表
   const currentPlatformModels = textModels.find(tm => tm.key === currentTextPlatform)?.models || [];
 
-  // 获取当前配置（从 node.data 或全局配置）
+  // 获取当前配置（从 Context 优先，其次 node.data，最后 localStorage）
   const [config, setConfig] = useState(() => {
-    // ✅ 优先使用 node.data.openaiConfig（工作流专属配置）
+    // ⭐ 优先使用 Context textConfig（全局配置）
+    if (textConfig && textConfig.platform) {
+      return {
+        textPlatform: textConfig.platform,
+        textModel: textConfig.model,
+        api_key: textConfig.apiKey,
+        base_url: textConfig.baseURL || '',
+      };
+    }
+
+    // ⚠️ 降级到 node.data.openaiConfig（向后兼容）
     if (data.openaiConfig) {
       return data.openaiConfig;
     }
@@ -47,6 +57,7 @@ function OpenAIConfigNode({ data }) {
       textPlatform: '',
       textModel: '',
       api_key: '',
+      base_url: '',
     };
   });
 
@@ -59,30 +70,6 @@ function OpenAIConfigNode({ data }) {
       setCurrentTextPlatform(textModels[0].key);
     }
   }, [textModels, config.textPlatform]);
-
-  // 保存配置到 localStorage
-  const saveConfig = (newConfig) => {
-    localStorage.setItem('winjin-openai-config', JSON.stringify(newConfig));
-  };
-
-  // 加载配置
-  const loadConfig = () => {
-    try {
-      const saved = localStorage.getItem('winjin-openai-config');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setConfig(parsed);
-        saveConfig(parsed);
-        syncToData(parsed);
-        alert('✅ 配置已加载');
-      } else {
-        alert('⚠️ 没有找到已保存的配置');
-      }
-    } catch (error) {
-      console.error('加载配置失败:', error);
-      alert('❌ 加载配置失败');
-    }
-  };
 
   // 测试连接
   const testConnection = async () => {
@@ -121,43 +108,31 @@ function OpenAIConfigNode({ data }) {
     }
   };
 
-  // 同步配置到 node.data
-  const syncToData = (config) => {
-    console.log('[OpenAIConfigNode] syncToData 调用:', {
-      nodeId,
-      configKeys: config ? Object.keys(config) : [],
-      hasConfig: !!config,
-    });
-    setNodes((nds) => {
-      const updated = nds.map((node) =>
-        node.id === nodeId
-          ? { ...node, data: { ...node.data, openaiConfig: config } }
-          : node
-      );
-      const updatedNode = updated.find(n => n.id === nodeId);
-      console.log('[OpenAIConfigNode] syncToData 更新后:', {
-        nodeId,
-        hasOpenaiConfig: !!updatedNode?.data?.openaiConfig,
-      });
-      return updated;
-    });
-  };
-
   // 处理配置变更
   const handleConfigChange = (field, value) => {
-    const newConfig = { ...config, [field]: value };
-    setConfig(newConfig);
-    saveConfig(newConfig);
-    syncToData(newConfig);
+    // ⭐ 字段名映射：节点字段 → Context 字段
+    const contextField = field === 'textPlatform' ? 'platform' :
+                         field === 'textModel' ? 'model' :
+                         field === 'api_key' ? 'apiKey' :
+                         field === 'base_url' ? 'baseURL' : field;
 
-    // ⭐ 如果切换了文本平台，自动选择该平台的第一个模型
-    if (field === 'textPlatform') {
-      const platform = textModels.find(tm => tm.key === value);
-      if (platform && platform.models.length > 0) {
-        newConfig.textModel = platform.models[0].id;
-        setConfig(newConfig);
+    // ⭐ 调用 Context 的 updateTextConfig（自动同步 localStorage 和服务器）
+    updateTextConfig({ [contextField]: value });
+
+    // ⭐ 同时更新本地 config 状态（保持 UI 响应）
+    setConfig((prevConfig) => {
+      const newConfig = { ...prevConfig, [field]: value };
+
+      // ⭐ 如果切换了文本平台，自动选择该平台的第一个模型
+      if (field === 'textPlatform') {
+        const platform = textModels.find(tm => tm.key === value);
+        if (platform && platform.models.length > 0) {
+          newConfig.textModel = platform.models[0].id;
+        }
       }
-    }
+
+      return newConfig;
+    });
   };
 
   // 获取当前文本平台的配置
@@ -171,72 +146,21 @@ function OpenAIConfigNode({ data }) {
     return model?.name || modelId;
   };
 
-  // 同步配置到 node.data（初始化时同步一次，延迟执行确保工作流已加载）
-  useEffect(() => {
-    // ⭐ 延迟 100ms 执行，确保 App.jsx 已完成工作流加载
-    const timer = setTimeout(() => {
-      console.log('[OpenAIConfigNode] 延迟同步配置到 node.data:', {
-        nodeId,
-        configKeys: Object.keys(config),
-        hasConfig: !!config,
-      });
-      syncToData(config);
-    }, 100);
+  // ⭐ 配置管理迁移到 Context 后，不再需要同步到 node.data
+  // 配置现在统一存储在：
+  // 1. config.json (后端)
+  // 2. APIConfigContext (前端)
+  // 3. localStorage (离线备份)
+  // 节点不再存储 openaiConfig 到 node.data
 
-    return () => clearTimeout(timer);
-  }, []); // ⭐ 空依赖数组，只在挂载时运行一次
-
-  // ⭐ 获取下游节点兼容的配置格式
-  // 内部使用新格式 { textPlatform, textModel, api_key }
-  // 下游节点期望旧格式 { base_url, api_key, model }
-  const getDownstreamConfig = () => {
-    const platform = getCurrentTextPlatform();
-    if (!platform) return null;
-
-    return {
-      base_url: platform.baseURL,
-      api_key: config.api_key || '',
-      model: config.textModel || platform.models[0]?.id || ''
-    };
-  };
-
-  // 传递配置到下游节点
-  useEffect(() => {
-    if (nodeId) {
-      const edges = getEdges();
-      const outgoingEdges = edges.filter(e => e.source === nodeId);
-
-      if (outgoingEdges.length > 0) {
-        // ⭐ 转换配置格式为下游节点兼容的格式
-        const downstreamConfig = getDownstreamConfig();
-
-        console.log('[OpenAIConfigNode] 推送配置到下游节点:', {
-          originalConfig: { textPlatform: config.textPlatform, textModel: config.textModel },
-          downstreamConfig,
-          targetNodes: outgoingEdges.map(e => e.target),
-        });
-
-        setNodes((nds) =>
-          nds.map((node) => {
-            const isConnected = outgoingEdges.some(e => e.target === node.id);
-            if (isConnected) {
-              console.log('[OpenAIConfigNode] 更新节点:', node.id, 'downstreamConfig:', downstreamConfig);
-              return {
-                ...node,
-                data: {
-                  ...node.data,
-                  openaiConfig: downstreamConfig,  // ⭐ 使用转换后的格式
-                  openaiConfigSourceId: nodeId,
-                  openaiConfigSourceLabel: data.label || '文本处理配置'
-                }
-              };
-            }
-            return node;
-          })
-        );
-      }
-    }
-  }, [config, nodeId, getEdges, setNodes, data.label, edges]);
+  // ⭐ 配置管理迁移到 Context 后，不再需要同步到 node.data
+  // 配置现在统一存储在：
+  // 1. config.json (后端)
+  // 2. APIConfigContext (前端)
+  // 3. localStorage (离线备份)
+  // 节点不再存储 openaiConfig 到 node.data
+  //
+  // 下游节点（NarratorProcessorNode, PromptOptimizerNode）应通过 useAPIConfig() Hook 读取配置
 
   return (
     <div style={{
@@ -429,28 +353,22 @@ function OpenAIConfigNode({ data }) {
         </button>
         <button
           className="nodrag"
-          onClick={loadConfig}
-          style={{
-            flex: 1,
-            padding: '6px',
-            backgroundColor: '#6366f1',
-            color: 'white',
-            border: 'none',
-            borderRadius: '3px',
-            fontSize: '10px',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-          }}
-        >
-          📂 加载
-        </button>
-        <button
-          className="nodrag"
           onClick={() => {
-            const emptyConfig = { textPlatform: '', textModel: '', api_key: '' };
-            setConfig(emptyConfig);
-            saveConfig(emptyConfig);
-            syncToData(emptyConfig);
+            // ⭐ 清除配置: 通过 updateTextConfig 清空所有字段
+            updateTextConfig({
+              platform: '',
+              model: '',
+              apiKey: '',
+              baseURL: '',
+            });
+
+            // 同时更新本地 config 状态（保持 UI 响应）
+            setConfig({
+              textPlatform: '',
+              textModel: '',
+              api_key: '',
+              base_url: '',
+            });
           }}
           style={{
             flex: 1,

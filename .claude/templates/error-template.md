@@ -77,7 +77,7 @@
 
 1. 复制此模板到新文件
 2. 填写错误信息
-3. 添加到 `.claude/rules/error-patterns.md` 对应的类型章节
+3. 添加到 `.claude/rules/error-patterns/[类型].md` 对应的类型文件
 4. 如果可自动修复，在 `fix-strategies.json` 中添加策略
 5. 如果需要修复器，创建 `fixers/xxx-fixer.js`
 6. 运行 `npm run validate:all` 测试
@@ -107,15 +107,23 @@
 
 ### 错误模式存放位置
 
-**⭐ 重要**: 所有错误模式统一存放在 `.claude/rules/error-patterns.md`
+**⭐ 重要**: 所有错误模式已按类型拆分到 `.claude/rules/error-patterns/` 目录
 
-- SKILL.md 和 code.md 不再存放错误模式详情
-- 这两个文档通过链接引用 error-patterns.md
-- 新增错误时只需更新 error-patterns.md 一个文档
+- error-patterns/README.md - 总索引和快速查找
+- error-patterns/api-errors.md - API 相关错误
+- error-patterns/reactflow-errors.md - React Flow 相关错误
+- error-patterns/character-errors.md - 角色系统相关错误
+- error-patterns/storage-errors.md - 存储/持久化相关错误
+- error-patterns/ui-errors.md - UI/渲染相关错误
+- error-patterns/form-errors.md - 表单/输入相关错误
+- error-patterns/other-errors.md - 其他错误
+
+- SKILL.md 和 code.md 通过链接引用 error-patterns/README.md
+- 新增错误时添加到对应类型文件，然后更新 README.md 的快速索引表
 
 ### 更新快速索引表
 
-新增错误后，需要更新 `.claude/rules/error-patterns.md` 顶部的快速索引表：
+新增错误后，需要更新 `.claude/rules/error-patterns/README.md` 顶部的快速索引表：
 
 ```markdown
 | 类型 | 错误数量 | 关键词 |
@@ -127,7 +135,7 @@
 
 新增错误模式时，确保完成以下步骤：
 - [ ] 标题包含正确的类型标签（1-2个）
-- [ ] 内容添加到 `.claude/rules/error-patterns.md` 正确的类型章节下
+- [ ] 内容添加到 `.claude/rules/error-patterns/[类型].md` 对应的类型文件
 - [ ] 更新快速索引表（错误数量 +1，关键词更新）
 - [ ] 在 SKILL.md 中添加引用（如需要）
 - [ ] 更新开发交接书.md 记录版本变更

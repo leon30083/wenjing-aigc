@@ -17,7 +17,7 @@
 
 | 文档 | 更新内容 | 优先级 |
 |------|----------|--------|
-| `.claude/rules/error-patterns.md` | 新增错误模式、按类型分类 | ⭐ 必须 ⭐ 新增 |
+| `.claude/rules/error-patterns/` | 错误模式（按类型拆分） | ⭐ 必须 ⭐ 新增 |
 | `.claude/skills/winjin-dev/SKILL.md` | API 规范、开发提示 | ⭐ 必须 |
 | `.claude/rules/base.md` | 技术规范、API 端点、平台差异 | ⭐ 必须 |
 | `.claude/rules/code.md` | 代码示例、最佳实践 | ⭐ 必须 |
@@ -38,7 +38,7 @@
 
 ### Step 2: 按顺序更新文档
 
-1. **error-patterns.md** - 添加新的错误模式（按类型分类）⭐ 新增
+1. **error-patterns/** - 添加新的错误模式到对应类型文件** ⭐ 新增
 2. **SKILL.md** - 更新开发提示（如需要）
 3. **base.md** - 更新技术规范（如果涉及 API 变更）
 4. **code.md** - 更新代码示例和最佳实践
@@ -56,7 +56,7 @@ git add 用户输入文件夹/开发对话/开发交接书.md
 # 提交（使用清晰的提交信息）
 git commit -m "docs: update winjin-dev skill and documentation
 
-- Added Error XX: [错误名称] to error-patterns.md
+- Added Error XX: [错误名称] to error-patterns/
 - Updated SKILL.md with new API patterns
 - Updated code.md with code examples
 - Updated 开发交接书.md to v2.x"
@@ -69,7 +69,7 @@ git push origin feature/workflow-management
 
 提交前验证：
 
-- [ ] error-patterns.md 已添加新的错误模式（带类型标签）⭐ 新增
+- [ ] error-patterns/ 已添加新的错误模式（带类型标签）⭐ 新增
 - [ ] SKILL.md 已更新开发提示（如需要）
 - [ ] base.md 已更新技术规范（如果需要）
 - [ ] code.md 已更新代码示例
@@ -80,9 +80,9 @@ git push origin feature/workflow-management
 
 ## 📝 模板示例
 
-### error-patterns.md 新增错误模式模板 ⭐ 更新
+### error-patterns/ 新增错误模式模板 ⭐ 更新
 
-在 error-patterns.md 的对应类型章节下添加（参考 docs.md 中的打标规范）：
+在 error-patterns/ 的对应类型章节下添加（参考 docs.md 中的打标规范）：
 
 ```markdown
 ### 错误[N]: [错误名称] `[类型1]` `[类型2]` ⭐⭐⭐
@@ -238,7 +238,7 @@ echo "✅ 文件已添加到 Git，请检查后提交"
 ## 📚 相关资源
 
 - [SKILL.md](../SKILL.md) - 主技能文件（开发规范）
-- `.claude/rules/error-patterns.md` - 错误模式参考（按类型分类）⭐ 新增
+- `.claude/rules/error-patterns/` - 错误模式参考（按类型拆分，总索引）⭐ 新增 |
 - `.claude/rules/base.md` - 基础技术栈规则
 - `.claude/rules/code.md` - 代码规范和最佳实践
 - `.claude/rules/docs.md` - 文档更新规范

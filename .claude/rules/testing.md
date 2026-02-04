@@ -347,7 +347,7 @@ AI 编写测试工作流
 
 ### 并行文档
 - [服务器管理规范](./server-management.md)
-- [错误模式参考](./error-patterns.md)
+- [错误模式参考](./error-patterns/README.md) ⭐ 已拆分
 
 ### 外部参考
 - [Playwright 官方文档](https://playwright.dev/)

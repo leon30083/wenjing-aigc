@@ -280,7 +280,7 @@ OpenAIConfigNode (id: 13) ─────┤
 - [节点功能参考手册](../README.md)
 - [NarratorNode 文档](../input-nodes/NarratorNode.md)
 - [OpenAIConfigNode 文档](../input-nodes/OpenAIConfigNode.md)
-- [错误模式参考 - Error 55](../../../rules/error-patterns.md#error-16)
+- [错误模式参考 - Error 55](../../../rules/error-patterns/character-errors.md)
 
 ---
 

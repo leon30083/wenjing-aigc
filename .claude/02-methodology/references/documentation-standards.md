@@ -54,12 +54,12 @@ async function videoGenerate(prompt, options = {}) {
 ❌ 错误：重复说明
 ├── base.md (说明双平台差异)
 ├── code.md (再次说明双平台差异)
-└── error-patterns.md (又说明一次)
+└── error-patterns/ (又说明一次)
 
 ✅ 正确：单一来源 + 引用
 ├── 01-fundamentals/api-platforms.md (详细说明) ⭐ 唯一来源
 ├── 03-node-development/node-architecture.md (引用 api-platforms.md)
-└── 04-error-patterns/errors-by-type.md (引用 api-platforms.md)
+└── rules/error-patterns/ (引用 api-platforms.md)
 ```
 
 ### 3. 保持同步
@@ -114,11 +114,15 @@ git commit -m "feat: 添加新功能和文档"
 │   ├── node-templates.md
 │   └── README.md
 │
-├── 04-error-patterns/     # 错误模式层 - 错误管理
-│   ├── errors-by-type.md
-│   ├── glue-constraints.md
-│   ├── prevention-checklist.md
-│   └── README.md
+├── rules/error-patterns/  # 错误模式层（已拆分）- 错误管理
+│   ├── README.md           # 总索引
+│   ├── api-errors.md       # API 相关错误
+│   ├── reactflow-errors.md # React Flow 相关错误
+│   ├── character-errors.md # 角色系统错误
+│   ├── storage-errors.md   # 存储/持久化错误
+│   ├── ui-errors.md        # UI/渲染错误
+│   ├── form-errors.md      # 表单/输入错误
+│   └── other-errors.md     # 其他错误
 │
 ├── 05-automation/         # 自动化层 - 系统增强
 │   ├── mcp-integration.md
@@ -306,8 +310,8 @@ const data = await fetchData();
                     ↓
 ┌─────────────────────────────────────────────────────────┐
 │ 3. Update Docs (更新文档) ⭐ 重要                        │
-│    ├─ 新增错误模式 → 04-error-patterns/errors-by-type.md│
-│    ├─ 更新约束映射 → 04-error-patterns/glue-constraints.md│
+│    ├─ 新增错误模式 → rules/error-patterns/[类型].md│
+│    ├─ 更新索引 → rules/error-patterns/README.md│
 │    ├─ 更新技能文档 → skills/winjin-dev/SKILL.md         │
 │    └─ 更新相关文档 → 其他相关文件                       │
 └─────────────────────────────────────────────────────────┘
@@ -322,8 +326,8 @@ const data = await fetchData();
 
 每次开发完成后，检查以下文档是否需要更新：
 
-- [ ] `.claude/04-error-patterns/errors-by-type.md` - 新增错误模式
-- [ ] `.claude/04-error-patterns/glue-constraints.md` - 添加约束映射
+- [ ] `.claude/rules/error-patterns/[类型].md` - 新增错误模式
+- [ ] `.claude/rules/error-patterns/README.md` - 更新索引
 - [ ] `.claude/skills/winjin-dev/SKILL.md` - 更新开发提示
 - [ ] `.claude/03-node-development/node-templates.md` - 新增节点模板
 - [ ] 相关模块文档 - 更新具体说明

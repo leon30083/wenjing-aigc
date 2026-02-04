@@ -1,4 +1,4 @@
-import React, { createContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useState, useCallback, useEffect, useMemo } from 'react';
 
 /**
  * API_BASE - API 基础 URL
@@ -27,6 +27,7 @@ export const APIConfigContext = createContext({
     platform: 'deepseek',
     model: 'deepseek-chat',
     apiKey: '',
+    baseURL: '',  // ⭐ 新增：支持自定义 API 端点
     style: 'picture-book',
   },
   // Concurrency limits
@@ -61,17 +62,73 @@ export const APIConfigContext = createContext({
  * @param {React.ReactNode} props.children - 子组件
  */
 export const APIConfigProvider = ({ children }) => {
-  const [config, setConfig] = useState({
-    platform: 'juxin',
-    model: 'sora-2-all',
-    aspect: '16:9',
-    watermark: false,
-    apiKey: '',
+  // ⭐ 统一配置读取优先级：Context > localStorage > 默认值
+  const [config, setConfig] = useState(() => {
+    // 1. 尝试从 localStorage 读取（向后兼容）
+    try {
+      const local = localStorage.getItem('winjin-api-config');
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (parsed.platform) {
+          console.log('[APIConfigContext] 从 localStorage 初始化 config:', parsed);
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('[APIConfigContext] 读取 localStorage 失败:', e);
+    }
+
+    // 2. 默认值
+    return {
+      platform: 'juxin',
+      model: 'sora-2-all',
+      aspect: '16:9',
+      watermark: false,
+    };
   });
 
   const [platforms, setPlatforms] = useState([]);
   const [textModels, setTextModels] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  /**
+   * 更新服务器端用户默认配置（防抖版本）
+   * ⭐ 服务器同步失败不阻塞前端操作，避免频繁请求
+   * ⭐ 移到这里避免 TDZ 错误 - updateConfig 需要在其之前定义
+   */
+  const updateUserDefaultsDebounced = useMemo(() => {
+    let timeoutId;
+    let pendingDefaults = {};
+
+    return async (defaults) => {
+      // 合并待更新的配置
+      pendingDefaults = { ...pendingDefaults, ...defaults };
+
+      // 清除之前的定时器
+      clearTimeout(timeoutId);
+
+      // 设置新的防抖定时器（1秒后执行）
+      timeoutId = setTimeout(async () => {
+        try {
+          const response = await fetch(`${API_BASE}/api/config/defaults`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ defaults: pendingDefaults }),
+          });
+          const result = await response.json();
+          if (!result.success) {
+            console.warn('[APIConfigContext] 更新服务器配置失败:', result.error);
+          } else {
+            console.log('[APIConfigContext] ✅ 服务器配置已同步');
+          }
+          // 清空待更新配置
+          pendingDefaults = {};
+        } catch (error) {
+          console.error('[APIConfigContext] 更新服务器配置失败:', error);
+        }
+      }, 1000);
+    };
+  }, []); // ✅ 无依赖，避免重新创建
 
   // Text model configuration state
   const [textConfig, setTextConfig] = useState(() => {
@@ -85,6 +142,7 @@ export const APIConfigProvider = ({ children }) => {
           platform: parsed.platform || 'deepseek',
           model: parsed.model || 'deepseek-chat',
           apiKey: parsed.apiKey || '',
+          baseURL: parsed.baseURL || '',  // ⭐ 新增：支持自定义 API 端点
           style: parsed.style || 'picture-book',
         };
       }
@@ -96,6 +154,7 @@ export const APIConfigProvider = ({ children }) => {
       platform: 'deepseek',
       model: 'deepseek-chat',
       apiKey: '',
+      baseURL: '',  // ⭐ 新增：支持自定义 API 端点
       style: 'picture-book',
     };
   });
@@ -151,10 +210,13 @@ export const APIConfigProvider = ({ children }) => {
         // ⭐ 文本模型配置：优先使用 API 返回值，否则使用 localStorage
         if (userDefaults && userDefaults.textGeneration) {
           const textDefaults = userDefaults.textGeneration;
+          const textPlatform = platformList.find(p => p.key === textDefaults.platform && p.type === 'text');
+
           setTextConfig({
             platform: textDefaults.platform || 'deepseek',
             model: textDefaults.model || 'deepseek-chat',
             apiKey: textDefaults.apiKey || '',
+            baseURL: textPlatform?.baseURL || textDefaults.baseURL || '',  // ⭐ 新增：加载平台 baseURL
             style: textDefaults.style || 'picture-book',
           });
           // ⭐ 同步更新 localStorage
@@ -162,6 +224,7 @@ export const APIConfigProvider = ({ children }) => {
             platform: textDefaults.platform || 'deepseek',
             model: textDefaults.model || 'deepseek-chat',
             apiKey: textDefaults.apiKey || '',
+            baseURL: textPlatform?.baseURL || textDefaults.baseURL || '',  // ⭐ 新增
             style: textDefaults.style || 'picture-book',
           }));
         } else if (localStorageTextConfig) {
@@ -238,17 +301,14 @@ export const APIConfigProvider = ({ children }) => {
       };
       localStorage.setItem('winjin-api-config', JSON.stringify(localStorageConfig));
 
-      // ⭐ 更新服务器端的用户默认配置
-      updateUserDefaults({ videoGeneration: localStorageConfig });
+      // ⭐ 更新服务器端的用户默认配置（防抖版本）
+      updateUserDefaultsDebounced({ videoGeneration: localStorageConfig });
 
       return newConfig;
     });
-  }, [platforms]);
-
-  /**
-   * 更新服务器端用户默认配置
-   */
-  const updateUserDefaults = async (defaults) => {
+  }, [platforms, updateUserDefaultsDebounced]);
+  // ⭐ 同步版本（用于关键配置立即同步）
+  const updateUserDefaultsSync = async (defaults) => {
     try {
       const response = await fetch(`${API_BASE}/api/config/defaults`, {
         method: 'PUT',
@@ -258,9 +318,12 @@ export const APIConfigProvider = ({ children }) => {
       const result = await response.json();
       if (!result.success) {
         console.warn('[APIConfigContext] 更新服务器配置失败:', result.error);
+        return false;
       }
+      return true;
     } catch (error) {
       console.error('[APIConfigContext] 更新服务器配置失败:', error);
+      return false;
     }
   };
 
@@ -366,16 +429,17 @@ export const APIConfigProvider = ({ children }) => {
         platform: newConfig.platform,
         model: newConfig.model,
         apiKey: newConfig.apiKey,
+        baseURL: newConfig.baseURL,  // ⭐ 新增：同步 baseURL
         style: newConfig.style,
       };
       localStorage.setItem('winjin-text-config', JSON.stringify(localStorageConfig));
 
-      // 更新服务器端用户默认配置
-      updateUserDefaults({ textGeneration: localStorageConfig });
+      // ⭐ 更新服务器端用户默认配置（防抖版本）
+      updateUserDefaultsDebounced({ textGeneration: localStorageConfig });
 
       return newConfig;
     });
-  }, []);
+  }, [updateUserDefaultsDebounced]);
 
   /**
    * 更新并发限制
@@ -390,12 +454,12 @@ export const APIConfigProvider = ({ children }) => {
         concurrencyLimits: newLimits,
       }));
 
-      // 更新服务器端用户默认配置
-      updateUserDefaults({ videoGeneration: { ...config, concurrencyLimits: newLimits } });
+      // ⭐ 更新服务器端用户默认配置（防抖版本）
+      updateUserDefaultsDebounced({ videoGeneration: { ...config, concurrencyLimits: newLimits } });
 
       return newLimits;
     });
-  }, [config]);
+  }, [config, updateUserDefaultsDebounced]);
 
   return (
     <APIConfigContext.Provider

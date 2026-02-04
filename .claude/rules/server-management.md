@@ -625,7 +625,7 @@ chmod +x start-dev.sh stop-dev.sh
 - [测试规范](./testing.md)
 
 ### 并行文档
-- [错误模式参考](./error-patterns.md)
+- [错误模式参考](./error-patterns/README.md) ⭐ 已拆分 (2026-02-04)
 - [快速参考](./quick-reference.md)
 
 ### 外部参考

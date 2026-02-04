@@ -500,9 +500,13 @@ winjin/
 ├── .claude/
 │   ├── rules/               # 开发规范
 │   │   ├── quick-reference.md   # 本文件（快速参考）⭐
-│   │   ├── base.md              # 技术栈规范
+│   │   ├── base.md              # 技�术栈规范
 │   │   ├── code.md              # 代码规范
-│   │   └── error-patterns.md    # 错误模式参考
+│   │   └── error-patterns/       # 错误模式参考 ⭐ 已拆分
+│   │       ├── README.md
+│   │       ├── api-errors.md
+│   │       ├── reactflow-errors.md
+│   │       └── ...
 │   ├── templates/           # 错误模式模板 ⭐ Phase 3
 │   │   └── error-template.md
 │   └── metrics/             # 指标数据存储 ⭐ Phase 3
@@ -520,7 +524,7 @@ winjin/
 | **快速参考** | `.claude/rules/quick-reference.md` | **本文件，开发前必读** ⭐ |
 | 技术规范 | `.claude/rules/base.md` | 技术栈、API 规范 |
 | 代码规范 | `.claude/rules/code.md` | 代码示例、错误模式 |
-| 错误模式 | `.claude/rules/error-patterns.md` | 所有已知的错误模式 |
+| 错误模式 | `.claude/rules/error-patterns/README.md` | 错误模式总索引 ⭐ 已拆分 |
 | **节点参考** ⭐ 新增 (2026-01-18) | `.claude/03-node-development/node-reference/` | **React Flow 节点功能文档** ⭐ |
 | 开发经验 | `用户输入文件夹/开发经验/Sora2_Character_Best_Practices.md` | Sora2 最佳实践 |
 | 交接书 | `用户输入文件夹/开发对话/开发交接书.md` | 项目交接文档 |
@@ -601,7 +605,7 @@ npm run metrics:trend
 ### 相关文档
 
 - [验证系统使用指南](../../docs/validation-guide.md) - 完整的使用文档 ⭐
-- [错误模式参考](./error-patterns.md) - 所有已知的错误模式
+- [错误模式参考](./error-patterns/README.md) - 错误模式总索引 ⭐ 已拆分
 - [错误模式模板](../templates/error-template.md) - 快速创建新错误文档
 
 ---
