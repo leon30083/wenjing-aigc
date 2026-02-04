@@ -37,10 +37,19 @@ class OpenAIClient {
    * @returns {string} 端点路径
    */
   _getChatEndpoint() {
+    // ⭐ 检测 baseUrl 是否已经包含 /v1
+    const hasV1 = this.baseUrl.includes('/v1');
+
     // ⭐ GLM 编程套餐使用特殊端点格式（不带 /v1）
     if (this.isGLMCoding) {
       return '/chat/completions';
     }
+
+    // ⭐ 如果 baseUrl 已经有 /v1，就不重复添加
+    if (hasV1) {
+      return '/chat/completions';
+    }
+
     return '/v1/chat/completions';  // 标准 OpenAI 格式
   }
 
@@ -149,18 +158,26 @@ class OpenAIClient {
         model: this.model
       });
 
+      // ⭐ 推理模型需要更大的 max_tokens（用于测试，避免输出被截断）
+      const requestBody = {
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: '你好，请简短回复"连接成功"'
+          }
+        ],
+        max_tokens: 100
+      };
+
+      // ⭐ 推理模型使用 max_completion_tokens（如果可用）
+      if (this.isGLMCoding) {
+        requestBody.max_completion_tokens = 100;
+      }
+
       const response = await this.client.post(
         `${this.baseUrl}${this._getChatEndpoint()}`,
-        {
-          model: this.model,
-          messages: [
-            {
-              role: 'user',
-              content: '你好，请回复"连接成功"'
-            }
-          ],
-          max_tokens: 10
-        },
+        requestBody,
         {
           headers: {
             'Authorization': `Bearer ${this.apiKey}`,
@@ -173,7 +190,7 @@ class OpenAIClient {
       const message = response.data.choices[0].message;
       const result = message.content || message.reasoning_content || '';
 
-      console.log('[OpenAIClient] 连接测试成功:', result);
+      console.log('[OpenAIClient] 连接测试成功:', result.substring(0, 100));
 
       return {
         success: true,

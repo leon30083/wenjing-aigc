@@ -1054,7 +1054,6 @@ app.post('/api/config/test-model', async (req, res) => {
       return res.json({ success: false, error: '缺少必要参数' });
     }
 
-    const { Sora2Client } = require('./sora2-client');
     const configManager = require('./config-manager');
 
     // 加载平台和模型配置
@@ -1156,7 +1155,6 @@ app.post('/api/config/test-connection', async (req, res) => {
     console.log(`[测试连接] 平台: ${platform}, BaseURL: ${baseURL}`);
 
     const axios = require('axios');
-    const Sora2Client = require('./sora2-client');
 
     // 获取平台的 API Key
     let apiKey = '';

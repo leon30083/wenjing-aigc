@@ -1,8 +1,9 @@
 import { Handle, Position } from 'reactflow';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNodeResize } from '../../hooks/useNodeResize';
 import { useAPIConfig } from '../../contexts/APIConfigContext';
 import { useConcurrency } from '../../contexts/ConcurrencyContext';
+import { useReactFlow } from 'reactflow';
 
 /**
  * APISettingsNode - API 配置节点
@@ -17,8 +18,17 @@ import { useConcurrency } from '../../contexts/ConcurrencyContext';
  * 解决问题：错误56 - useState 异步闭包问题导致配置丢失
  */
 function APISettingsNode({ data }) {
+  const nodeId = data.id; // 直接从 data 获取节点ID
+
   // ⭐ 从 Context 获取全局配置和平台列表
   const { config, platforms, textModels, updateConfig, isLoading, reloadConfig } = useAPIConfig();
+
+  // ⭐ React Flow hooks
+  const { getEdges, getNodes, setNodes } = useReactFlow();
+
+  // ⭐ Refs - 方案 A: 使用 ref 存储配置，避免 useState 异步闭包问题
+  const justSavedModelKeyRef = useRef(null); // { platformKey, modelId, apiKey } - 刚保存的模型 Key
+  const isRecoveryDoneRef = useRef(false); // 防止同步冲突
 
   // ⭐ 管理面板展开状态
   const [showManagePanel, setShowManagePanel] = useState(false);
@@ -95,8 +105,21 @@ function APISettingsNode({ data }) {
       const result = await response.json();
 
       if (result.success) {
+        // ⭐ 方案 A: 保存 API Key 到 ref（用于测试，避免 stale currentPlatforms 问题）
+        const savedApiKey = newModel.apiKey || '';
+        justSavedModelKeyRef.current = {
+          platformKey: selectedPlatformKey,
+          modelId: newModel.name,
+          apiKey: savedApiKey
+        };
+        console.log('[APISettingsNode] 刚添加的模型 API Key 已保存到 ref:', {
+          platformKey: selectedPlatformKey,
+          modelId: newModel.name,
+          hasApiKey: !!savedApiKey
+        });
+
         setMessage({ text: `✅ 模型 "${newModel.name}" 已添加到 ${selectedPlatformKey}`, type: 'success' });
-        setNewModel({ name: '', type: 'sora', apiKey: '' });  // ⭐ 重置 API Key
+        setNewModel({ name: '', type: 'sora', apiKey: '' });  // ⭐ 清空表单
         await reloadConfig();
       } else {
         setMessage({ text: `❌ 添加失败: ${result.error}`, type: 'error' });
@@ -244,10 +267,54 @@ function APISettingsNode({ data }) {
     setTestingConnection(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/config/test-model`, {
+      // ⭐ 方案 A: 优先级系统获取 API Key
+      let apiKey = '';
+
+      // 1. 检查是否刚刚添加过该模型（避免 stale currentPlatforms 问题）
+      if (justSavedModelKeyRef.current &&
+          justSavedModelKeyRef.current.platformKey === platformKey &&
+          justSavedModelKeyRef.current.modelId === modelId) {
+        apiKey = justSavedModelKeyRef.current.apiKey || '';
+        console.log('[APISettingsNode] 使用刚添加的模型 API Key (ref):', {
+          platformKey,
+          modelId,
+          hasApiKey: !!apiKey
+        });
+      }
+      // 2. 检查是否正在添加新模型（表单中的值）
+      else if (newModel.apiKey && newModel.apiKey.trim()) {
+        apiKey = newModel.apiKey.trim();
+        console.log('[APISettingsNode] 使用新模型表单中的 API Key');
+      }
+      // 3. 使用已保存的 API Key（从 platforms 获取）
+      else {
+        const platform = platforms[platformKey];
+        apiKey = platform?.models?.[modelId]?.apiKey || '';
+        console.log('[APISettingsNode] 使用已保存的 API Key (platforms):', {
+          platformKey,
+          modelId,
+          hasApiKey: !!apiKey
+        });
+      }
+
+      // ⭐ 文本模型使用 OpenAI 测试端点
+      const platform = platforms[platformKey];
+      const isTextPlatform = platform?.type === 'text';
+      const endpoint = isTextPlatform ? '/api/openai/test' : '/api/config/test-model';
+
+      let body;
+      if (isTextPlatform) {
+        // 文本模型：使用 OpenAI 格式
+        body = { base_url: baseURL, api_key: apiKey, model: modelId };
+      } else {
+        // 视频模型：使用现有格式
+        body = { platform: platformKey, modelId, baseURL };
+      }
+
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform: platformKey, modelId, baseURL }),
+        body: JSON.stringify(body),
       });
       const result = await response.json();
 
@@ -303,6 +370,72 @@ function APISettingsNode({ data }) {
       console.error('[APISettingsNode] ❌ 更新并发限制失败:', error);
     }
   };
+
+  // ⭐ 方案 A: 恢复逻辑 - 从下游节点恢复配置
+  useEffect(() => {
+    const edges = getEdges();
+    const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+    if (outgoingEdges.length > 0) {
+      console.log('[APISettingsNode] 检测到下游节点，尝试恢复配置...');
+
+      for (const edge of outgoingEdges) {
+        const targetNode = getNodes().find(n => n.id === edge.target);
+
+        if (targetNode && targetNode.data?.apiConfig) {
+          const targetConfig = targetNode.data.apiConfig;
+          console.log('[APISettingsNode] 从下游节点恢复配置:', {
+            from: targetNode.type,
+            platform: targetConfig.platform,
+            model: targetConfig.model
+          });
+
+          // 直接调用 updateConfig（同步更新 Context 和 localStorage）
+          updateConfig(targetConfig);
+
+          // 标记恢复完成
+          isRecoveryDoneRef.current = true;
+          break; // 只恢复第一个下游节点
+        }
+      }
+    }
+  }, [nodeId, getEdges, getNodes, updateConfig]);
+
+  // ⭐ 方案 A: 同步逻辑 - 将配置同步到下游节点
+  useEffect(() => {
+    // ⚠️ 等待恢复完成后再同步
+    if (!isRecoveryDoneRef.current) {
+      return;
+    }
+
+    const edges = getEdges();
+    const outgoingEdges = edges.filter(e => e.source === nodeId);
+
+    if (outgoingEdges.length > 0) {
+      console.log('[APISettingsNode] 同步配置到下游节点...', {
+    platform: config.platform,
+    model: config.model,
+    targets: outgoingEdges.length
+      });
+
+      // 使用函数式更新，避免依赖 config 导致无限循环
+      setNodes((nds) =>
+        nds.map((node) => {
+          const isConnected = outgoingEdges.some(e => e.target === node.id);
+          if (isConnected) {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                apiConfig: config  // ⭐ 同步最新配置
+              }
+            };
+          }
+          return node;
+        })
+      );
+    }
+  }, [config, nodeId, getEdges, getNodes, setNodes]);
 
   return (
     <div style={{

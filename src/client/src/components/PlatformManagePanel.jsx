@@ -26,6 +26,7 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
   const [testingConnection, setTestingConnection] = useState(false);
   const [editingModel, setEditingModel] = useState(null); // { platformKey, modelId, modelData }
   const [editingPlatform, setEditingPlatform] = useState(null); // { platformKey, platformData: { name, baseURL } }
+  const [justSavedModelKey, setJustSavedModelKey] = useState(null); // { platformKey, modelId, apiKey } - 刚保存的模型 Key
 
   // 模型类型选项（根据平台类型）
   const modelTypeOptions = platformType === 'text'
@@ -135,7 +136,8 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
 
       if (result.success) {
         setMessage({ text: `✅ 模型 "${newModel.name}" 已添加到 ${selectedPlatformKey}`, type: 'success' });
-        setNewModel({ name: '', type: 'sora', apiKey: '' });
+        // ⭐ 不清空表单，保留 API Key 便于继续配置和测试
+        setNewModel({ name: '', type: 'sora', apiKey: newModel.apiKey || '' });
         await reloadConfig();
       } else {
         setMessage({ text: `❌ 添加失败: ${result.error}`, type: 'error' });
@@ -209,10 +211,70 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
     setTestingConnection(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/config/test-model`, {
+      // ⭐ 根据平台类型选择测试端点
+      // currentPlatforms 是对象（video 或 text 平台）
+      const platform = currentPlatforms[platformKey];
+      const isTextPlatform = platform?.type === 'text' || platformType === 'text';
+
+      const endpoint = isTextPlatform ? '/api/openai/test' : '/api/config/test-model';
+
+      // 构建请求体
+      let body;
+      if (isTextPlatform) {
+        // 文本模型：使用 OpenAI 格式
+        // ⭐ 优先级：justSavedModelKey（刚保存）> newModel（正在输入）> editingModel（编辑中）> saved（已保存）
+        let apiKey = '';
+
+        // 1. 检查是否刚刚保存过该模型（避免 stale currentPlatforms 问题）
+        if (justSavedModelKey &&
+            justSavedModelKey.platformKey === platformKey &&
+            justSavedModelKey.modelId === modelId) {
+          apiKey = justSavedModelKey.apiKey || '';
+          console.log(`[PlatformManagePanel] 使用刚保存的 API Key (justSavedModelKey)`);
+        }
+        // 2. 检查是否正在添加新模型（newModel.apiKey 存在）
+        else if (newModel.apiKey && newModel.apiKey.trim()) {
+          apiKey = newModel.apiKey.trim();
+          console.log(`[PlatformManagePanel] 使用新模型表单中的 API Key`);
+        }
+        // 3. 检查是否正在编辑该模型
+        else if (editingModel && editingModel.platformKey === platformKey && editingModel.modelId === modelId) {
+          apiKey = editingModel.modelData.apiKey || '';
+          console.log(`[PlatformManagePanel] 使用编辑中的 API Key`);
+        }
+        // 4. 使用已保存的 API Key
+        else {
+          apiKey = platform?.models?.[modelId]?.apiKey || '';
+          console.log(`[PlatformManagePanel] 使用已保存的 API Key (currentPlatforms)`);
+        }
+
+        body = { base_url: baseURL, api_key: apiKey, model: modelId };
+
+        console.log(`[PlatformManagePanel] 文本模型测试:`, {
+          modelId,
+          baseURL,
+          hasApiKey: !!apiKey,
+          apiKeyLength: apiKey.length,
+          source: justSavedModelKey?.modelId === modelId ? 'justSavedModelKey'
+                  : newModel.apiKey ? 'newModel'
+                  : editingModel?.platformKey === platformKey ? 'editingModel'
+                  : 'saved'
+        });
+      } else {
+        // 视频模型：使用 Sora2 格式
+        body = { platform: platformKey, modelId, baseURL };
+
+        console.log(`[PlatformManagePanel] 视频模型测试:`, {
+          platformKey,
+          modelId,
+          baseURL
+        });
+      }
+
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform: platformKey, modelId, baseURL }),
+        body: JSON.stringify(body),
       });
       const result = await response.json();
 
@@ -247,6 +309,14 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
   const handleSaveEditModel = async () => {
     if (!editingModel) return;
 
+    // ⭐ 保存 API key 到临时状态（用于测试，避免 stale currentPlatforms 问题）
+    const savedKey = editingModel.modelData.apiKey || '';
+    setJustSavedModelKey({
+      platformKey: editingModel.platformKey,
+      modelId: editingModel.modelId,
+      apiKey: savedKey
+    });
+
     try {
       // ⭐ 使用统一的端点（updateModelInPlatform 现在支持所有平台类型）
       const endpoint = `${API_BASE}/api/config/platforms/${editingModel.platformKey}/models/${editingModel.modelId}`;
@@ -264,9 +334,11 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
         await reloadConfig();
       } else {
         setMessage({ text: `❌ 更新失败: ${result.error}`, type: 'error' });
+        setJustSavedModelKey(null); // 失败时清除
       }
     } catch (error) {
       setMessage({ text: `❌ 网络错误: ${error.message}`, type: 'error' });
+      setJustSavedModelKey(null); // 失败时清除
     }
 
     setTimeout(() => setMessage({ text: '', type: '' }), 3000);
