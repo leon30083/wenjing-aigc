@@ -1083,18 +1083,32 @@ app.post('/api/config/test-model', async (req, res) => {
     }
 
     // 创建客户端并测试
-    const client = new Sora2Client({ platform: platformData, models: Object.fromEntries(platformData.models.map(m => [m.id, m])) });
+    // ⭐ 修复：传递平台标识符字符串，设置 currentModelId
+    const platformKey = platformData.key || platformData.id;
+    const client = new Sora2Client({
+      platform: platformKey,
+      models: Object.fromEntries(platformData.models.map(m => [m.id, m]))
+    });
+
+    // ⭐ 设置当前模型 ID，使 _getAuthHeaders() 能获取正确的 API Key
+    client.currentModelId = modelId;
 
     // 调用测试接口
     let apiResponse;
     try {
+      // ⭐ 获取认证头
+      const authHeaders = client._getAuthHeaders();
+      console.log('[测试端点] 认证头:', authHeaders);
+
       if (platform === 'zhenzhen' || platform === '贞贞') {
         apiResponse = await client.client.get(`/v2/videos/generations/test_validation_${Date.now()}`, {
+          headers: authHeaders,  // ⭐ 添加认证头
           timeout: 10000,
           validateStatus: () => true
         });
       } else {
         apiResponse = await client.client.get('/v1/video/query', {
+          headers: authHeaders,  // ⭐ 添加认证头
           timeout: 10000,
           validateStatus: () => true,
           params: { id: 'test_validation' }

@@ -262,8 +262,8 @@ class ConfigManager {
         const enabledModels = Array.from(modelsMap.values()).filter(m => m.enabled !== false);
 
         platforms.push({
-          id: templatePlatform.key,
-          key: templatePlatform.key,
+          id: key,
+          key: key,
           name: templatePlatform.name,
           baseURL: templatePlatform.baseURL,
           enabled: templatePlatform.enabled !== false,
@@ -665,13 +665,27 @@ class ConfigManager {
       return { success: false, error: 'Platform not found or no custom models' };
     }
 
-    if (!platform.models || !platform.models[modelId]) {
-      return { success: false, error: 'Model not found in user config' };
+    // ⭐ 确保有 models 对象
+    if (!platform.models) {
+      platform.models = {};
     }
 
-    // 更新模型（不允许修改 id）
-    const { id, ...allowedUpdates } = updates;
-    Object.assign(platform.models[modelId], allowedUpdates);
+    // ⭐ 如果模型不存在，自动创建新的模型条目（不验证模型名）
+    // 用户可以自由添加任何模型名，后端只做存储
+    if (!platform.models[modelId]) {
+      console.log(`[ConfigManager] 创建新模型 ${modelId} 于平台 ${platformKey}`);
+      platform.models[modelId] = {
+        id: modelId,
+        name: updates.name || modelId,  // 使用提供的名称或模型ID
+        type: updates.type || 'sora',   // 使用提供的类型或默认 'sora'
+        enabled: true,
+        apiKey: updates.apiKey || ''    // 使用提供的 API Key
+      };
+    } else {
+      // 更新现有模型（不允许修改 id）
+      const { id, ...allowedUpdates } = updates;
+      Object.assign(platform.models[modelId], allowedUpdates);
+    }
 
     return this.saveUserConfig(config);
   }

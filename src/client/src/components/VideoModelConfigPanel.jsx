@@ -22,8 +22,11 @@ const VideoModelConfigPanel = ({ onClose }) => {
 
   const [showManagePanel, setShowManagePanel] = useState(false);
 
+  // ⭐ Fix Problem 1: 过滤视频平台，防止文本平台（如 juxin2）出现在快速配置中
+  const videoPlatforms = platforms.filter(p => p.type === 'video');
+
   const getCurrentPlatform = () => {
-    return platforms.find(p => p.key === config.platform);
+    return videoPlatforms.find(p => p.key === config.platform);
   };
 
   const currentPlatform = getCurrentPlatform();
@@ -47,7 +50,7 @@ const VideoModelConfigPanel = ({ onClose }) => {
             }}
             className="nodrag"
           >
-            {platforms.map(p => (
+            {videoPlatforms.map(p => (
               <option key={p.key} value={p.key}>{p.name}</option>
             ))}
           </select>

@@ -17,7 +17,10 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
   const { platforms, textModels, reloadConfig } = useAPIConfig();
 
   // 根据 platformType 选择正确的平台列表
-  const currentPlatforms = platformType === 'text' ? textModels : platforms;
+  // ⭐ Fix Problem 1: 过滤平台类型，防止文本平台（如 juxin2）出现在视频模型面板
+  const currentPlatforms = platformType === 'text'
+    ? textModels
+    : platforms.filter(p => p.type === 'video');
 
   const [newPlatform, setNewPlatform] = useState({ name: '', baseURL: '', enabled: true });
   const [newModel, setNewModel] = useState({ name: '', type: platformType === 'text' ? 'text' : 'sora', apiKey: '' });
@@ -212,8 +215,8 @@ const PlatformManagePanel = ({ platformType = 'video', onClose }) => {
 
     try {
       // ⭐ 根据平台类型选择测试端点
-      // currentPlatforms 是对象（video 或 text 平台）
-      const platform = currentPlatforms[platformKey];
+      // currentPlatforms 是数组，需要用 find 查找
+      const platform = currentPlatforms.find(p => p.key === platformKey || p.id === platformKey);
       const isTextPlatform = platform?.type === 'text' || platformType === 'text';
 
       const endpoint = isTextPlatform ? '/api/openai/test' : '/api/config/test-model';
